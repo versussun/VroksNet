@@ -1,0 +1,91 @@
+# Placeholder sample spec for local testing — NOT a real service spec.
+# Swap in specs from your own services (see docs/project-brief.md section 6 "Первые шаги").
+openapi: 3.0.3
+info:
+  title: Petstore Sample API
+  version: "1.0.0"
+  description: A tiny placeholder OpenAPI spec used to exercise VroksNet's import/mock pipeline locally.
+servers:
+  - url: https://petstore.example.com/v1
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      summary: List all pets
+      responses:
+        "200":
+          description: A page of pets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Pet"
+              example:
+                - id: 1
+                  name: Fido
+                  tag: dog
+    post:
+      operationId: createPet
+      summary: Create a pet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewPet"
+            example:
+              name: Fido
+              tag: dog
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pet"
+              example:
+                id: 1
+                name: Fido
+                tag: dog
+  /pets/{petId}:
+    get:
+      operationId: getPetById
+      summary: Get a pet by id
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The requested pet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pet"
+              example:
+                id: 1
+                name: Fido
+                tag: dog
+        "404":
+          description: Pet not found
+components:
+  schemas:
+    NewPet:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        tag:
+          type: string
+    Pet:
+      allOf:
+        - $ref: "#/components/schemas/NewPet"
+        - type: object
+          required: [id]
+          properties:
+            id:
+              type: integer

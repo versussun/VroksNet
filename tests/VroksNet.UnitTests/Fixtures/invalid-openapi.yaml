@@ -1,0 +1,5 @@
+# Deliberately malformed YAML (bad indentation/unterminated mapping) to exercise the parser's
+# failure path — not just a schema issue, actually unparseable.
+openapi: 3.0.3
+info:
+title: [Broken

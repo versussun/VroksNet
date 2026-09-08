@@ -10,5 +10,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/VroksNet.Tests/VroksNet.Tests.csproj" />
+    <Project Path="tests/VroksNet.UnitTests/VroksNet.UnitTests.csproj" />
   </Folder>
 </Solution>
