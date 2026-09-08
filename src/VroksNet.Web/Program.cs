@@ -12,10 +12,9 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 // (same origin), so no configured value is needed and the browser's own origin is used.
 // In Development, ApiService and Web run as separate processes/ports (see
 // appsettings.Development.json), so ApiService needs CORS enabled for Web's origin.
-builder.Services.AddHttpClient<WeatherApiClient>(client =>
-{
-    var apiServiceBaseAddress = builder.Configuration["ApiService:BaseAddress"];
-    client.BaseAddress = new Uri(apiServiceBaseAddress ?? builder.HostEnvironment.BaseAddress);
-});
+var apiServiceBaseAddress = new Uri(builder.Configuration["ApiService:BaseAddress"] ?? builder.HostEnvironment.BaseAddress);
+
+builder.Services.AddHttpClient<WeatherApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
+builder.Services.AddHttpClient<SpecificationApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
 
 await builder.Build().RunAsync();

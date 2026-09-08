@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using VroksNet.ApiService.Endpoints;
 using VroksNet.Application;
 using VroksNet.Infrastructure;
@@ -11,6 +12,11 @@ builder.AddServiceDefaults();
 builder.Services.AddProblemDetails();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    // e.g. SpecificationKind as "OpenApi" instead of 0 — readable in the Admin UI and easier to debug.
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 // VroksNet.Web (Blazor WebAssembly) runs as its own dev-server process in Development, on a
 // different origin than this API — it needs CORS. In Production it has no separate origin: its

@@ -1,0 +1,95 @@
+@page "/specifications"
+@inject SpecificationApiClient SpecificationApi
+
+<PageTitle>Specifications</PageTitle>
+
+<h1>Specifications</h1>
+
+<p>
+    <label class="btn btn-primary">
+        Upload spec
+        <InputFile OnChange="OnFileSelectedAsync" accept=".yaml,.yml" style="display:none" disabled="@isUploading" />
+    </label>
+    @if (isUploading)
+    {
+        <em class="ms-2">Uploading…</em>
+    }
+</p>
+
+@if (errorMessage is not null)
+{
+    <p class="text-danger">@errorMessage</p>
+}
+
+@if (specifications is null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (specifications.Length == 0)
+{
+    <p><em>No specifications imported yet. Upload a .yaml/.yml OpenAPI file to get started.</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Kind</th>
+                <th>Endpoints</th>
+                <th>Updated</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var specification in specifications)
+            {
+                <tr>
+                    <td>@specification.Title</td>
+                    <td>@specification.Kind</td>
+                    <td>@specification.EndpointCount</td>
+                    <td>@specification.UpdatedAt.ToLocalTime().ToString("g")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    // Reject anything obviously not a spec file before it hits the wire.
+    private const long MaxFileSizeBytes = 1024 * 1024; // 1 MB
+
+    private SpecificationSummary[]? specifications;
+    private bool isUploading;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        specifications = await SpecificationApi.GetAllAsync();
+    }
+
+    private async Task OnFileSelectedAsync(InputFileChangeEventArgs e)
+    {
+        errorMessage = null;
+        isUploading = true;
+
+        try
+        {
+            await using var stream = e.File.OpenReadStream(MaxFileSizeBytes);
+            await SpecificationApi.ImportOpenApiAsync(stream, e.File.Name);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to import '{e.File.Name}': {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+}

@@ -1,18 +1,25 @@
 using Mediator;
 using VroksNet.Application.Specifications.ImportOpenApiSpec;
+using VroksNet.Application.Specifications.ListSpecifications;
 
 namespace VroksNet.ApiService.Endpoints;
 
 /// <summary>
-/// Dev-facing endpoint proving the OpenAPI parsing prototype end-to-end (see
-/// docs/project-brief.md section 6). Every handler just maps HTTP to a Mediator request — no
-/// logic lives here, per .claude/CLAUDE.md.
+/// Every handler just maps HTTP to a Mediator request — no logic lives here, per
+/// .claude/CLAUDE.md.
 /// </summary>
 public static class SpecificationEndpoints
 {
     public static IEndpointRouteBuilder MapSpecificationEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/specifications");
+
+        group.MapGet("/", async (IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            var specifications = await mediator.Send(new ListSpecifications(), cancellationToken);
+            return Results.Ok(specifications);
+        })
+        .WithName("ListSpecifications");
 
         group.MapPost("/openapi", async (HttpRequest request, IMediator mediator, CancellationToken cancellationToken) =>
         {
@@ -25,7 +32,7 @@ public static class SpecificationEndpoints
 
             var id = await mediator.Send(new ImportOpenApiSpec(fileName, yamlContent), cancellationToken);
 
-            return Results.Ok(new { id });
+            return Results.Ok(new ImportSpecificationResult(id));
         })
         .WithName("ImportOpenApiSpecification")
         .Accepts<string>("text/plain");

@@ -8,6 +8,16 @@ public sealed class ApiSpecificationRepository(
     IDbContextFactory<VroksNetDbContext> contextFactory,
     IDbWriteQueue writeQueue) : IApiSpecificationRepository
 {
+    public async Task<IReadOnlyList<ApiSpecification>> ListAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.ApiSpecifications
+            .Include(specification => specification.Endpoints)
+            .AsNoTracking()
+            .OrderBy(specification => specification.Title)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<ApiSpecification?> FindByTitleAsync(string title, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
