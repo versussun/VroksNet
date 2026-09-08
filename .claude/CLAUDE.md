@@ -1,5 +1,7 @@
 # VroksNet — Project Rules
 
+> **Project brief:** product goal, MVP scope, architecture, roadmap and open questions live in `docs/project-brief.md` — read it before making product-scope decisions; this file governs code structure/style only.
+
 .NET 10 / .NET Aspire solution. These rules govern how code is structured and written in this repo. Follow them by default; call out explicitly when a change would violate one.
 
 ## Solution layout
@@ -9,11 +11,11 @@
 - `src/VroksNet.Domain` — Clean Architecture Domain layer. No project references.
 - `src/VroksNet.Application` — Clean Architecture Application layer. References `VroksNet.Domain`; carries the Mediator package references (see below).
 - `src/VroksNet.Infrastructure` — Clean Architecture Infrastructure layer. References `VroksNet.Application`.
-- `src/VroksNet.ApiService` — HTTP API host (Presentation layer / composition root). References `VroksNet.Application` and `VroksNet.Infrastructure`, registers the mediator in `Program.cs`.
-- `src/VroksNet.Web` — Blazor/web frontend (Presentation layer).
+- `src/VroksNet.ApiService` — the only server process / composition root. References `VroksNet.Application` and `VroksNet.Infrastructure`. In Production it also serves `VroksNet.Web`'s built WebAssembly output as static files (`UseStaticFiles` + `MapFallbackToFile("index.html")` — **not** `MapStaticAssets()`/`UseBlazorFrameworkFiles()`, see the Dockerfile note below) — one process, one Docker image, built via the root `Dockerfile` (multi-stage: publishes `VroksNet.Web` first, copies its `wwwroot` into the final image alongside `VroksNet.ApiService`'s own publish output).
+- `src/VroksNet.Web` — Blazor **WebAssembly** (standalone, `Microsoft.NET.Sdk.BlazorWebAssembly`) Admin UI. Calls the API over HTTP (typed `HttpClient`, e.g. `WeatherApiClient`) — it is never a composition root, has no `Application`/`Infrastructure` references, and can't reference server-side project types anyway (WASM). Its `HttpClient.BaseAddress` comes from `wwwroot/appsettings.{Environment}.json` (`ApiService:BaseAddress`) — not Aspire's `https+http://` service-discovery scheme, which only resolves server-side and does nothing in browser-executed code. In dev it runs as its own process via `AppHost` for hot reload, hitting `ApiService`'s fixed dev URL with CORS enabled on `ApiService` for it; in Production it's build output only, served by `VroksNet.ApiService` (same origin, no CORS needed there).
 - `tests/VroksNet.Tests` — test project.
 
-`VroksNet.Web` is Presentation too: if/when it needs to call use cases directly (rather than only through `VroksNet.ApiService`'s HTTP API), give it the same `Application`/`Infrastructure` references and composition-root treatment as `VroksNet.ApiService` — never let it reach into Infrastructure types directly from component code.
+Only `VroksNet.ApiService` is a composition root, in both dev and prod. `VroksNet.Web`'s Razor components talk to the backend only over HTTP (typed `HttpClient` calling `VroksNet.ApiService`'s endpoints) — they never reach into `Application`/`Infrastructure`/`Domain` types directly, since a WASM client can't reference server-side project types anyway.
 
 ## Architecture: Clean Architecture
 
@@ -42,16 +44,27 @@ Use [martinothamar/Mediator](https://github.com/martinothamar/Mediator) (source-
 <PackageVersion Include="Mediator.SourceGenerator" Version="3.0.2" />
 ```
 
-**Registration** — already wired up in `Program.cs` of `VroksNet.ApiService` (the composition root):
+**Registration — `AddMediator(...)` must be called from `VroksNet.Application` itself, not from `VroksNet.ApiService`.** The Mediator source generator only inspects `AddMediator` calls made within its own project's compilation (the one referencing `Mediator.SourceGenerator`, i.e. Application) — a call from a downstream project like ApiService is invisible to it, so the generator bakes in the default (Singleton) lifetime regardless of what's requested there, and the app throws at startup (`Invalid configuration detected for Mediator... generated code for 'Singleton' lifetime, but got 'Scoped'`) the moment the two disagree. This bit us once already — don't reintroduce it.
+
+The fix already in place: Application exposes its own DI extension, and `Program.cs` just calls that:
 
 ```csharp
-builder.Services.AddMediator(options =>
+// VroksNet.Application/ApplicationServiceCollectionExtensions.cs
+public static IServiceCollection AddApplication(this IServiceCollection services)
 {
-    options.ServiceLifetime = ServiceLifetime.Scoped; // default is Singleton; use Scoped if handlers touch scoped services (e.g. DbContext)
-});
+    services.AddMediator(options =>
+    {
+        options.ServiceLifetime = ServiceLifetime.Scoped; // matches VroksNet.Infrastructure's scoped DbContext usage
+    });
+    return services;
+}
+```
+```csharp
+// VroksNet.ApiService/Program.cs
+builder.Services.AddApplication();
 ```
 
-If `VroksNet.Web` ever gets its own composition root, register the mediator there the same way.
+If `VroksNet.Web` ever gets its own composition root, it still can't call `AddMediator` directly for the same reason — go through `AddApplication()`.
 
 **Requests and handlers** live in Application, grouped by feature (e.g. `Application/Orders/CreateOrder/`), one request + handler pair per file-group:
 
@@ -71,6 +84,15 @@ public sealed class CreateOrderHandler(IOrderRepository repository) : IRequestHa
 - Handlers are `sealed class`es implementing `IRequestHandler<,>` / `IRequestHandler<>` / `INotificationHandler<>`.
 - Cross-cutting concerns (validation, logging, transactions) go in `IPipelineBehavior<,>` implementations registered via `options.PipelineBehaviors = [...]`, not scattered across handlers.
 - Presentation calls only `IMediator.Send(...)` / `IMediator.Publish(...)`; it never calls a handler directly.
+
+## Infrastructure notes
+
+- **Persistence: SQLite via EF Core, one `DbContext`, all writes serialized.** `VroksNet.Infrastructure.Persistence.VroksNetDbContext`, resolved through `IDbContextFactory<VroksNetDbContext>` (not injected directly) so every read/write gets its own short-lived context. Writes never go straight to the context — call sites (e.g. `ApiSpecificationRepository`) enqueue a delegate through `IDbWriteQueue`, and the single `DbWriteBackgroundService` consumer executes them one at a time. This is deliberate (see `docs/project-brief.md` section 3 on the concurrent-write risk between the Mock API and the async publish worker) — don't add a second write path that bypasses the queue. WAL journal mode and a 5s busy_timeout are applied in `InfrastructureServiceCollectionExtensions` — `AddInfrastructure(...)` for the connection setup, `InitializeDatabaseAsync()` (called once at ApiService startup) for migrations + the `PRAGMA journal_mode=WAL` statement.
+- **Spec replace semantics**: `ApiSpecificationRepository.UpsertAsync` deletes any existing row with the same `Title` (cascades to its `MockEndpoint`s) and inserts fresh, rather than attaching/patching a detached graph — that path threw `DbUpdateConcurrencyException` when tried. `Title` has a unique index (`VroksNetDbContext.OnModelCreating`); don't relax it without revisiting this.
+- **Migrations**: run from the repo root — `dotnet ef migrations add <Name> --project src/VroksNet.Infrastructure --startup-project src/VroksNet.ApiService --output-dir Persistence/Migrations`. `Microsoft.EntityFrameworkCore.Design` has to be referenced by **both** projects (Infrastructure for the model, ApiService because `dotnet ef` requires it on whatever `--startup-project` is) — the tools give a clear error if either is missing.
+- **OpenAPI parsing**: `Microsoft.OpenApi` + `Microsoft.OpenApi.YamlReader` (3.x line). The YAML reader isn't auto-registered — call `new OpenApiReaderSettings().AddYamlReader()` (extension in `Microsoft.OpenApi.Reader`) and pass those settings into `OpenApiDocument.LoadAsync(stream, "yaml", settings, cancellationToken)`, or you'll hit `NotSupportedException: Format 'yaml' is not supported.`
+- **`Microsoft.AspNetCore.OpenApi` is deliberately not referenced anywhere.** ASP.NET Core's own OpenAPI self-documentation package hard-pins `Microsoft.OpenApi < 3.0.0` even at its latest version, which conflicts with the `Microsoft.OpenApi` 3.x line the spec-parsing feature needs (`Microsoft.OpenApi.YamlReader` only exists for 3.x). If ApiService's own `/openapi/v1.json` self-doc is wanted later, it needs a different mechanism (e.g. Scalar, or hand-rolled) that doesn't drag in the 2.x `Microsoft.OpenApi` — don't just re-add the package, it'll bring back a `NU1107` version conflict.
+- **Message brokers**: both RabbitMQ and NATS are in MVP scope (`docs/project-brief.md` section 2) and already wired as Aspire-managed resources (`AppHost.cs`: `AddRabbitMQ("rabbitmq")`, `AddNats("nats")`) with matching client packages in ApiService (`Aspire.RabbitMQ.Client` → `AddRabbitMQClient("rabbitmq")`, `Aspire.NATS.Net` → `AddNatsClient("nats")`). Only connectivity is proven so far — the actual async-mock publish worker (`BackgroundService` publishing on AsyncAPI channels) is Phase 03 work, not built yet.
 
 ## .NET coding rules
 

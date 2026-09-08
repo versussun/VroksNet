@@ -13,7 +13,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Aspire.NATS.Net" />
+    <PackageReference Include="Aspire.RabbitMQ.Client" />
+    <!-- Required by "dotnet ef" when run with this project as the startup project, even though
+         VroksNet.Infrastructure is where the DbContext and migrations actually live. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

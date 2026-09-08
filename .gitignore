@@ -29,6 +29,11 @@ publish/
 # Aspire
 **/ConnectionStrings.json
 
+# Local SQLite runtime data (see docs/project-brief.md section 3) — never committed
+*.db
+*.db-shm
+*.db-wal
+
 # OS files
 .DS_Store
 Thumbs.db

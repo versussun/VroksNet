@@ -13,4 +13,9 @@
     <ProjectReference Include="..\VroksNet.Web\VroksNet.Web.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Nats" />
+    <PackageReference Include="Aspire.Hosting.RabbitMQ" />
+  </ItemGroup>
+
 </Project>

@@ -1,3 +1,7 @@
+using VroksNet.ApiService.Endpoints;
+using VroksNet.Application;
+using VroksNet.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add service defaults & Aspire client integrations.
@@ -5,22 +9,40 @@ builder.AddServiceDefaults();
 
 // Add services to the container.
 builder.Services.AddProblemDetails();
-builder.Services.AddMediator(options =>
-{
-    options.ServiceLifetime = ServiceLifetime.Scoped;
-});
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
 
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+// VroksNet.Web (Blazor WebAssembly) runs as its own dev-server process in Development, on a
+// different origin than this API — it needs CORS. In Production it has no separate origin: its
+// published output is served as static files by this project (see below), so no CORS is needed.
+const string WebDevCorsPolicy = "WebDev";
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy(WebDevCorsPolicy, policy =>
+        {
+            policy.WithOrigins("https://localhost:7043", "http://localhost:5225")
+                .AllowAnyMethod()
+                .AllowAnyHeader();
+        });
+    });
+}
+
+// Message broker clients (Aspire-managed connections; see AppHost.cs for the container resources).
+builder.AddRabbitMQClient("rabbitmq");
+builder.AddNatsClient("nats");
 
 var app = builder.Build();
+
+await app.Services.InitializeDatabaseAsync();
 
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseCors(WebDevCorsPolicy);
 }
 
 string[] summaries = ["Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"];
@@ -42,10 +64,19 @@ app.MapGet("/weatherforecast", () =>
 .WithName("GetWeatherForecast");
 
 app.MapDefaultEndpoints();
+app.MapSpecificationEndpoints();
+
+// Serves VroksNet.Web's published Blazor WebAssembly output as static files, with a SPA
+// fallback so client-side routes resolve to index.html. In Development, this project's own
+// wwwroot is empty (Web runs as its own dev-server process instead) so these are effectively
+// dormant; the multi-stage Dockerfile populates wwwroot from VroksNet.Web's publish output for
+// Production, where this becomes the only process serving both the API and the Admin UI.
+app.UseStaticFiles();
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+sealed record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
     public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
 }
