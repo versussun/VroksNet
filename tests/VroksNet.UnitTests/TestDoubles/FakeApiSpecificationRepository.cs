@@ -15,6 +15,9 @@ internal sealed class FakeApiSpecificationRepository : IApiSpecificationReposito
     public Task<ApiSpecification?> FindByTitleAsync(string title, CancellationToken cancellationToken)
         => Task.FromResult(_specifications.FirstOrDefault(s => s.Title == title));
 
+    public Task<ApiSpecification?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
+        => Task.FromResult(_specifications.FirstOrDefault(s => s.Id == id));
+
     public Task UpsertAsync(ApiSpecification specification, CancellationToken cancellationToken)
     {
         _specifications.RemoveAll(s => s.Title == specification.Title);

@@ -1,0 +1,128 @@
+@using System.Text.RegularExpressions
+@inject SpecificationApiClient SpecificationApi
+
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <code>@Endpoint.OperationKey</code>
+        <span class="badge @(Endpoint.IsEnabled ? "bg-success" : "bg-secondary")">
+            @(Endpoint.IsEnabled ? "Enabled" : "Disabled")
+        </span>
+    </div>
+
+    <div class="card-body">
+        @if (Endpoint.ExampleTemplate is not null)
+        {
+            <p class="fw-semibold mb-1">Example from spec</p>
+            <pre class="mb-3"><code>@Endpoint.ExampleTemplate</code></pre>
+        }
+        else
+        {
+            <p class="text-muted fst-italic">No example in the spec for this operation.</p>
+        }
+
+        @if (!Endpoint.IsEnabled)
+        {
+            <p class="text-muted fst-italic mb-0">This endpoint is disabled — sending a request to it will return 404.</p>
+        }
+
+        @if (_pathParameters.Count > 0)
+        {
+            <p class="fw-semibold mb-1">Path parameters</p>
+            @foreach (var name in _pathParameters)
+            {
+                <div class="input-group input-group-sm mb-2" style="max-width: 320px;">
+                    <span class="input-group-text">@name</span>
+                    <input class="form-control" value="@_paramValues[name]"
+                           @oninput="@(e => OnParamChanged(name, e.Value?.ToString() ?? string.Empty))" />
+                </div>
+            }
+        }
+
+        <p class="mb-2"><span class="fw-semibold">Request:</span> <code>@Method @ResolvedPath</code></p>
+
+        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="SendAsync" disabled="@_isSending">
+            @(_isSending ? "Sending…" : "Send")
+        </button>
+
+        @if (_responseStatus is not null)
+        {
+            <div class="mt-3">
+                <p class="mb-1">
+                    <span class="fw-semibold">Response</span>
+                    <span class="badge @(IsSuccessStatus(_responseStatus.Value) ? "bg-success" : "bg-danger")">@_responseStatus</span>
+                </p>
+                <pre class="mb-0"><code>@_responseBody</code></pre>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public MockEndpointDetail Endpoint { get; set; } = null!;
+
+    private static readonly Regex PlaceholderPattern = new(@"\{([^}]+)\}", RegexOptions.Compiled);
+
+    private string Method = "GET";
+    private string PathTemplate = "/";
+    private readonly List<string> _pathParameters = [];
+    private readonly Dictionary<string, string> _paramValues = [];
+    private bool _isSending;
+    private int? _responseStatus;
+    private string? _responseBody;
+
+    private string ResolvedPath
+    {
+        get
+        {
+            var path = PathTemplate;
+            foreach (var name in _pathParameters)
+            {
+                path = path.Replace($"{{{name}}}", Uri.EscapeDataString(_paramValues.GetValueOrDefault(name, string.Empty)), StringComparison.Ordinal);
+            }
+
+            return path;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        var parts = Endpoint.OperationKey.Split(' ', 2);
+        Method = parts[0];
+        PathTemplate = parts.Length > 1 ? parts[1] : "/";
+
+        _pathParameters.Clear();
+        _pathParameters.AddRange(PlaceholderPattern.Matches(PathTemplate).Select(match => match.Groups[1].Value));
+        foreach (var name in _pathParameters)
+        {
+            _paramValues.TryAdd(name, "1");
+        }
+    }
+
+    private void OnParamChanged(string name, string value) => _paramValues[name] = value;
+
+    private async Task SendAsync()
+    {
+        _isSending = true;
+        _responseStatus = null;
+        _responseBody = null;
+
+        try
+        {
+            var response = await SpecificationApi.InvokeMockAsync(Method, ResolvedPath);
+            _responseStatus = response.StatusCode;
+            _responseBody = response.Body;
+        }
+        catch (Exception ex)
+        {
+            _responseStatus = 0;
+            _responseBody = ex.Message;
+        }
+        finally
+        {
+            _isSending = false;
+        }
+    }
+
+    private static bool IsSuccessStatus(int status) => status is >= 200 and < 300;
+}

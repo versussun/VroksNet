@@ -7,8 +7,11 @@ public interface ISpecificationParser
 }
 
 /// <summary>
-/// Title (the version-matching key) plus a flat list of operation keys (e.g. "GET /pets/{id}"
-/// or "orders.created:send"). Full schema/example modeling is Phase 01 — see
-/// docs/project-brief.md.
+/// One operation found in the spec (e.g. "GET /pets/{id}" for OpenAPI, or "orders.created:send"
+/// for AsyncAPI), plus the example — pretty-printed JSON, if the spec had one — used as its mock
+/// response template.
 /// </summary>
-public sealed record ParsedSpecification(string Title, IReadOnlyList<string> OperationKeys);
+public sealed record ParsedOperation(string OperationKey, string? ExampleJson);
+
+/// <summary>Title (the version-matching key) plus its flat list of operations.</summary>
+public sealed record ParsedSpecification(string Title, IReadOnlyList<ParsedOperation> Operations);

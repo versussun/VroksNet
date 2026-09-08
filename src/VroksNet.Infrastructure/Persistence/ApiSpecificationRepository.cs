@@ -27,6 +27,15 @@ public sealed class ApiSpecificationRepository(
             .FirstOrDefaultAsync(specification => specification.Title == title, cancellationToken);
     }
 
+    public async Task<ApiSpecification?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.ApiSpecifications
+            .Include(specification => specification.Endpoints)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(specification => specification.Id == id, cancellationToken);
+    }
+
     public Task UpsertAsync(ApiSpecification specification, CancellationToken cancellationToken)
     {
         return writeQueue.EnqueueAsync(async (context, ct) =>

@@ -1,0 +1,64 @@
+@page "/specifications/{Id:guid}"
+@inject SpecificationApiClient SpecificationApi
+
+<PageTitle>@(details?.Title ?? "Specification")</PageTitle>
+
+<p><a href="specifications">&laquo; Back to specifications</a></p>
+
+@if (notFound)
+{
+    <p class="text-danger">No specification found with id @Id.</p>
+}
+else if (details is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <h1>@details.Title</h1>
+    <dl class="row">
+        <dt class="col-sm-2">Kind</dt>
+        <dd class="col-sm-10">@details.Kind</dd>
+        <dt class="col-sm-2">Created</dt>
+        <dd class="col-sm-10">@details.CreatedAt.ToLocalTime().ToString("g")</dd>
+        <dt class="col-sm-2">Updated</dt>
+        <dd class="col-sm-10">@details.UpdatedAt.ToLocalTime().ToString("g")</dd>
+    </dl>
+
+    <h2>Endpoints</h2>
+    @if (details.Endpoints.Length == 0)
+    {
+        <p><em>No endpoints were found in this specification.</em></p>
+    }
+    else
+    {
+        @foreach (var endpoint in details.Endpoints)
+        {
+            <MockEndpointCard Endpoint="endpoint" @key="endpoint.Id" />
+        }
+    }
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private SpecificationDetails? details;
+    private bool notFound;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        details = null;
+        notFound = false;
+
+        var result = await SpecificationApi.GetByIdAsync(Id);
+        if (result is null)
+        {
+            notFound = true;
+        }
+        else
+        {
+            details = result;
+        }
+    }
+}

@@ -1,4 +1,5 @@
 using Mediator;
+using VroksNet.Application.Specifications.GetSpecificationDetails;
 using VroksNet.Application.Specifications.ImportOpenApiSpec;
 using VroksNet.Application.Specifications.ListSpecifications;
 
@@ -20,6 +21,13 @@ public static class SpecificationEndpoints
             return Results.Ok(specifications);
         })
         .WithName("ListSpecifications");
+
+        group.MapGet("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            var details = await mediator.Send(new GetSpecificationDetails(id), cancellationToken);
+            return details is not null ? Results.Ok(details) : Results.NotFound();
+        })
+        .WithName("GetSpecificationDetails");
 
         group.MapPost("/openapi", async (HttpRequest request, IMediator mediator, CancellationToken cancellationToken) =>
         {

@@ -44,7 +44,7 @@ else
             @foreach (var specification in specifications)
             {
                 <tr>
-                    <td>@specification.Title</td>
+                    <td><a href="@($"specifications/{specification.Id}")">@specification.Title</a></td>
                     <td>@specification.Kind</td>
                     <td>@specification.EndpointCount</td>
                     <td>@specification.UpdatedAt.ToLocalTime().ToString("g")</td>

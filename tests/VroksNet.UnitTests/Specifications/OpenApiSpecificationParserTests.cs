@@ -16,7 +16,19 @@ public class OpenApiSpecificationParserTests
         Assert.Equal("Petstore Sample API", result.Title);
         Assert.Equal(
             new[] { "GET /pets", "POST /pets", "GET /pets/{petId}" },
-            result.OperationKeys);
+            result.Operations.Select(operation => operation.OperationKey));
+    }
+
+    [Fact]
+    public async Task ParseAsync_PetstoreSample_ExtractsResponseExampleAsIndentedJson()
+    {
+        var yaml = await File.ReadAllTextAsync(FixturePath("petstore-openapi.yaml"), TestContext.Current.CancellationToken);
+
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+
+        var getPetById = result.Operations.Single(operation => operation.OperationKey == "GET /pets/{petId}");
+        Assert.NotNull(getPetById.ExampleJson);
+        Assert.Contains("\"name\": \"Fido\"", getPetById.ExampleJson);
     }
 
     [Fact]

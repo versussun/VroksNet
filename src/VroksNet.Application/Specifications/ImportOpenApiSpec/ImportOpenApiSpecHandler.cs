@@ -30,15 +30,21 @@ public sealed class ImportOpenApiSpecHandler(
         specification.Kind = SpecificationKind.OpenApi;
         specification.RawContent = request.YamlContent;
         specification.UpdatedAt = DateTimeOffset.UtcNow;
-        specification.Endpoints = parsed.OperationKeys
-            .Select(key => new MockEndpoint { Id = Guid.NewGuid(), SpecificationId = specification.Id, OperationKey = key })
+        specification.Endpoints = parsed.Operations
+            .Select(operation => new MockEndpoint
+            {
+                Id = Guid.NewGuid(),
+                SpecificationId = specification.Id,
+                OperationKey = operation.OperationKey,
+                ExampleTemplate = operation.ExampleJson
+            })
             .ToList();
 
         await repository.UpsertAsync(specification, cancellationToken);
 
         logger.LogInformation(
             "Imported OpenAPI spec '{Title}' ({FileName}) with {EndpointCount} endpoint(s): {Endpoints}",
-            parsed.Title, request.FileName, parsed.OperationKeys.Count, string.Join(", ", parsed.OperationKeys));
+            parsed.Title, request.FileName, parsed.Operations.Count, string.Join(", ", parsed.Operations.Select(o => o.OperationKey)));
 
         return specification.Id;
     }

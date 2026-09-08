@@ -11,7 +11,9 @@ public class ImportOpenApiSpecHandlerTests
     public async Task Handle_NewTitle_InsertsSpecificationWithParsedEndpoints()
     {
         var repository = new FakeApiSpecificationRepository();
-        var parser = new FakeSpecificationParser(new ParsedSpecification("Petstore Sample API", ["GET /pets", "POST /pets"]));
+        var parser = new FakeSpecificationParser(new ParsedSpecification(
+            "Petstore Sample API",
+            [new ParsedOperation("GET /pets", "[]"), new ParsedOperation("POST /pets", null)]));
         var handler = new ImportOpenApiSpecHandler(parser, repository, NullLogger<ImportOpenApiSpecHandler>.Instance);
 
         var id = await handler.Handle(new ImportOpenApiSpec("petstore.yaml", "raw yaml"), TestContext.Current.CancellationToken);
@@ -20,7 +22,7 @@ public class ImportOpenApiSpecHandlerTests
         Assert.NotNull(stored);
         Assert.Equal(id, stored.Id);
         Assert.Equal(2, stored.Endpoints.Count);
-        Assert.Contains(stored.Endpoints, e => e.OperationKey == "GET /pets");
+        Assert.Contains(stored.Endpoints, e => e.OperationKey == "GET /pets" && e.ExampleTemplate == "[]");
     }
 
     [Fact]
@@ -28,14 +30,16 @@ public class ImportOpenApiSpecHandlerTests
     {
         var repository = new FakeApiSpecificationRepository();
         var handler = new ImportOpenApiSpecHandler(
-            new FakeSpecificationParser(new ParsedSpecification("Petstore Sample API", ["GET /pets"])),
+            new FakeSpecificationParser(new ParsedSpecification("Petstore Sample API", [new ParsedOperation("GET /pets", null)])),
             repository,
             NullLogger<ImportOpenApiSpecHandler>.Instance);
 
         var firstId = await handler.Handle(new ImportOpenApiSpec("petstore-v1.yaml", "raw yaml v1"), TestContext.Current.CancellationToken);
 
         var handlerV2 = new ImportOpenApiSpecHandler(
-            new FakeSpecificationParser(new ParsedSpecification("Petstore Sample API", ["GET /pets", "POST /pets", "DELETE /pets/{id}"])),
+            new FakeSpecificationParser(new ParsedSpecification(
+                "Petstore Sample API",
+                [new ParsedOperation("GET /pets", null), new ParsedOperation("POST /pets", null), new ParsedOperation("DELETE /pets/{id}", null)])),
             repository,
             NullLogger<ImportOpenApiSpecHandler>.Instance);
 
