@@ -22,19 +22,41 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // different origin than this API — it needs CORS. In Production it has no separate origin: its
 // published output is served as static files by this project (see below), so no CORS is needed.
 //
-// Allow any localhost/loopback origin rather than hardcoding Web's launchSettings.json port:
-// that port isn't stable — it depends on which launch profile is used, whether Aspire's AppHost
-// assigns it dynamically, IDE debug-launch settings, etc. Loopback-only + Development-only keeps
-// this safe (never active in Production, never allows a non-local origin).
+// Allow any localhost/loopback origin (or *.localhost — see below) rather than hardcoding Web's
+// launchSettings.json port: that port isn't stable (see .claude/CLAUDE.md on Aspire's random
+// dev-time ports). Development-only keeps this safe.
 const string WebDevCorsPolicy = "WebDev";
 if (builder.Environment.IsDevelopment())
 {
+    // For anything beyond plain loopback / *.localhost — a real custom hostname mapped in the
+    // hosts file, a tunnel domain, etc. — add it here, comma-separated, no code change needed:
+    //   Cors__AdditionalDevOrigins=https://my-custom-domain.example:1234,https://other.example
+    var additionalDevOrigins = (builder.Configuration["Cors:AdditionalDevOrigins"] ?? string.Empty)
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     builder.Services.AddCors(options =>
     {
         options.AddPolicy(WebDevCorsPolicy, policy =>
         {
             policy.SetIsOriginAllowed(origin =>
-                    Uri.TryCreate(origin, UriKind.Absolute, out var originUri) && originUri.IsLoopback)
+                {
+                    if (!Uri.TryCreate(origin, UriKind.Absolute, out var originUri))
+                    {
+                        return false;
+                    }
+
+                    // Uri.IsLoopback only matches the literal host "localhost" (or a loopback IP
+                    // literal) — it does NOT match "*.localhost" subdomains, even though the whole
+                    // .localhost TLD is reserved by RFC 6761 to always resolve to loopback. Aspire's
+                    // per-resource dev-domain hostnames (e.g. "webfrontend-vroksnet.dev.localhost")
+                    // land exactly in that gap, so they need an explicit suffix check too.
+                    if (originUri.IsLoopback || originUri.Host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+
+                    return additionalDevOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
+                })
                 .AllowAnyMethod()
                 .AllowAnyHeader();
         });
