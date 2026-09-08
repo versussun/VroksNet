@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "https://vroksnet.dev.localhost:17282;http://vroksnet.dev.localhost:15130",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL": "https://localhost:21056",
+        "ASPIRE_DASHBOARD_MCP_ENDPOINT_URL": "https://localhost:23085",
+        "ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:22036"
+      }
+    },
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "http://vroksnet.dev.localhost:15130",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL": "http://localhost:19200",
+        "ASPIRE_DASHBOARD_MCP_ENDPOINT_URL": "http://localhost:18074",
+        "ASPIRE_RESOURCE_SERVICE_ENDPOINT_URL": "http://localhost:20285"
+      }
+    }
+  }
+}

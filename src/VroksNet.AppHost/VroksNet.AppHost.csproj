@@ -1,0 +1,16 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.5.3">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>ce879c98-9d23-4fe7-bb8c-bd5f6e49831e</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VroksNet.ApiService\VroksNet.ApiService.csproj" />
+    <ProjectReference Include="..\VroksNet.Web\VroksNet.Web.csproj" />
+  </ItemGroup>
+
+</Project>

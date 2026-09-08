@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VroksNet.ApiService/VroksNet.ApiService.csproj" />
+    <Project Path="src/VroksNet.Application/VroksNet.Application.csproj" />
+    <Project Path="src/VroksNet.AppHost/VroksNet.AppHost.csproj" />
+    <Project Path="src/VroksNet.Domain/VroksNet.Domain.csproj" />
+    <Project Path="src/VroksNet.Infrastructure/VroksNet.Infrastructure.csproj" />
+    <Project Path="src/VroksNet.ServiceDefaults/VroksNet.ServiceDefaults.csproj" />
+    <Project Path="src/VroksNet.Web/VroksNet.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VroksNet.Tests/VroksNet.Tests.csproj" />
+  </Folder>
+</Solution>

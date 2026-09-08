@@ -1,0 +1,5 @@
+{
+  "appHost": {
+    "path": "src/VroksNet.AppHost/VroksNet.AppHost.csproj"
+  }
+}
