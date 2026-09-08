@@ -21,6 +21,11 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // VroksNet.Web (Blazor WebAssembly) runs as its own dev-server process in Development, on a
 // different origin than this API — it needs CORS. In Production it has no separate origin: its
 // published output is served as static files by this project (see below), so no CORS is needed.
+//
+// Allow any localhost/loopback origin rather than hardcoding Web's launchSettings.json port:
+// that port isn't stable — it depends on which launch profile is used, whether Aspire's AppHost
+// assigns it dynamically, IDE debug-launch settings, etc. Loopback-only + Development-only keeps
+// this safe (never active in Production, never allows a non-local origin).
 const string WebDevCorsPolicy = "WebDev";
 if (builder.Environment.IsDevelopment())
 {
@@ -28,7 +33,8 @@ if (builder.Environment.IsDevelopment())
     {
         options.AddPolicy(WebDevCorsPolicy, policy =>
         {
-            policy.WithOrigins("https://localhost:7043", "http://localhost:5225")
+            policy.SetIsOriginAllowed(origin =>
+                    Uri.TryCreate(origin, UriKind.Absolute, out var originUri) && originUri.IsLoopback)
                 .AllowAnyMethod()
                 .AllowAnyHeader();
         });
