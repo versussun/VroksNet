@@ -11,7 +11,9 @@ namespace VroksNet.Infrastructure.Specifications;
 /// Parses an AsyncAPI 3.0 YAML document into a minimal <see cref="ParsedSpecification"/> — one
 /// operation per top-level <c>operations</c> entry, keyed as "{channel address}:{action}" (the
 /// convention documented on <c>MockEndpoint.OperationKey</c>), each carrying its first message's
-/// first example payload (if any) pretty-printed as JSON.
+/// first example payload (if any) pretty-printed as JSON, plus that message's payload schema
+/// (self-contained — local $refs resolved) for the contract-testing checks described in
+/// docs/contract-testing-plan.md.
 ///
 /// There's no AsyncAPI counterpart to Microsoft.OpenApi's typed object model on NuGet, so this
 /// walks the raw YAML tree instead and resolves the spec's own local "#/a/b/c" $refs by hand —
@@ -86,25 +88,51 @@ public sealed class AsyncApiSpecificationParser : IAsyncApiSpecificationParser
             return null;
         }
 
-        return new ParsedOperation($"{address}:{action}", ExtractExampleJson(root, operation));
+        var message = ResolveFirstMessage(root, operation);
+
+        // ResponseSchemaJson doubles as "the message payload schema" for AsyncAPI — see
+        // ParsedOperation's doc comment.
+        return new ParsedOperation(
+            $"{address}:{action}",
+            ExtractExampleJson(message),
+            ResponseSchemaJson: ExtractPayloadSchemaJson(root, message));
     }
 
-    /// <summary>The first example payload of the operation's first referenced message, if any.</summary>
-    private static string? ExtractExampleJson(YamlMappingNode root, YamlMappingNode operation)
+    /// <summary>
+    /// Resolves the operation's first referenced message, following the usual two-hop chain:
+    /// operation.messages[0].$ref → the channel's message entry → (if that's itself just a $ref,
+    /// which it usually is) components.messages.*.
+    /// </summary>
+    private static YamlMappingNode? ResolveFirstMessage(YamlMappingNode root, YamlMappingNode operation)
     {
         var firstMessageRef = (operation.Child("messages") as YamlSequenceNode)?.Children.FirstOrDefault();
         var channelMessage = Resolve(root, firstMessageRef.Child("$ref").AsString());
 
-        // A channel's message entry is usually itself just a $ref to components.messages.*.
-        var message = channelMessage.Child("$ref").AsString() is { } componentRef
+        return (channelMessage.Child("$ref").AsString() is { } componentRef
             ? Resolve(root, componentRef)
-            : channelMessage;
+            : channelMessage) as YamlMappingNode;
+    }
 
+    /// <summary>The first example payload of the message, if any.</summary>
+    private static string? ExtractExampleJson(YamlMappingNode? message)
+    {
         var examplePayload = (message.Child("examples") as YamlSequenceNode)?.Children
             .Select(example => example.Child("payload"))
             .FirstOrDefault(payload => payload is not null);
 
         return ToJson(examplePayload)?.ToJsonString(ExampleJsonOptions);
+    }
+
+    /// <summary>The message's payload schema — resolving one more $ref hop if "payload" is itself just a reference into components.schemas.*, so the extracted schema is self-contained.</summary>
+    private static string? ExtractPayloadSchemaJson(YamlMappingNode root, YamlMappingNode? message)
+    {
+        var payload = message.Child("payload");
+        if (payload.Child("$ref").AsString() is { } schemaRef)
+        {
+            payload = Resolve(root, schemaRef);
+        }
+
+        return ToJson(payload)?.ToJsonString(ExampleJsonOptions);
     }
 
     /// <summary>Resolves a local JSON-Reference pointer like "#/channels/orderCreated" against the document root.</summary>

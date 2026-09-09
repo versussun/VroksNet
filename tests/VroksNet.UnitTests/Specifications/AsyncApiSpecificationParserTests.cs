@@ -33,6 +33,21 @@ public class AsyncApiSpecificationParserTests
     }
 
     [Fact]
+    public async Task ParseAsync_OrdersSample_ExtractsPayloadSchemaWithRefResolved()
+    {
+        var yaml = await File.ReadAllTextAsync(FixturePath("orders-asyncapi.yaml"), TestContext.Current.CancellationToken);
+
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+
+        var orderCreated = result.Operations.Single(operation => operation.OperationKey == "orders.created:send");
+        Assert.Null(orderCreated.RequestSchemaJson);
+        Assert.NotNull(orderCreated.ResponseSchemaJson);
+        Assert.DoesNotContain("$ref", orderCreated.ResponseSchemaJson);
+        Assert.Contains("\"orderId\"", orderCreated.ResponseSchemaJson);
+        Assert.Contains("\"required\"", orderCreated.ResponseSchemaJson);
+    }
+
+    [Fact]
     public async Task ParseAsync_MalformedYaml_Throws()
     {
         var yaml = await File.ReadAllTextAsync(FixturePath("invalid-asyncapi.yaml"), TestContext.Current.CancellationToken);

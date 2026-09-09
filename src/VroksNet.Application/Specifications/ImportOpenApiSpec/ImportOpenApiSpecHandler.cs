@@ -36,7 +36,9 @@ public sealed class ImportOpenApiSpecHandler(
                 Id = Guid.NewGuid(),
                 SpecificationId = specification.Id,
                 OperationKey = operation.OperationKey,
-                ExampleTemplate = operation.ExampleJson
+                ExampleTemplate = operation.ExampleJson,
+                RequestSchema = operation.RequestSchemaJson,
+                ResponseSchema = operation.ResponseSchemaJson
             })
             .ToList();
 

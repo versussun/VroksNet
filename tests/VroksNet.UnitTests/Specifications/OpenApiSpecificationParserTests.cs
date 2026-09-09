@@ -32,6 +32,28 @@ public class OpenApiSpecificationParserTests
     }
 
     [Fact]
+    public async Task ParseAsync_PetstoreSample_ExtractsRequestAndResponseSchemasWithRefsInlined()
+    {
+        var yaml = await File.ReadAllTextAsync(FixturePath("petstore-openapi.yaml"), TestContext.Current.CancellationToken);
+
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+
+        var createPet = result.Operations.Single(operation => operation.OperationKey == "POST /pets");
+        Assert.NotNull(createPet.RequestSchemaJson);
+        Assert.DoesNotContain("$ref", createPet.RequestSchemaJson);
+        Assert.Contains("\"name\"", createPet.RequestSchemaJson);
+
+        Assert.NotNull(createPet.ResponseSchemaJson);
+        Assert.DoesNotContain("$ref", createPet.ResponseSchemaJson);
+        Assert.Contains("\"id\"", createPet.ResponseSchemaJson);
+
+        // GET /pets has no request body.
+        var listPets = result.Operations.Single(operation => operation.OperationKey == "GET /pets");
+        Assert.Null(listPets.RequestSchemaJson);
+        Assert.NotNull(listPets.ResponseSchemaJson);
+    }
+
+    [Fact]
     public async Task ParseAsync_MalformedYaml_Throws()
     {
         var yaml = await File.ReadAllTextAsync(FixturePath("invalid-openapi.yaml"), TestContext.Current.CancellationToken);

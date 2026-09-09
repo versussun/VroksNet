@@ -19,4 +19,10 @@ public sealed class MockEndpoint
 
     /// <summary>The example (from the spec, or a generated placeholder) used as the response/payload template.</summary>
     public string? ExampleTemplate { get; set; }
+
+    /// <summary>The operation's request-body JSON Schema (OpenAPI only), self-contained (local $refs already inlined). Null if there's no request body, or for AsyncAPI operations.</summary>
+    public string? RequestSchema { get; set; }
+
+    /// <summary>The operation's response (OpenAPI) or message payload (AsyncAPI) JSON Schema, self-contained the same way.</summary>
+    public string? ResponseSchema { get; set; }
 }

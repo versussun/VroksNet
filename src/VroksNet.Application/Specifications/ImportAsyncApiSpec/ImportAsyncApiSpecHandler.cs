@@ -40,7 +40,8 @@ public sealed class ImportAsyncApiSpecHandler(
                 Id = Guid.NewGuid(),
                 SpecificationId = specification.Id,
                 OperationKey = operation.OperationKey,
-                ExampleTemplate = operation.ExampleJson
+                ExampleTemplate = operation.ExampleJson,
+                ResponseSchema = operation.ResponseSchemaJson
             })
             .ToList();
 

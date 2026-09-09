@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using VroksNet.Application.Abstractions;
 using VroksNet.Infrastructure.Connections;
 using VroksNet.Infrastructure.Persistence;
+using VroksNet.Infrastructure.SchemaValidation;
 using VroksNet.Infrastructure.Specifications;
 using VroksNet.Infrastructure.Templating;
 
@@ -37,6 +38,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ISpecificationParser, OpenApiSpecificationParser>();
         services.AddScoped<IAsyncApiSpecificationParser, AsyncApiSpecificationParser>();
         services.AddScoped<IResponseTemplateEngine, PassthroughResponseTemplateEngine>();
+        // Stateless — no scoped dependencies of its own, so Singleton avoids reallocating it per request.
+        services.AddSingleton<ISchemaValidator, SchemaValidator>();
 
         // Bare factory registration — ConnectionTester/MessageSender each request their own named
         // client via IHttpClientFactory.CreateClient(...) rather than a typed AddHttpClient<T>
