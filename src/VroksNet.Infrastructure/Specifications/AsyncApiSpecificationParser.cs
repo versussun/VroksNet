@@ -104,7 +104,7 @@ public sealed class AsyncApiSpecificationParser : IAsyncApiSpecificationParser
             .Select(example => example.Child("payload"))
             .FirstOrDefault(payload => payload is not null);
 
-        return examplePayload is null ? null : ToJson(examplePayload).ToJsonString(ExampleJsonOptions);
+        return ToJson(examplePayload)?.ToJsonString(ExampleJsonOptions);
     }
 
     /// <summary>Resolves a local JSON-Reference pointer like "#/channels/orderCreated" against the document root.</summary>

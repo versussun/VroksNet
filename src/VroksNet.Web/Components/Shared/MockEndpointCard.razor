@@ -25,34 +25,41 @@
             <p class="text-muted fst-italic mb-0">This endpoint is disabled — sending a request to it will return 404.</p>
         }
 
-        @if (_pathParameters.Count > 0)
+        @if (!IsHttpOperation)
         {
-            <p class="fw-semibold mb-1">Path parameters</p>
-            @foreach (var name in _pathParameters)
+            <p class="text-muted fst-italic mb-0">AsyncAPI operations aren't live-invokable here yet — actually publishing them is Phase 03 work (see docs/project-brief.md).</p>
+        }
+        else
+        {
+            @if (_pathParameters.Count > 0)
             {
-                <div class="input-group input-group-sm mb-2" style="max-width: 320px;">
-                    <span class="input-group-text">@name</span>
-                    <input class="form-control" value="@_paramValues[name]"
-                           @oninput="@(e => OnParamChanged(name, e.Value?.ToString() ?? string.Empty))" />
+                <p class="fw-semibold mb-1">Path parameters</p>
+                @foreach (var name in _pathParameters)
+                {
+                    <div class="input-group input-group-sm mb-2" style="max-width: 320px;">
+                        <span class="input-group-text">@name</span>
+                        <input class="form-control" value="@_paramValues[name]"
+                               @oninput="@(e => OnParamChanged(name, e.Value?.ToString() ?? string.Empty))" />
+                    </div>
+                }
+            }
+
+            <p class="mb-2"><span class="fw-semibold">Request:</span> <code>@Method @ResolvedPath</code></p>
+
+            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="SendAsync" disabled="@_isSending">
+                @(_isSending ? "Sending…" : "Send")
+            </button>
+
+            @if (_responseStatus is not null)
+            {
+                <div class="mt-3">
+                    <p class="mb-1">
+                        <span class="fw-semibold">Response</span>
+                        <span class="badge @(IsSuccessStatus(_responseStatus.Value) ? "bg-success" : "bg-danger")">@_responseStatus</span>
+                    </p>
+                    <pre class="mb-0"><code>@_responseBody</code></pre>
                 </div>
             }
-        }
-
-        <p class="mb-2"><span class="fw-semibold">Request:</span> <code>@Method @ResolvedPath</code></p>
-
-        <button type="button" class="btn btn-sm btn-outline-primary" @onclick="SendAsync" disabled="@_isSending">
-            @(_isSending ? "Sending…" : "Send")
-        </button>
-
-        @if (_responseStatus is not null)
-        {
-            <div class="mt-3">
-                <p class="mb-1">
-                    <span class="fw-semibold">Response</span>
-                    <span class="badge @(IsSuccessStatus(_responseStatus.Value) ? "bg-success" : "bg-danger")">@_responseStatus</span>
-                </p>
-                <pre class="mb-0"><code>@_responseBody</code></pre>
-            </div>
         }
     </div>
 </div>
@@ -70,6 +77,14 @@
     private bool _isSending;
     private int? _responseStatus;
     private string? _responseBody;
+
+    /// <summary>
+    /// OpenAPI operation keys are always "METHOD /path" (see OpenApiSpecificationParser); AsyncAPI
+    /// ones are "channel/address:action" (see MockEndpoint.OperationKey) — no space. That's the
+    /// cheapest reliable way to tell them apart here without the card needing to know the
+    /// specification's own Kind.
+    /// </summary>
+    private bool IsHttpOperation => Endpoint.OperationKey.Contains(' ');
 
     private string ResolvedPath
     {

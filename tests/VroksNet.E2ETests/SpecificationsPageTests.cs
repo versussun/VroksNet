@@ -46,6 +46,65 @@ public sealed class SpecificationsPageTests(AppHostFixture fixture) : PageTestBa
         await Expect(endpointCard.Locator("pre code").Last).ToContainTextAsync("Fido");
     }
 
+    [Fact]
+    public async Task UploadAsyncApiSpec_WithKindSelector_ListsItButSkipsLiveTryIt()
+    {
+        var title = $"E2E Test Orders {Guid.NewGuid()}";
+        await Page.GotoAsync("/specifications");
+
+        // Switch the kind selector before uploading — this is the UI wiring under test.
+        await Page.Locator("#spec-kind-select").SelectOptionAsync("AsyncApi");
+        await Page.Locator("input[type=file]").SetInputFilesAsync(new FilePayload
+        {
+            Name = "orders.yaml",
+            MimeType = "application/yaml",
+            Buffer = Encoding.UTF8.GetBytes(BuildOrdersAsyncApiYaml(title)),
+        });
+
+        var row = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = title });
+        await Expect(row).ToBeVisibleAsync();
+        await Expect(row.Locator("td").Nth(1)).ToHaveTextAsync("AsyncApi");
+        await Expect(row.Locator("td").Nth(2)).ToHaveTextAsync("1");
+
+        // Detail — the card shows the operation but no live "Send" try-it: AsyncAPI operation
+        // keys aren't invokable through the HTTP-shaped /mock/{**path} route (see
+        // .claude/CLAUDE.md "Infrastructure notes").
+        await row.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = title, Exact = true }).ClickAsync();
+        var endpointCard = Page.Locator(".card", new PageLocatorOptions { HasText = "orders.created:send" });
+        await Expect(endpointCard).ToBeVisibleAsync();
+        await Expect(endpointCard.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Send" })).Not.ToBeVisibleAsync();
+        await Expect(endpointCard).ToContainTextAsync("aren't live-invokable");
+    }
+
+    private static string BuildOrdersAsyncApiYaml(string title) => $"""
+        asyncapi: 3.0.0
+        info:
+          title: "{title}"
+          version: "1.0.0"
+        channels:
+          orderCreated:
+            address: orders.created
+            messages:
+              orderCreated:
+                $ref: "#/components/messages/OrderCreated"
+        operations:
+          publishOrderCreated:
+            action: send
+            channel:
+              $ref: "#/channels/orderCreated"
+            messages:
+              - $ref: "#/channels/orderCreated/messages/orderCreated"
+        components:
+          messages:
+            OrderCreated:
+              payload:
+                type: object
+              examples:
+                - name: OrderCreatedExample
+                  payload:
+                    orderId: "ord_1"
+        """;
+
     private static string BuildPetstoreYaml(string title) => $"""
         openapi: 3.0.3
         info:

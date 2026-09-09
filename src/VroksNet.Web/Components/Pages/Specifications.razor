@@ -6,6 +6,11 @@
 <h1>Specifications</h1>
 
 <p>
+    <label class="form-label me-2 mb-0" for="spec-kind-select">Kind</label>
+    <select id="spec-kind-select" class="form-select d-inline-block w-auto me-2" @bind="_selectedKind" disabled="@isUploading">
+        <option value="@SpecificationKind.OpenApi">OpenAPI</option>
+        <option value="@SpecificationKind.AsyncApi">AsyncAPI</option>
+    </select>
     <label class="btn btn-primary">
         Upload spec
         <InputFile OnChange="OnFileSelectedAsync" accept=".yaml,.yml" style="display:none" disabled="@isUploading" />
@@ -61,6 +66,7 @@ else
     private SpecificationSummary[]? specifications;
     private bool isUploading;
     private string? errorMessage;
+    private SpecificationKind _selectedKind = SpecificationKind.OpenApi;
 
     protected override async Task OnInitializedAsync()
     {
@@ -80,7 +86,9 @@ else
         try
         {
             await using var stream = e.File.OpenReadStream(MaxFileSizeBytes);
-            await SpecificationApi.ImportOpenApiAsync(stream, e.File.Name);
+            await (_selectedKind == SpecificationKind.AsyncApi
+                ? SpecificationApi.ImportAsyncApiAsync(stream, e.File.Name)
+                : SpecificationApi.ImportOpenApiAsync(stream, e.File.Name));
             await LoadAsync();
         }
         catch (Exception ex)

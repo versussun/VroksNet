@@ -44,12 +44,19 @@ public sealed class SpecificationApiClient(HttpClient httpClient)
     }
 
     /// <summary>Imports an OpenAPI YAML file. Throws if the server rejects it (e.g. it doesn't parse).</summary>
-    public async Task<Guid> ImportOpenApiAsync(Stream yamlContent, string fileName, CancellationToken cancellationToken = default)
+    public Task<Guid> ImportOpenApiAsync(Stream yamlContent, string fileName, CancellationToken cancellationToken = default)
+        => ImportAsync("/api/specifications/openapi", yamlContent, fileName, cancellationToken);
+
+    /// <summary>Imports an AsyncAPI YAML file. Throws if the server rejects it (e.g. it doesn't parse).</summary>
+    public Task<Guid> ImportAsyncApiAsync(Stream yamlContent, string fileName, CancellationToken cancellationToken = default)
+        => ImportAsync("/api/specifications/asyncapi", yamlContent, fileName, cancellationToken);
+
+    private async Task<Guid> ImportAsync(string requestUri, Stream yamlContent, string fileName, CancellationToken cancellationToken)
     {
         using var content = new StreamContent(yamlContent);
         content.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/specifications/openapi")
+        using var request = new HttpRequestMessage(HttpMethod.Post, requestUri)
         {
             Content = content
         };
