@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using VroksNet.Domain.ApiSpecifications;
 using VroksNet.Domain.CallRecords;
+using VroksNet.Domain.Connections;
 using VroksNet.Domain.MockEndpoints;
 
 namespace VroksNet.Infrastructure.Persistence;
@@ -12,6 +13,8 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
     public DbSet<MockEndpoint> MockEndpoints => Set<MockEndpoint>();
 
     public DbSet<CallRecord> CallRecords => Set<CallRecord>();
+
+    public DbSet<Connection> Connections => Set<Connection>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,5 +33,11 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
         modelBuilder.Entity<MockEndpoint>(entity => entity.HasKey(endpoint => endpoint.Id));
 
         modelBuilder.Entity<CallRecord>(entity => entity.HasKey(record => record.Id));
+
+        modelBuilder.Entity<Connection>(entity =>
+        {
+            entity.HasKey(connection => connection.Id);
+            entity.HasIndex(connection => connection.Name).IsUnique();
+        });
     }
 }

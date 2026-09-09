@@ -30,6 +30,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHostedService<DbWriteBackgroundService>();
 
         services.AddScoped<IApiSpecificationRepository, ApiSpecificationRepository>();
+        services.AddScoped<IConnectionRepository, ConnectionRepository>();
         services.AddScoped<ISpecificationParser, OpenApiSpecificationParser>();
         services.AddScoped<IResponseTemplateEngine, PassthroughResponseTemplateEngine>();
 

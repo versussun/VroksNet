@@ -1,0 +1,212 @@
+@page "/settings"
+@inject ConnectionApiClient ConnectionApi
+@inject IJSRuntime JS
+
+<PageTitle>Settings</PageTitle>
+
+<h1>Settings</h1>
+
+<h2>Connections</h2>
+<p class="text-muted">Named connections to external systems — a URL or connection string, depending on the service type.</p>
+
+@if (errorMessage is not null)
+{
+    <p class="text-danger">@errorMessage</p>
+}
+
+<div class="card mb-3" style="max-width: 640px;">
+    <div class="card-body">
+        <h3 class="h6">@(_editingId is null ? "Add connection" : "Edit connection")</h3>
+
+        <div class="mb-2">
+            <label class="form-label">Name</label>
+            <input class="form-control" @bind="_formName" @bind:event="oninput" placeholder="e.g. Orders RabbitMQ" />
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label">Service type</label>
+            <select class="form-select" @bind="_formServiceType">
+                <option value="@ConnectionServiceType.Http">HTTP</option>
+                <option value="@ConnectionServiceType.RabbitMq">RabbitMQ</option>
+                <option value="@ConnectionServiceType.Nats">NATS</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">@(_formServiceType == ConnectionServiceType.Http ? "URL" : "Connection string")</label>
+            <div class="input-group">
+                <input type="@(_formValueVisible ? "text" : "password")" class="form-control" @bind="_formValue" @bind:event="oninput"
+                       placeholder="@ValuePlaceholder" autocomplete="off" />
+                <button type="button" class="btn btn-outline-secondary" @onclick="() => _formValueVisible = !_formValueVisible">
+                    @(_formValueVisible ? "Hide" : "Show")
+                </button>
+            </div>
+        </div>
+
+        <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@(_isSaving || !CanSave)">
+            @(_isSaving ? "Saving…" : _editingId is null ? "Add" : "Save changes")
+        </button>
+        @if (_editingId is not null)
+        {
+            <button type="button" class="btn btn-outline-secondary btn-sm ms-2" @onclick="CancelEdit">Cancel</button>
+        }
+    </div>
+</div>
+
+@if (_connections is null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (_connections.Length == 0)
+{
+    <p><em>No connections yet.</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Service type</th>
+                <th>Value</th>
+                <th>Updated</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var connection in _connections)
+            {
+                <tr>
+                    <td>@connection.Name</td>
+                    <td>@connection.ServiceType</td>
+                    <td>
+                        <code>@(_revealed.Contains(connection.Id) ? connection.Value : Mask(connection.Value))</code>
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-2" @onclick="() => ToggleReveal(connection.Id)">
+                            @(_revealed.Contains(connection.Id) ? "Hide" : "Show")
+                        </button>
+                    </td>
+                    <td>@connection.UpdatedAt.ToLocalTime().ToString("g")</td>
+                    <td>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => StartEdit(connection)">Edit</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm ms-1" @onclick="() => DeleteAsync(connection)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private ConnectionSummary[]? _connections;
+    private readonly HashSet<Guid> _revealed = [];
+    private string? errorMessage;
+    private bool _isSaving;
+    private bool _formValueVisible;
+
+    private Guid? _editingId;
+    private string _formName = string.Empty;
+    private ConnectionServiceType _formServiceType = ConnectionServiceType.Http;
+    private string _formValue = string.Empty;
+
+    private bool CanSave => !string.IsNullOrWhiteSpace(_formName) && !string.IsNullOrWhiteSpace(_formValue);
+
+    private string ValuePlaceholder => _formServiceType switch
+    {
+        ConnectionServiceType.Http => "https://api.example.com",
+        ConnectionServiceType.RabbitMq => "amqp://user:password@host:5672/vhost",
+        ConnectionServiceType.Nats => "nats://user:password@host:4222",
+        _ => string.Empty
+    };
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _connections = await ConnectionApi.GetAllAsync();
+
+    private void StartEdit(ConnectionSummary connection)
+    {
+        _editingId = connection.Id;
+        _formName = connection.Name;
+        _formServiceType = connection.ServiceType;
+        _formValue = connection.Value;
+        _formValueVisible = false;
+        errorMessage = null;
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _formName = string.Empty;
+        _formServiceType = ConnectionServiceType.Http;
+        _formValue = string.Empty;
+        _formValueVisible = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!CanSave)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            var ok = _editingId is { } id
+                ? await ConnectionApi.UpdateAsync(id, _formName, _formServiceType, _formValue)
+                : await CreatedOk();
+
+            if (!ok)
+            {
+                errorMessage = "That connection no longer exists — it may have been deleted elsewhere.";
+            }
+
+            CancelEdit();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to save connection: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+
+        async Task<bool> CreatedOk()
+        {
+            await ConnectionApi.CreateAsync(_formName, _formServiceType, _formValue);
+            return true;
+        }
+    }
+
+    private async Task DeleteAsync(ConnectionSummary connection)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Delete connection '{connection.Name}'?");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        try
+        {
+            await ConnectionApi.DeleteAsync(connection.Id);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to delete connection: {ex.Message}";
+        }
+    }
+
+    private void ToggleReveal(Guid id)
+    {
+        if (!_revealed.Add(id))
+        {
+            _revealed.Remove(id);
+        }
+    }
+
+    private static string Mask(string value) => value.Length == 0 ? string.Empty : new string('•', Math.Min(value.Length, 24));
+}
