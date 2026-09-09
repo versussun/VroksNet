@@ -14,7 +14,6 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 // appsettings.Development.json), so ApiService needs CORS enabled for Web's origin.
 var apiServiceBaseAddress = new Uri(builder.Configuration["ApiService:BaseAddress"] ?? builder.HostEnvironment.BaseAddress);
 
-builder.Services.AddHttpClient<WeatherApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
 builder.Services.AddHttpClient<SpecificationApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
 builder.Services.AddHttpClient<ConnectionApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
 builder.Services.AddHttpClient<TestScenarioApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
