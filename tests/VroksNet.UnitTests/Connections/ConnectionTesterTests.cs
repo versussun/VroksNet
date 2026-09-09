@@ -1,0 +1,71 @@
+using Microsoft.Extensions.DependencyInjection;
+using VroksNet.Domain.Connections;
+using VroksNet.Infrastructure.Connections;
+
+namespace VroksNet.UnitTests.Connections;
+
+/// <summary>
+/// Exercises the real <see cref="ConnectionTester"/> (not a fake) — no Docker/AppHost needed,
+/// unlike VroksNet.IntegrationTests' end-to-end coverage of the same feature: these only ever
+/// connect to definitely-closed local ports or a domain RFC 2606 reserves to never resolve, so
+/// they exercise the failure path fast and deterministically, offline.
+/// </summary>
+public class ConnectionTesterTests
+{
+    private static readonly ConnectionTester Tester = new(
+        new ServiceCollection().AddHttpClient().BuildServiceProvider().GetRequiredService<IHttpClientFactory>());
+
+    [Fact]
+    public async Task TestAsync_Http_InvalidUrl_FailsWithoutAttemptingAnyRequest()
+    {
+        var result = await Tester.TestAsync(Connection("Http", "not a url"), TestContext.Current.CancellationToken);
+
+        Assert.False(result.Success);
+        Assert.Equal("Not a valid absolute URL.", result.Message);
+    }
+
+    [Fact]
+    public async Task TestAsync_Http_UnresolvableHost_Fails()
+    {
+        var result = await Tester.TestAsync(Connection("Http", "https://this-host-does-not-exist.invalid"), TestContext.Current.CancellationToken);
+
+        Assert.False(result.Success);
+        Assert.False(string.IsNullOrWhiteSpace(result.Message));
+    }
+
+    [Fact]
+    public async Task TestAsync_RabbitMq_InvalidConnectionString_FailsWithoutAttemptingAnyRequest()
+    {
+        var result = await Tester.TestAsync(Connection("RabbitMq", "not a uri"), TestContext.Current.CancellationToken);
+
+        Assert.False(result.Success);
+        Assert.Equal("Not a valid amqp(s):// connection string.", result.Message);
+    }
+
+    [Fact]
+    public async Task TestAsync_RabbitMq_ClosedPort_Fails()
+    {
+        // Port 1 ("tcpmux") is reserved and essentially never has anything listening on loopback.
+        var result = await Tester.TestAsync(Connection("RabbitMq", "amqp://guest:guest@127.0.0.1:1"), TestContext.Current.CancellationToken);
+
+        Assert.False(result.Success);
+        Assert.False(string.IsNullOrWhiteSpace(result.Message));
+    }
+
+    [Fact]
+    public async Task TestAsync_Nats_ClosedPort_Fails()
+    {
+        var result = await Tester.TestAsync(Connection("Nats", "nats://127.0.0.1:1"), TestContext.Current.CancellationToken);
+
+        Assert.False(result.Success);
+        Assert.False(string.IsNullOrWhiteSpace(result.Message));
+    }
+
+    private static Connection Connection(string serviceType, string value) => new()
+    {
+        Id = Guid.NewGuid(),
+        Name = "test",
+        ServiceType = Enum.Parse<ConnectionServiceType>(serviceType),
+        Value = value
+    };
+}

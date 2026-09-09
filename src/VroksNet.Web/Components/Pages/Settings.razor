@@ -87,8 +87,18 @@ else
                     </td>
                     <td>@connection.UpdatedAt.ToLocalTime().ToString("g")</td>
                     <td>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => StartEdit(connection)">Edit</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => TestAsync(connection)" disabled="@_testingIds.Contains(connection.Id)">
+                            @(_testingIds.Contains(connection.Id) ? "Testing…" : "Test")
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm ms-1" @onclick="() => StartEdit(connection)">Edit</button>
                         <button type="button" class="btn btn-outline-danger btn-sm ms-1" @onclick="() => DeleteAsync(connection)">Delete</button>
+                        @if (_testResults.TryGetValue(connection.Id, out var testResult))
+                        {
+                            <div class="mt-1">
+                                <span class="badge @(testResult.Success ? "bg-success" : "bg-danger")">@(testResult.Success ? "OK" : "Failed")</span>
+                                <small class="text-muted">@testResult.Message</small>
+                            </div>
+                        }
                     </td>
                 </tr>
             }
@@ -99,6 +109,8 @@ else
 @code {
     private ConnectionSummary[]? _connections;
     private readonly HashSet<Guid> _revealed = [];
+    private readonly HashSet<Guid> _testingIds = [];
+    private readonly Dictionary<Guid, ConnectionTestResult> _testResults = [];
     private string? errorMessage;
     private bool _isSaving;
     private bool _formValueVisible;
@@ -197,6 +209,34 @@ else
         catch (Exception ex)
         {
             errorMessage = $"Failed to delete connection: {ex.Message}";
+        }
+    }
+
+    private async Task TestAsync(ConnectionSummary connection)
+    {
+        _testingIds.Add(connection.Id);
+        _testResults.Remove(connection.Id);
+
+        try
+        {
+            var result = await ConnectionApi.TestAsync(connection.Id);
+            if (result is null)
+            {
+                errorMessage = "That connection no longer exists — it may have been deleted elsewhere.";
+                await LoadAsync();
+            }
+            else
+            {
+                _testResults[connection.Id] = result;
+            }
+        }
+        catch (Exception ex)
+        {
+            _testResults[connection.Id] = new ConnectionTestResult(false, ex.Message);
+        }
+        finally
+        {
+            _testingIds.Remove(connection.Id);
         }
     }
 

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using VroksNet.Application.Abstractions;
+using VroksNet.Infrastructure.Connections;
 using VroksNet.Infrastructure.Persistence;
 using VroksNet.Infrastructure.Specifications;
 using VroksNet.Infrastructure.Templating;
@@ -34,6 +35,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ISpecificationParser, OpenApiSpecificationParser>();
         services.AddScoped<IAsyncApiSpecificationParser, AsyncApiSpecificationParser>();
         services.AddScoped<IResponseTemplateEngine, PassthroughResponseTemplateEngine>();
+
+        // Bare factory registration — ConnectionTester requests its own named client via
+        // IHttpClientFactory.CreateClient(...) rather than a typed AddHttpClient<T> registration.
+        services.AddHttpClient();
+        services.AddScoped<IConnectionTester, ConnectionTester>();
 
         return services;
     }

@@ -52,4 +52,17 @@ public sealed class ConnectionApiClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
         return true;
     }
+
+    /// <summary>Returns null if no connection with that id exists.</summary>
+    public async Task<ConnectionTestResult?> TestAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.PostAsync($"/api/connections/{id}/test", null, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ConnectionTestResult>(JsonOptions, cancellationToken);
+    }
 }

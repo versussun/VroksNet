@@ -2,6 +2,7 @@ using Mediator;
 using VroksNet.Application.Connections.CreateConnection;
 using VroksNet.Application.Connections.DeleteConnection;
 using VroksNet.Application.Connections.ListConnections;
+using VroksNet.Application.Connections.TestConnection;
 using VroksNet.Application.Connections.UpdateConnection;
 
 namespace VroksNet.ApiService.Endpoints;
@@ -45,6 +46,13 @@ public static class ConnectionEndpoints
             return found ? Results.NoContent() : Results.NotFound();
         })
         .WithName("DeleteConnection");
+
+        group.MapPost("/{id:guid}/test", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            var result = await mediator.Send(new TestConnection(id), cancellationToken);
+            return result is not null ? Results.Ok(result) : Results.NotFound();
+        })
+        .WithName("TestConnection");
 
         return app;
     }

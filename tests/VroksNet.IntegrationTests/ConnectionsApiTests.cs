@@ -65,6 +65,46 @@ public sealed class ConnectionsApiTests(AppHostFixture fixture)
         Assert.Equal(HttpStatusCode.NotFound, deleteAgainResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task TestConnection_Http_ReportsReachableAndUnreachable()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = fixture.ApiServiceClient;
+
+        // Reachable: point it back at the booted ApiService's own health endpoint.
+        var reachableId = await CreateConnectionAsync(client, "Http", new Uri(client.BaseAddress!, "/health").ToString(), cancellationToken);
+        var reachableResult = await TestConnectionAsync(client, reachableId, cancellationToken);
+        Assert.True(reachableResult!["success"]!.GetValue<bool>());
+
+        // Unreachable: ".invalid" is reserved by RFC 2606 to never resolve.
+        var unreachableId = await CreateConnectionAsync(client, "Http", "https://this-host-does-not-exist.invalid", cancellationToken);
+        var unreachableResult = await TestConnectionAsync(client, unreachableId, cancellationToken);
+        Assert.False(unreachableResult!["success"]!.GetValue<bool>());
+        Assert.False(string.IsNullOrWhiteSpace(unreachableResult["message"]!.GetValue<string>()));
+
+        // Testing an unknown id 404s.
+        var testUnknownResponse = await client.PostAsync($"/api/connections/{Guid.NewGuid()}/test", null, cancellationToken);
+        Assert.Equal(HttpStatusCode.NotFound, testUnknownResponse.StatusCode);
+    }
+
+    private static async Task<Guid> CreateConnectionAsync(HttpClient client, string serviceType, string value, CancellationToken cancellationToken)
+    {
+        var response = await client.PostAsJsonAsync(
+            "/api/connections",
+            new { Name = $"Integration Test Connection {Guid.NewGuid()}", ServiceType = serviceType, Value = value },
+            cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+        return created!["id"]!.GetValue<Guid>();
+    }
+
+    private static async Task<JsonNode?> TestConnectionAsync(HttpClient client, Guid id, CancellationToken cancellationToken)
+    {
+        var response = await client.PostAsync($"/api/connections/{id}/test", null, cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+    }
+
     private static async Task<JsonNode?> GetConnectionAsync(HttpClient client, Guid id, CancellationToken cancellationToken)
     {
         var response = await client.GetAsync("/api/connections", cancellationToken);

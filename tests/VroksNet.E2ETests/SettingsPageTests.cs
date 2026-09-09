@@ -27,6 +27,13 @@ public sealed class SettingsPageTests(AppHostFixture fixture) : PageTestBase(fix
         await Expect(row).ToBeVisibleAsync();
         await Expect(row).ToContainTextAsync("Http");
 
+        // Test — verifies the Test button is wired end to end through the real
+        // /api/connections/{id}/test endpoint. Doesn't assert success/failure, since that
+        // depends on real outbound network reachability of the (external) target — only that a
+        // result badge appears.
+        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Test" }).ClickAsync();
+        await Expect(row.Locator("span.badge")).ToBeVisibleAsync();
+
         // Edit — switch its service type, leaving the connection string as-is
         await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Edit" }).ClickAsync();
         await Page.GetByLabel("Service type").SelectOptionAsync("RabbitMq");
