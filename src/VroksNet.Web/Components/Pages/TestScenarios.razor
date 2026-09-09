@@ -1,0 +1,306 @@
+@page "/test-scenarios"
+@inject TestScenarioApiClient TestScenarioApi
+@inject SpecificationApiClient SpecificationApi
+@inject ConnectionApiClient ConnectionApi
+@inject IJSRuntime JS
+
+<PageTitle>Test Scenarios</PageTitle>
+
+<h1>Test Scenarios</h1>
+<p class="text-muted">Pick a message from an imported specification and send it to a connection — an HTTP service, or a RabbitMQ/NATS broker.</p>
+
+@if (errorMessage is not null)
+{
+    <p class="text-danger">@errorMessage</p>
+}
+
+<div class="card mb-3" style="max-width: 640px;">
+    <div class="card-body">
+        <h3 class="h6">@(_editingId is null ? "Add test scenario" : "Edit test scenario")</h3>
+
+        <div class="mb-2">
+            <label class="form-label" for="scenario-name-input">Name</label>
+            <input id="scenario-name-input" class="form-control" @bind="_formName" @bind:event="oninput" placeholder="e.g. Send order-created to Orders API" />
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label" for="scenario-spec-select">Specification</label>
+            <select id="scenario-spec-select" class="form-select" @bind="_formSpecificationId" @bind:after="OnSpecificationChangedAsync">
+                <option value="">Select a specification…</option>
+                @if (_specifications is not null)
+                {
+                    @foreach (var spec in _specifications)
+                    {
+                        <option value="@spec.Id">@spec.Title (@spec.Kind)</option>
+                    }
+                }
+            </select>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label" for="scenario-operation-select">Operation</label>
+            <select id="scenario-operation-select" class="form-select" @bind="_formMockEndpointId" disabled="@(_specificationEndpoints is null)">
+                <option value="">Select an operation…</option>
+                @if (_specificationEndpoints is not null)
+                {
+                    @foreach (var endpoint in _specificationEndpoints)
+                    {
+                        <option value="@endpoint.Id">@endpoint.OperationKey</option>
+                    }
+                }
+            </select>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label" for="scenario-connection-select">Connection</label>
+            <select id="scenario-connection-select" class="form-select" @bind="_formConnectionId">
+                <option value="">Select a connection…</option>
+                @foreach (var connection in CompatibleConnections)
+                {
+                    <option value="@connection.Id">@connection.Name (@connection.ServiceType)</option>
+                }
+            </select>
+            @if (SelectedEndpoint is not null && _connections is { Length: > 0 } && !CompatibleConnections.Any())
+            {
+                <div class="form-text text-danger">No @(SelectedEndpoint.OperationKey.Contains(' ') ? "Http" : "RabbitMq/Nats") connections yet — add one on the Settings page first.</div>
+            }
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="scenario-payload-textarea">Payload (optional override)</label>
+            <textarea id="scenario-payload-textarea" class="form-control" rows="4" @bind="_formPayloadOverride" @bind:event="oninput"
+                      placeholder="Leave blank to send the operation's own example from the spec"></textarea>
+        </div>
+
+        <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@(_isSaving || !CanSave)">
+            @(_isSaving ? "Saving…" : _editingId is null ? "Add" : "Save changes")
+        </button>
+        @if (_editingId is not null)
+        {
+            <button type="button" class="btn btn-outline-secondary btn-sm ms-2" @onclick="CancelEdit">Cancel</button>
+        }
+    </div>
+</div>
+
+@if (_scenarios is null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (_scenarios.Length == 0)
+{
+    <p><em>No test scenarios yet.</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Specification</th>
+                <th>Operation</th>
+                <th>Connection</th>
+                <th>Updated</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var scenario in _scenarios)
+            {
+                <tr>
+                    <td>@scenario.Name</td>
+                    <td>@scenario.SpecificationTitle</td>
+                    <td><code>@scenario.OperationKey</code></td>
+                    <td>@scenario.ConnectionName (@scenario.ConnectionServiceType)</td>
+                    <td>@scenario.UpdatedAt.ToLocalTime().ToString("g")</td>
+                    <td>
+                        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => RunAsync(scenario)" disabled="@_runningIds.Contains(scenario.Id)">
+                            @(_runningIds.Contains(scenario.Id) ? "Running…" : "Run")
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm ms-1" @onclick="() => StartEditAsync(scenario)">Edit</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm ms-1" @onclick="() => DeleteAsync(scenario)">Delete</button>
+                        @if (_runResults.TryGetValue(scenario.Id, out var runResult))
+                        {
+                            <div class="mt-1">
+                                <span class="badge @(runResult.Success ? "bg-success" : "bg-danger")">@(runResult.Success ? "OK" : "Failed")</span>
+                                <small class="text-muted">@runResult.Message</small>
+                                @if (!string.IsNullOrWhiteSpace(runResult.ResponseBody))
+                                {
+                                    <pre class="mt-1 mb-0"><code>@runResult.ResponseBody</code></pre>
+                                }
+                            </div>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private TestScenarioSummary[]? _scenarios;
+    private SpecificationSummary[]? _specifications;
+    private ConnectionSummary[]? _connections;
+    private MockEndpointDetail[]? _specificationEndpoints;
+    private readonly HashSet<Guid> _runningIds = [];
+    private readonly Dictionary<Guid, RunTestScenarioResult> _runResults = [];
+    private string? errorMessage;
+    private bool _isSaving;
+
+    private Guid? _editingId;
+    private string _formName = string.Empty;
+    private string _formSpecificationId = string.Empty;
+    private string _formMockEndpointId = string.Empty;
+    private string _formConnectionId = string.Empty;
+    private string _formPayloadOverride = string.Empty;
+
+    private bool CanSave =>
+        !string.IsNullOrWhiteSpace(_formName)
+        && Guid.TryParse(_formSpecificationId, out _)
+        && Guid.TryParse(_formMockEndpointId, out _)
+        && Guid.TryParse(_formConnectionId, out _);
+
+    private MockEndpointDetail? SelectedEndpoint => _specificationEndpoints?.FirstOrDefault(e => e.Id.ToString() == _formMockEndpointId);
+
+    /// <summary>Once an operation is picked, only offer connections its OperationKey could actually be sent through — see OperationCompatibility on the server.</summary>
+    private IEnumerable<ConnectionSummary> CompatibleConnections =>
+        _connections is null ? []
+        : SelectedEndpoint is null ? _connections
+        : _connections.Where(c => (c.ServiceType == ConnectionServiceType.Http) == SelectedEndpoint.OperationKey.Contains(' '));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _specifications = await SpecificationApi.GetAllAsync();
+        _connections = await ConnectionApi.GetAllAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _scenarios = await TestScenarioApi.GetAllAsync();
+
+    private async Task OnSpecificationChangedAsync()
+    {
+        _formMockEndpointId = string.Empty;
+        _specificationEndpoints = null;
+
+        if (Guid.TryParse(_formSpecificationId, out var specificationId))
+        {
+            var details = await SpecificationApi.GetByIdAsync(specificationId);
+            _specificationEndpoints = details?.Endpoints ?? [];
+        }
+    }
+
+    private async Task StartEditAsync(TestScenarioSummary scenario)
+    {
+        _editingId = scenario.Id;
+        _formName = scenario.Name;
+        _formSpecificationId = scenario.SpecificationId.ToString();
+        _formConnectionId = scenario.ConnectionId.ToString();
+        _formPayloadOverride = string.Empty;
+        errorMessage = null;
+
+        await OnSpecificationChangedAsync();
+        _formMockEndpointId = scenario.MockEndpointId.ToString();
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _formName = string.Empty;
+        _formSpecificationId = string.Empty;
+        _formMockEndpointId = string.Empty;
+        _formConnectionId = string.Empty;
+        _formPayloadOverride = string.Empty;
+        _specificationEndpoints = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!CanSave)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        errorMessage = null;
+
+        var specificationId = Guid.Parse(_formSpecificationId);
+        var mockEndpointId = Guid.Parse(_formMockEndpointId);
+        var connectionId = Guid.Parse(_formConnectionId);
+        var payloadOverride = string.IsNullOrWhiteSpace(_formPayloadOverride) ? null : _formPayloadOverride;
+
+        try
+        {
+            var ok = _editingId is { } id
+                ? await TestScenarioApi.UpdateAsync(id, _formName, specificationId, mockEndpointId, connectionId, payloadOverride)
+                : await CreatedOk();
+
+            if (!ok)
+            {
+                errorMessage = "That test scenario no longer exists — it may have been deleted elsewhere.";
+            }
+
+            CancelEdit();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to save test scenario: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+
+        async Task<bool> CreatedOk()
+        {
+            await TestScenarioApi.CreateAsync(_formName, specificationId, mockEndpointId, connectionId, payloadOverride);
+            return true;
+        }
+    }
+
+    private async Task DeleteAsync(TestScenarioSummary scenario)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Delete test scenario '{scenario.Name}'?");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        try
+        {
+            await TestScenarioApi.DeleteAsync(scenario.Id);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to delete test scenario: {ex.Message}";
+        }
+    }
+
+    private async Task RunAsync(TestScenarioSummary scenario)
+    {
+        _runningIds.Add(scenario.Id);
+        _runResults.Remove(scenario.Id);
+
+        try
+        {
+            var result = await TestScenarioApi.RunAsync(scenario.Id);
+            if (result is null)
+            {
+                errorMessage = "That test scenario no longer exists — it may have been deleted elsewhere.";
+                await LoadAsync();
+            }
+            else
+            {
+                _runResults[scenario.Id] = result;
+            }
+        }
+        catch (Exception ex)
+        {
+            _runResults[scenario.Id] = new RunTestScenarioResult(false, ex.Message, null);
+        }
+        finally
+        {
+            _runningIds.Remove(scenario.Id);
+        }
+    }
+}

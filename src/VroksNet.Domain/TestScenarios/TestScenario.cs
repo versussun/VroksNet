@@ -1,0 +1,29 @@
+namespace VroksNet.Domain.TestScenarios;
+
+/// <summary>
+/// A saved "send this message somewhere" scenario: one operation (<see cref="MockEndpointId"/>)
+/// from one imported specification (<see cref="SpecificationId"/>), sent through one
+/// <see cref="Connections.Connection"/> (<see cref="ConnectionId"/>) — an HTTP service, or a
+/// RabbitMQ/NATS broker. No foreign-key constraints to the specification/endpoint/connection it
+/// references (same loose-coupling as <see cref="CallRecords.CallRecord"/>) — deleting any of
+/// those leaves a scenario that fails gracefully at run time rather than cascading.
+/// </summary>
+public sealed class TestScenario
+{
+    public Guid Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public Guid SpecificationId { get; set; }
+
+    public Guid MockEndpointId { get; set; }
+
+    public Guid ConnectionId { get; set; }
+
+    /// <summary>Overrides the operation's own <see cref="MockEndpoints.MockEndpoint.ExampleTemplate"/> when sending, if set.</summary>
+    public string? PayloadOverride { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+}

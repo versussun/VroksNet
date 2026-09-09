@@ -17,5 +17,6 @@ var apiServiceBaseAddress = new Uri(builder.Configuration["ApiService:BaseAddres
 builder.Services.AddHttpClient<WeatherApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
 builder.Services.AddHttpClient<SpecificationApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
 builder.Services.AddHttpClient<ConnectionApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
+builder.Services.AddHttpClient<TestScenarioApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
 
 await builder.Build().RunAsync();

@@ -1,0 +1,18 @@
+using VroksNet.Domain.TestScenarios;
+
+namespace VroksNet.Application.Abstractions;
+
+public interface ITestScenarioRepository
+{
+    Task<IReadOnlyList<TestScenario>> ListAsync(CancellationToken cancellationToken);
+
+    Task<TestScenario?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
+
+    Task InsertAsync(TestScenario scenario, CancellationToken cancellationToken);
+
+    /// <returns>False if no scenario with <see cref="TestScenario.Id"/> exists.</returns>
+    Task<bool> UpdateAsync(TestScenario scenario, CancellationToken cancellationToken);
+
+    /// <returns>False if no scenario with that id exists.</returns>
+    Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken);
+}

@@ -1,0 +1,20 @@
+using VroksNet.Domain.Connections;
+
+namespace VroksNet.Application.Abstractions;
+
+/// <summary>
+/// Actually sends a message to a <see cref="Connection"/>'s target: an HTTP request built from an
+/// operation key ("METHOD /path") for <see cref="ConnectionServiceType.Http"/>, or a broker
+/// publish built from one ("channel/address:action") for RabbitMq/Nats.
+/// </summary>
+public interface IMessageSender
+{
+    Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// <see cref="Message"/> is safe to show verbatim in the UI. <see cref="ResponseBody"/> is only
+/// ever populated for an HTTP send (the real response body) — a broker publish has no synchronous
+/// response to show.
+/// </summary>
+public sealed record MessageSendResult(bool Success, string Message, string? ResponseBody = null);

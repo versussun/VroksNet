@@ -12,6 +12,9 @@ public sealed class CallRecord
 
     public Guid? MockEndpointId { get; set; }
 
+    /// <summary>The <see cref="Connections.Connection"/> a <see cref="TestScenarios.TestScenario"/> run sent through, if any — null for an ordinary inbound mock call.</summary>
+    public Guid? ConnectionId { get; set; }
+
     public CallDirection Direction { get; set; }
 
     public DateTimeOffset Timestamp { get; set; }

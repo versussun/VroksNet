@@ -3,6 +3,7 @@ using VroksNet.Domain.ApiSpecifications;
 using VroksNet.Domain.CallRecords;
 using VroksNet.Domain.Connections;
 using VroksNet.Domain.MockEndpoints;
+using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Infrastructure.Persistence;
 
@@ -15,6 +16,8 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
     public DbSet<CallRecord> CallRecords => Set<CallRecord>();
 
     public DbSet<Connection> Connections => Set<Connection>();
+
+    public DbSet<TestScenario> TestScenarios => Set<TestScenario>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -39,5 +42,7 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
             entity.HasKey(connection => connection.Id);
             entity.HasIndex(connection => connection.Name).IsUnique();
         });
+
+        modelBuilder.Entity<TestScenario>(entity => entity.HasKey(scenario => scenario.Id));
     }
 }

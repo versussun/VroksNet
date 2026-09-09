@@ -32,14 +32,18 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<IApiSpecificationRepository, ApiSpecificationRepository>();
         services.AddScoped<IConnectionRepository, ConnectionRepository>();
+        services.AddScoped<ITestScenarioRepository, TestScenarioRepository>();
+        services.AddScoped<ICallRecordRepository, CallRecordRepository>();
         services.AddScoped<ISpecificationParser, OpenApiSpecificationParser>();
         services.AddScoped<IAsyncApiSpecificationParser, AsyncApiSpecificationParser>();
         services.AddScoped<IResponseTemplateEngine, PassthroughResponseTemplateEngine>();
 
-        // Bare factory registration — ConnectionTester requests its own named client via
-        // IHttpClientFactory.CreateClient(...) rather than a typed AddHttpClient<T> registration.
+        // Bare factory registration — ConnectionTester/MessageSender each request their own named
+        // client via IHttpClientFactory.CreateClient(...) rather than a typed AddHttpClient<T>
+        // registration.
         services.AddHttpClient();
         services.AddScoped<IConnectionTester, ConnectionTester>();
+        services.AddScoped<IMessageSender, MessageSender>();
 
         return services;
     }
