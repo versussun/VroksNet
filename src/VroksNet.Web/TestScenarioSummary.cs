@@ -10,4 +10,7 @@ public sealed record TestScenarioSummary(
     Guid ConnectionId,
     string ConnectionName,
     ConnectionServiceType ConnectionServiceType,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? LastRunAt,
+    bool? LastRunSuccess,
+    string? LastRunMessage);

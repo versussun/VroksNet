@@ -20,24 +20,10 @@ public sealed class ListTestScenariosHandler(
         var connectionsById = (await connections.ListAsync(cancellationToken)).ToDictionary(c => c.Id);
 
         return all
-            .Select(scenario =>
-            {
-                specsById.TryGetValue(scenario.SpecificationId, out var specification);
-                var endpoint = specification?.Endpoints.FirstOrDefault(e => e.Id == scenario.MockEndpointId);
-                connectionsById.TryGetValue(scenario.ConnectionId, out var connection);
-
-                return new TestScenarioSummary(
-                    scenario.Id,
-                    scenario.Name,
-                    scenario.SpecificationId,
-                    specification?.Title ?? "(deleted specification)",
-                    scenario.MockEndpointId,
-                    endpoint?.OperationKey ?? "(deleted operation)",
-                    scenario.ConnectionId,
-                    connection?.Name ?? "(deleted connection)",
-                    connection?.ServiceType ?? default,
-                    scenario.UpdatedAt);
-            })
+            .Select(scenario => TestScenarioSummaryFactory.Build(
+                scenario,
+                specsById.GetValueOrDefault(scenario.SpecificationId),
+                connectionsById.GetValueOrDefault(scenario.ConnectionId)))
             .OrderBy(summary => summary.Name)
             .ToList();
     }

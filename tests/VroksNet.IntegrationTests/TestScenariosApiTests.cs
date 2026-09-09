@@ -44,6 +44,16 @@ public sealed class TestScenariosApiTests(AppHostFixture fixture)
         Assert.Equal("GET /health", summary!["operationKey"]!.GetValue<string>());
         Assert.Equal("Http", summary["connectionServiceType"]!.GetValue<string>());
 
+        // GET by id — the counterpart the "status via API" story relies on; not run yet
+        var getBeforeRunResponse = await client.GetAsync($"/api/test-scenarios/{scenarioId}", cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, getBeforeRunResponse.StatusCode);
+        var beforeRun = await getBeforeRunResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+        Assert.Null(beforeRun!["lastRunAt"]);
+
+        // Getting an unknown id 404s
+        var getUnknownResponse = await client.GetAsync($"/api/test-scenarios/{Guid.NewGuid()}", cancellationToken);
+        Assert.Equal(HttpStatusCode.NotFound, getUnknownResponse.StatusCode);
+
         // Run — hits ApiService's own real /health endpoint
         var runResponse = await client.PostAsync($"/api/test-scenarios/{scenarioId}/run", null, cancellationToken);
         Assert.Equal(HttpStatusCode.OK, runResponse.StatusCode);
@@ -53,6 +63,13 @@ public sealed class TestScenariosApiTests(AppHostFixture fixture)
         // Running an unknown id 404s
         var runUnknownResponse = await client.PostAsync($"/api/test-scenarios/{Guid.NewGuid()}/run", null, cancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, runUnknownResponse.StatusCode);
+
+        // GET by id again — the run's status is now visible via the API without re-running it
+        var getAfterRunResponse = await client.GetAsync($"/api/test-scenarios/{scenarioId}", cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, getAfterRunResponse.StatusCode);
+        var afterRun = await getAfterRunResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+        Assert.True(afterRun!["lastRunSuccess"]!.GetValue<bool>());
+        Assert.NotNull(afterRun["lastRunAt"]!.GetValue<string>());
 
         // Update
         var updateResponse = await client.PutAsJsonAsync(

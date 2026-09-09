@@ -15,4 +15,11 @@ public interface ITestScenarioRepository
 
     /// <returns>False if no scenario with that id exists.</returns>
     Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records the outcome of a <c>Run</c> — <see cref="TestScenario.LastRunAt"/>/<see cref="TestScenario.LastRunSuccess"/>/<see cref="TestScenario.LastRunMessage"/>
+    /// only, deliberately separate from <see cref="UpdateAsync"/> (which is about edits to the
+    /// scenario's own definition, not about runs of it).
+    /// </summary>
+    Task RecordRunAsync(Guid id, DateTimeOffset ranAt, bool success, string message, CancellationToken cancellationToken);
 }

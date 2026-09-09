@@ -26,4 +26,12 @@ public sealed class TestScenario
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>When this scenario was last <c>Run</c>, and with what result — null until the first run. Distinct from <see cref="UpdatedAt"/>, which tracks edits to the scenario's own definition, not runs of it.</summary>
+    public DateTimeOffset? LastRunAt { get; set; }
+
+    public bool? LastRunSuccess { get; set; }
+
+    /// <summary>Safe to show verbatim in the UI/API — never a raw connection string or full exception stack (same contract as IMessageSender's MessageSendResult.Message).</summary>
+    public string? LastRunMessage { get; set; }
 }

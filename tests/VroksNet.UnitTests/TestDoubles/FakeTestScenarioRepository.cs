@@ -33,4 +33,17 @@ internal sealed class FakeTestScenarioRepository : ITestScenarioRepository
 
     public Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken)
         => Task.FromResult(_scenarios.RemoveAll(s => s.Id == id) > 0);
+
+    public Task RecordRunAsync(Guid id, DateTimeOffset ranAt, bool success, string message, CancellationToken cancellationToken)
+    {
+        var scenario = _scenarios.FirstOrDefault(s => s.Id == id);
+        if (scenario is not null)
+        {
+            scenario.LastRunAt = ranAt;
+            scenario.LastRunSuccess = success;
+            scenario.LastRunMessage = message;
+        }
+
+        return Task.CompletedTask;
+    }
 }

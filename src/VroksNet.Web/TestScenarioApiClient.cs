@@ -19,6 +19,19 @@ public sealed class TestScenarioApiClient(HttpClient httpClient)
         return scenarios ?? [];
     }
 
+    /// <summary>Includes the scenario's last-run status. Returns null if no scenario with that id exists.</summary>
+    public async Task<TestScenarioSummary?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.GetAsync($"/api/test-scenarios/{id}", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<TestScenarioSummary>(JsonOptions, cancellationToken);
+    }
+
     public async Task<Guid> CreateAsync(string name, Guid specificationId, Guid mockEndpointId, Guid connectionId, string? payloadOverride, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.PostAsJsonAsync(

@@ -68,4 +68,17 @@ public sealed class TestScenarioRepository(
 
         return deleted;
     }
+
+    public Task RecordRunAsync(Guid id, DateTimeOffset ranAt, bool success, string message, CancellationToken cancellationToken)
+    {
+        return writeQueue.EnqueueAsync(async (context, ct) =>
+        {
+            await context.TestScenarios
+                .Where(s => s.Id == id)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(s => s.LastRunAt, ranAt)
+                    .SetProperty(s => s.LastRunSuccess, success)
+                    .SetProperty(s => s.LastRunMessage, message), ct);
+        }, cancellationToken);
+    }
 }

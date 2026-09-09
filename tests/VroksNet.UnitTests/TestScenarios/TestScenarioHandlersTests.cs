@@ -1,6 +1,7 @@
 using VroksNet.Application.Connections.CreateConnection;
 using VroksNet.Application.TestScenarios.CreateTestScenario;
 using VroksNet.Application.TestScenarios.DeleteTestScenario;
+using VroksNet.Application.TestScenarios.GetTestScenario;
 using VroksNet.Application.TestScenarios.ListTestScenarios;
 using VroksNet.Application.TestScenarios.UpdateTestScenario;
 using VroksNet.Domain.ApiSpecifications;
@@ -133,6 +134,40 @@ public class TestScenarioHandlersTests
         Assert.Equal("GET /pets", summary.OperationKey);
         Assert.Equal("Orders API", summary.ConnectionName);
         Assert.Equal(ConnectionServiceType.Http, summary.ConnectionServiceType);
+        Assert.Null(summary.LastRunAt);
+        Assert.Null(summary.LastRunSuccess);
+    }
+
+    [Fact]
+    public async Task Get_ExistingId_ReturnsSummaryWithLastRunStatus()
+    {
+        var (specifications, connections, httpEndpointId, _, httpConnectionId, _) = await SeedAsync();
+        var repository = new FakeTestScenarioRepository();
+        var id = await new CreateTestScenarioHandler(repository, specifications, connections).Handle(
+            new CreateTestScenario("Send GET /pets", SpecId, httpEndpointId, httpConnectionId, null), TestContext.Current.CancellationToken);
+
+        var ranAt = DateTimeOffset.UtcNow;
+        await repository.RecordRunAsync(id, ranAt, success: true, "200 OK", TestContext.Current.CancellationToken);
+
+        var summary = await new GetTestScenarioHandler(repository, specifications, connections)
+            .Handle(new GetTestScenario(id), TestContext.Current.CancellationToken);
+
+        Assert.NotNull(summary);
+        Assert.Equal("Send GET /pets", summary.Name);
+        Assert.Equal(ranAt, summary.LastRunAt);
+        Assert.True(summary.LastRunSuccess);
+        Assert.Equal("200 OK", summary.LastRunMessage);
+    }
+
+    [Fact]
+    public async Task Get_UnknownId_ReturnsNull()
+    {
+        var (specifications, connections, _, _, _, _) = await SeedAsync();
+        var handler = new GetTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections);
+
+        var summary = await handler.Handle(new GetTestScenario(Guid.NewGuid()), TestContext.Current.CancellationToken);
+
+        Assert.Null(summary);
     }
 
     [Fact]

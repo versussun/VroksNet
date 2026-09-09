@@ -1,6 +1,7 @@
 using Mediator;
 using VroksNet.Application.TestScenarios.CreateTestScenario;
 using VroksNet.Application.TestScenarios.DeleteTestScenario;
+using VroksNet.Application.TestScenarios.GetTestScenario;
 using VroksNet.Application.TestScenarios.ListTestScenarios;
 using VroksNet.Application.TestScenarios.RunTestScenario;
 using VroksNet.Application.TestScenarios.UpdateTestScenario;
@@ -24,6 +25,15 @@ public static class TestScenarioEndpoints
             return Results.Ok(scenarios);
         })
         .WithName("ListTestScenarios");
+
+        // Also carries the scenario's last-run status (LastRunAt/LastRunSuccess/LastRunMessage)
+        // — lets a caller poll one scenario's status without listing all of them.
+        group.MapGet("/{id:guid}", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            var scenario = await mediator.Send(new GetTestScenario(id), cancellationToken);
+            return scenario is not null ? Results.Ok(scenario) : Results.NotFound();
+        })
+        .WithName("GetTestScenario");
 
         group.MapPost("/", async (CreateTestScenario request, IMediator mediator, CancellationToken cancellationToken) =>
         {

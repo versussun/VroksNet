@@ -63,6 +63,12 @@ public class RunTestScenarioHandlerTests
         Assert.Equal(CallDirection.OutboundHttpRequest, logged.Direction);
         Assert.Equal("[]", logged.RequestSnapshot);
         Assert.Equal("{\"id\":1}", logged.ResponseSnapshot);
+
+        var stored = await scenarios.FindByIdAsync(scenarioId, TestContext.Current.CancellationToken);
+        Assert.NotNull(stored);
+        Assert.NotNull(stored.LastRunAt);
+        Assert.True(stored.LastRunSuccess);
+        Assert.Equal("200 OK", stored.LastRunMessage);
     }
 
     [Fact]
@@ -151,5 +157,11 @@ public class RunTestScenarioHandlerTests
         Assert.False(result.Success);
         Assert.Null(sender.LastSend);
         Assert.Empty(callRecords.Inserted);
+
+        var stored = await scenarios.FindByIdAsync(scenarioId, TestContext.Current.CancellationToken);
+        Assert.NotNull(stored);
+        Assert.NotNull(stored.LastRunAt);
+        Assert.False(stored.LastRunSuccess);
+        Assert.Equal(result.Message, stored.LastRunMessage);
     }
 }

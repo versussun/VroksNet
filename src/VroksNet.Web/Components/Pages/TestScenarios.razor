@@ -100,6 +100,7 @@ else
                 <th>Operation</th>
                 <th>Connection</th>
                 <th>Updated</th>
+                <th>Last run</th>
                 <th></th>
             </tr>
         </thead>
@@ -112,6 +113,18 @@ else
                     <td><code>@scenario.OperationKey</code></td>
                     <td>@scenario.ConnectionName (@scenario.ConnectionServiceType)</td>
                     <td>@scenario.UpdatedAt.ToLocalTime().ToString("g")</td>
+                    <td>
+                        @if (scenario.LastRunAt is null)
+                        {
+                            <span class="text-muted">Never run</span>
+                        }
+                        else
+                        {
+                            <span class="badge @(scenario.LastRunSuccess == true ? "bg-success" : "bg-danger")">@(scenario.LastRunSuccess == true ? "OK" : "Failed")</span>
+                            <br />
+                            <small class="text-muted">@scenario.LastRunAt.Value.ToLocalTime().ToString("g")</small>
+                        }
+                    </td>
                     <td>
                         <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => RunAsync(scenario)" disabled="@_runningIds.Contains(scenario.Id)">
                             @(_runningIds.Contains(scenario.Id) ? "Running…" : "Run")
@@ -287,12 +300,15 @@ else
             if (result is null)
             {
                 errorMessage = "That test scenario no longer exists — it may have been deleted elsewhere.";
-                await LoadAsync();
             }
             else
             {
                 _runResults[scenario.Id] = result;
             }
+
+            // Refreshes the persisted "Last run" column (RunTestScenarioHandler records it
+            // server-side) even when the scenario was deleted mid-run.
+            await LoadAsync();
         }
         catch (Exception ex)
         {
