@@ -1,12 +1,16 @@
 @using System.Text.RegularExpressions
 @inject SpecificationApiClient SpecificationApi
+@inject NavigationManager Navigation
 
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center">
         <code>@Endpoint.OperationKey</code>
-        <span class="badge @(Endpoint.IsEnabled ? "bg-success" : "bg-secondary")">
-            @(Endpoint.IsEnabled ? "Enabled" : "Disabled")
-        </span>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge @(Endpoint.IsEnabled ? "bg-success" : "bg-secondary")">
+                @(Endpoint.IsEnabled ? "Enabled" : "Disabled")
+            </span>
+            <button type="button" class="btn btn-outline-primary btn-sm" @onclick="CreateTest">+ Create test</button>
+        </div>
     </div>
 
     <div class="card-body">
@@ -67,6 +71,10 @@
 @code {
     [Parameter, EditorRequired]
     public MockEndpointDetail Endpoint { get; set; } = null!;
+
+    /// <summary>The specification this endpoint belongs to — carried along to Test Scenarios' "create from here" link, since a MockEndpointDetail on its own doesn't know its parent specification's id.</summary>
+    [Parameter, EditorRequired]
+    public Guid SpecificationId { get; set; }
 
     private static readonly Regex PlaceholderPattern = new(@"\{([^}]+)\}", RegexOptions.Compiled);
 
@@ -140,4 +148,7 @@
     }
 
     private static bool IsSuccessStatus(int status) => status is >= 200 and < 300;
+
+    /// <summary>Sends the browser to Test Scenarios with this specification/operation pre-selected — read back there via [SupplyParameterFromQuery] to open the Add panel already filled in.</summary>
+    private void CreateTest() => Navigation.NavigateTo($"test-scenarios?specificationId={SpecificationId}&mockEndpointId={Endpoint.Id}");
 }

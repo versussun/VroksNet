@@ -1,7 +1,110 @@
-﻿@page "/"
+@page "/"
+@inject SpecificationApiClient SpecificationApi
+@inject ConnectionApiClient ConnectionApi
+@inject TestScenarioApiClient TestScenarioApi
 
-<PageTitle>Home</PageTitle>
+<PageTitle>VroksNet</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="p-4 mb-4 rounded-3 hero">
+    <h1 class="mb-2">VroksNet</h1>
+    <p class="lead mb-0">
+        An internal API mocking &amp; contract-testing server for OpenAPI and AsyncAPI specifications —
+        a Microcks-style tool, built on .NET.
+    </p>
+</div>
 
-Welcome to your new app.
+<p class="text-muted" style="max-width: 46rem;">
+    Import an OpenAPI or AsyncAPI specification and VroksNet turns its operations into something you can
+    actually send a request to or a message through — without waiting on the real service to exist yet.
+    Point a real service's client at it the same way, and you can check that its responses still match
+    what the specification promises.
+</p>
+
+<div class="row g-3 mb-4" style="max-width: 46rem;">
+    <div class="col-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="stat-value">@(_specifications?.Length.ToString() ?? "…")</div>
+                <div class="text-muted small">Specifications</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="stat-value">@(_testScenarios?.Length.ToString() ?? "…")</div>
+                <div class="text-muted small">Test Scenarios</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <div class="stat-value">@(_connections?.Length.ToString() ?? "…")</div>
+                <div class="text-muted small">Connections</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column">
+                <h3 class="h5">Specifications</h3>
+                <p class="text-muted small flex-grow-1">
+                    Import an OpenAPI (2.0/3.x) or AsyncAPI (3.x) file. VroksNet parses it into
+                    mockable operations, each carrying its own example payload and JSON Schema.
+                    Re-importing the same <code>info.title</code> replaces it in place.
+                </p>
+                <a class="btn btn-outline-primary btn-sm align-self-start" href="specifications">Open Specifications</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column">
+                <h3 class="h5">Test Scenarios</h3>
+                <p class="text-muted small flex-grow-1">
+                    Pick one operation from an imported specification, send it through a saved
+                    Connection — an HTTP call or a RabbitMQ/NATS publish — and see the result
+                    right away. Every run is logged.
+                </p>
+                <a class="btn btn-outline-primary btn-sm align-self-start" href="test-scenarios">Open Test Scenarios</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column">
+                <h3 class="h5">Settings</h3>
+                <p class="text-muted small flex-grow-1">
+                    Manage the named Connections — URLs and broker connection strings — that
+                    Test Scenarios send messages through, and verify each one is actually
+                    reachable.
+                </p>
+                <a class="btn btn-outline-primary btn-sm align-self-start" href="settings">Open Settings</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4 p-3 rounded-3 roadmap-note" style="max-width: 46rem;">
+    <strong>Where this is headed:</strong> mock REST endpoints served directly by VroksNet
+    (matching real requests against a spec, not just sending test messages) and a background
+    worker that publishes AsyncAPI-described events on a schedule are on the roadmap but not
+    built yet — today's mocking flow runs through Test Scenarios above.
+</div>
+
+@code {
+    private SpecificationSummary[]? _specifications;
+    private ConnectionSummary[]? _connections;
+    private TestScenarioSummary[]? _testScenarios;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _specifications = await SpecificationApi.GetAllAsync();
+        _connections = await ConnectionApi.GetAllAsync();
+        _testScenarios = await TestScenarioApi.GetAllAsync();
+    }
+}

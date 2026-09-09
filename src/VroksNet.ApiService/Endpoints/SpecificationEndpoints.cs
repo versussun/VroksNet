@@ -39,9 +39,19 @@ public static class SpecificationEndpoints
                 ? headerValue.ToString()
                 : "spec.yaml";
 
-            var id = await mediator.Send(new ImportOpenApiSpec(fileName, yamlContent), cancellationToken);
-
-            return Results.Ok(new ImportSpecificationResult(id));
+            try
+            {
+                var id = await mediator.Send(new ImportOpenApiSpec(fileName, yamlContent), cancellationToken);
+                return Results.Ok(new ImportSpecificationResult(id));
+            }
+            catch (InvalidOperationException ex)
+            {
+                // OpenApiSpecificationParser throws this for a file that doesn't parse (bad
+                // syntax, missing "openapi" version field, etc.) — an expected "the user's file is
+                // bad" outcome, not a server fault, so it's a 400 with the parser's own message
+                // rather than an unhandled exception surfacing as a bare 500.
+                return Results.BadRequest(new ImportSpecificationError(ex.Message));
+            }
         })
         .WithName("ImportOpenApiSpecification")
         .Accepts<string>("text/plain");
@@ -55,9 +65,17 @@ public static class SpecificationEndpoints
                 ? headerValue.ToString()
                 : "spec.yaml";
 
-            var id = await mediator.Send(new ImportAsyncApiSpec(fileName, yamlContent), cancellationToken);
-
-            return Results.Ok(new ImportSpecificationResult(id));
+            try
+            {
+                var id = await mediator.Send(new ImportAsyncApiSpec(fileName, yamlContent), cancellationToken);
+                return Results.Ok(new ImportSpecificationResult(id));
+            }
+            catch (InvalidOperationException ex)
+            {
+                // See the /openapi branch above — AsyncApiSpecificationParser throws the same way
+                // for a file that doesn't parse.
+                return Results.BadRequest(new ImportSpecificationError(ex.Message));
+            }
         })
         .WithName("ImportAsyncApiSpecification")
         .Accepts<string>("text/plain");

@@ -34,7 +34,7 @@ else
     {
         @foreach (var endpoint in details.Endpoints)
         {
-            <MockEndpointCard Endpoint="endpoint" @key="endpoint.Id" />
+            <MockEndpointCard Endpoint="endpoint" SpecificationId="details.Id" @key="endpoint.Id" />
         }
     }
 }

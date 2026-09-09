@@ -1,19 +1,43 @@
+/* "Ocean & Lime" theme — replaces the default Blazor-template purple/blue. Ocean blue
+   (#0c2d48 → #145374) carries the sidebar/chrome; lime (#4d7c0f/#65a30d) is the one accent
+   color for primary actions and focus rings. Bootstrap's own CSS variables are redefined at
+   :root so components that source their colors from --bs-primary/--bs-link-color (badges,
+   form-check, spinners, etc.) pick this up too, on top of the explicit .btn-primary/link rules
+   below (kept for components that don't use the variable, or override it themselves). */
+:root {
+    --bs-primary: #4d7c0f;
+    --bs-primary-rgb: 77, 124, 15;
+    --bs-link-color: #0e7490;
+    --bs-link-color-rgb: 14, 116, 144;
+    --bs-link-hover-color: #0c2d48;
+    --bs-link-hover-color-rgb: 12, 45, 72;
+}
+
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
 a, .btn-link {
-    color: #006bb7;
+    color: #0e7490;
 }
+
+    a:hover, .btn-link:hover {
+        color: #0c2d48;
+    }
 
 .btn-primary {
     color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    background-color: #4d7c0f;
+    border-color: #3f6212;
 }
 
+    .btn-primary:hover, .btn-primary:active {
+        background-color: #3f6212;
+        border-color: #365314;
+    }
+
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #65a30d;
 }
 
 .content {

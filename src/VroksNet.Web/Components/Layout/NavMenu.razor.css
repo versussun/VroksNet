@@ -69,7 +69,8 @@
     }
 
 .nav-item ::deep a.active {
-    background-color: rgba(255,255,255,0.37);
+    background-color: rgba(132, 204, 22, 0.25);
+    box-shadow: inset 3px 0 0 #84cc16;
     color: white;
 }
 

@@ -1,0 +1,20 @@
+.hero {
+    background-image: linear-gradient(135deg, #0c2d48 0%, #145374 100%);
+    color: #fff;
+}
+
+    .hero .lead {
+        color: rgba(255, 255, 255, 0.85);
+    }
+
+.stat-value {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #4d7c0f;
+}
+
+.roadmap-note {
+    background-color: #ecfccb;
+    border: 1px solid #d9f99d;
+    color: #365314;
+}

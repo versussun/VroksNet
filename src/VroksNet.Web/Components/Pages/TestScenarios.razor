@@ -6,18 +6,104 @@
 
 <PageTitle>Test Scenarios</PageTitle>
 
-<h1>Test Scenarios</h1>
-<p class="text-muted">Pick a message from an imported specification and send it to a connection — an HTTP service, or a RabbitMQ/NATS broker.</p>
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h1>Test Scenarios</h1>
+        <p class="text-muted mb-0">Pick a message from an imported specification and send it to a connection — an HTTP service, or a RabbitMQ/NATS broker.</p>
+    </div>
+    <button type="button" class="btn btn-primary text-nowrap ms-3" @onclick="OpenAddPanel">+ Add test scenario</button>
+</div>
 
 @if (errorMessage is not null)
 {
     <p class="text-danger">@errorMessage</p>
 }
 
-<div class="card mb-3" style="max-width: 640px;">
-    <div class="card-body">
-        <h3 class="h6">@(_editingId is null ? "Add test scenario" : "Edit test scenario")</h3>
+@if (_scenarios is null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (_scenarios.Length == 0)
+{
+    <p><em>No test scenarios yet.</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Specification</th>
+                <th>Operation</th>
+                <th>Connection</th>
+                <th>Updated</th>
+                <th>Last run</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var scenario in _scenarios)
+            {
+                <tr>
+                    <td>@scenario.Name</td>
+                    <td>@scenario.SpecificationTitle</td>
+                    <td><code>@scenario.OperationKey</code></td>
+                    <td>@scenario.ConnectionName (@scenario.ConnectionServiceType)</td>
+                    <td>@scenario.UpdatedAt.ToLocalTime().ToString("g")</td>
+                    <td>
+                        @if (scenario.LastRunAt is null)
+                        {
+                            <span class="text-muted">Never run</span>
+                        }
+                        else
+                        {
+                            <span class="badge @(scenario.LastRunSuccess == true ? "bg-success" : "bg-danger")">@(scenario.LastRunSuccess == true ? "OK" : "Failed")</span>
+                            <br />
+                            <small class="text-muted">@scenario.LastRunAt.Value.ToLocalTime().ToString("g")</small>
+                        }
+                    </td>
+                    <td>
+                        @if (_running.ContainsKey(scenario.Id))
+                        {
+                            <button type="button" class="btn btn-outline-primary btn-sm" disabled>Running…</button>
+                            <button type="button" class="btn btn-outline-warning btn-sm ms-1" @onclick="() => StopAsync(scenario)">Stop</button>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => RunAsync(scenario)">Run</button>
+                        }
+                        <button type="button" class="btn btn-outline-secondary btn-sm ms-1" @onclick="() => StartEditAsync(scenario)">Edit</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm ms-1" @onclick="() => DeleteAsync(scenario)">Delete</button>
+                        @if (_runResults.TryGetValue(scenario.Id, out var runResult))
+                        {
+                            <div class="mt-1">
+                                <span class="badge @(runResult.Success ? "bg-success" : "bg-danger")">@(runResult.Success ? "OK" : "Failed")</span>
+                                <small class="text-muted">@runResult.Message</small>
+                                @if (!string.IsNullOrWhiteSpace(runResult.ResponseBody))
+                                {
+                                    <pre class="mt-1 mb-0"><code>@runResult.ResponseBody</code></pre>
+                                }
+                            </div>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
 
+@if (_isPanelOpen)
+{
+    <div class="scenario-panel-backdrop" @onclick="ClosePanel"></div>
+}
+
+<aside class="scenario-panel @(_isPanelOpen ? "open" : "")">
+    <div class="scenario-panel-header">
+        <h3 class="h6 mb-0">@(_editingId is null ? "Add test scenario" : "Edit test scenario")</h3>
+        <button type="button" class="btn-close" aria-label="Close" @onclick="ClosePanel"></button>
+    </div>
+
+    <div class="scenario-panel-body">
         <div class="mb-2">
             <label class="form-label" for="scenario-name-input">Name</label>
             <input id="scenario-name-input" class="form-control" @bind="_formName" @bind:event="oninput" placeholder="e.g. Send order-created to Orders API" />
@@ -75,89 +161,29 @@
         <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@(_isSaving || !CanSave)">
             @(_isSaving ? "Saving…" : _editingId is null ? "Add" : "Save changes")
         </button>
-        @if (_editingId is not null)
-        {
-            <button type="button" class="btn btn-outline-secondary btn-sm ms-2" @onclick="CancelEdit">Cancel</button>
-        }
+        <button type="button" class="btn btn-outline-secondary btn-sm ms-2" @onclick="ClosePanel">Cancel</button>
     </div>
-</div>
-
-@if (_scenarios is null)
-{
-    <p><em>Loading...</em></p>
-}
-else if (_scenarios.Length == 0)
-{
-    <p><em>No test scenarios yet.</em></p>
-}
-else
-{
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Specification</th>
-                <th>Operation</th>
-                <th>Connection</th>
-                <th>Updated</th>
-                <th>Last run</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var scenario in _scenarios)
-            {
-                <tr>
-                    <td>@scenario.Name</td>
-                    <td>@scenario.SpecificationTitle</td>
-                    <td><code>@scenario.OperationKey</code></td>
-                    <td>@scenario.ConnectionName (@scenario.ConnectionServiceType)</td>
-                    <td>@scenario.UpdatedAt.ToLocalTime().ToString("g")</td>
-                    <td>
-                        @if (scenario.LastRunAt is null)
-                        {
-                            <span class="text-muted">Never run</span>
-                        }
-                        else
-                        {
-                            <span class="badge @(scenario.LastRunSuccess == true ? "bg-success" : "bg-danger")">@(scenario.LastRunSuccess == true ? "OK" : "Failed")</span>
-                            <br />
-                            <small class="text-muted">@scenario.LastRunAt.Value.ToLocalTime().ToString("g")</small>
-                        }
-                    </td>
-                    <td>
-                        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => RunAsync(scenario)" disabled="@_runningIds.Contains(scenario.Id)">
-                            @(_runningIds.Contains(scenario.Id) ? "Running…" : "Run")
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm ms-1" @onclick="() => StartEditAsync(scenario)">Edit</button>
-                        <button type="button" class="btn btn-outline-danger btn-sm ms-1" @onclick="() => DeleteAsync(scenario)">Delete</button>
-                        @if (_runResults.TryGetValue(scenario.Id, out var runResult))
-                        {
-                            <div class="mt-1">
-                                <span class="badge @(runResult.Success ? "bg-success" : "bg-danger")">@(runResult.Success ? "OK" : "Failed")</span>
-                                <small class="text-muted">@runResult.Message</small>
-                                @if (!string.IsNullOrWhiteSpace(runResult.ResponseBody))
-                                {
-                                    <pre class="mt-1 mb-0"><code>@runResult.ResponseBody</code></pre>
-                                }
-                            </div>
-                        }
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+</aside>
 
 @code {
     private TestScenarioSummary[]? _scenarios;
     private SpecificationSummary[]? _specifications;
     private ConnectionSummary[]? _connections;
     private MockEndpointDetail[]? _specificationEndpoints;
-    private readonly HashSet<Guid> _runningIds = [];
+    private readonly Dictionary<Guid, CancellationTokenSource> _running = [];
     private readonly Dictionary<Guid, RunTestScenarioResult> _runResults = [];
     private string? errorMessage;
     private bool _isSaving;
+    private bool _isPanelOpen;
+
+    /// <summary>Set by MockEndpointCard's "+ Create test" link (specifications/{id} → /test-scenarios?specificationId=...&amp;mockEndpointId=...) so this page can open the Add panel already pointed at that operation.</summary>
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "specificationId")]
+    public Guid? QuerySpecificationId { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "mockEndpointId")]
+    public Guid? QueryMockEndpointId { get; set; }
 
     private Guid? _editingId;
     private string _formName = string.Empty;
@@ -185,6 +211,20 @@ else
         _specifications = await SpecificationApi.GetAllAsync();
         _connections = await ConnectionApi.GetAllAsync();
         await LoadAsync();
+
+        if (QuerySpecificationId is { } specificationId && _specifications.Any(s => s.Id == specificationId))
+        {
+            _formSpecificationId = specificationId.ToString();
+            await OnSpecificationChangedAsync();
+
+            if (QueryMockEndpointId is { } mockEndpointId && _specificationEndpoints!.Any(e => e.Id == mockEndpointId))
+            {
+                _formMockEndpointId = mockEndpointId.ToString();
+            }
+
+            errorMessage = null;
+            _isPanelOpen = true;
+        }
     }
 
     private async Task LoadAsync() => _scenarios = await TestScenarioApi.GetAllAsync();
@@ -201,6 +241,13 @@ else
         }
     }
 
+    private void OpenAddPanel()
+    {
+        ResetForm();
+        errorMessage = null;
+        _isPanelOpen = true;
+    }
+
     private async Task StartEditAsync(TestScenarioSummary scenario)
     {
         _editingId = scenario.Id;
@@ -212,9 +259,16 @@ else
 
         await OnSpecificationChangedAsync();
         _formMockEndpointId = scenario.MockEndpointId.ToString();
+        _isPanelOpen = true;
     }
 
-    private void CancelEdit()
+    private void ClosePanel()
+    {
+        _isPanelOpen = false;
+        ResetForm();
+    }
+
+    private void ResetForm()
     {
         _editingId = null;
         _formName = string.Empty;
@@ -251,7 +305,7 @@ else
                 errorMessage = "That test scenario no longer exists — it may have been deleted elsewhere.";
             }
 
-            CancelEdit();
+            ClosePanel();
             await LoadAsync();
         }
         catch (Exception ex)
@@ -291,12 +345,13 @@ else
 
     private async Task RunAsync(TestScenarioSummary scenario)
     {
-        _runningIds.Add(scenario.Id);
+        var cts = new CancellationTokenSource();
+        _running[scenario.Id] = cts;
         _runResults.Remove(scenario.Id);
 
         try
         {
-            var result = await TestScenarioApi.RunAsync(scenario.Id);
+            var result = await TestScenarioApi.RunAsync(scenario.Id, cts.Token);
             if (result is null)
             {
                 errorMessage = "That test scenario no longer exists — it may have been deleted elsewhere.";
@@ -310,13 +365,31 @@ else
             // server-side) even when the scenario was deleted mid-run.
             await LoadAsync();
         }
+        catch (OperationCanceledException)
+        {
+            _runResults[scenario.Id] = new RunTestScenarioResult(false, "Stopped by user.", null);
+        }
         catch (Exception ex)
         {
             _runResults[scenario.Id] = new RunTestScenarioResult(false, ex.Message, null);
         }
         finally
         {
-            _runningIds.Remove(scenario.Id);
+            _running.Remove(scenario.Id);
+            cts.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Cancels the in-flight HTTP call. ASP.NET Core binds the request's CancellationToken through
+    /// to RunTestScenarioHandler and on into MessageSender.SendAsync, so this actually aborts the
+    /// server-side send too — not just the client's wait for a response.
+    /// </summary>
+    private void StopAsync(TestScenarioSummary scenario)
+    {
+        if (_running.TryGetValue(scenario.Id, out var cts))
+        {
+            cts.Cancel();
         }
     }
 }

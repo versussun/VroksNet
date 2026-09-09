@@ -63,6 +63,15 @@ public sealed class SpecificationApiClient(HttpClient httpClient)
         request.Headers.Add("X-File-Name", fileName);
 
         using var response = await httpClient.SendAsync(request, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            // A file that failed to parse (see SpecificationEndpoints) — surface the parser's own
+            // message rather than EnsureSuccessStatusCode()'s generic "500/400 (...)" text.
+            var error = await response.Content.ReadFromJsonAsync<ImportSpecificationError>(JsonOptions, cancellationToken);
+            throw new InvalidOperationException(error?.Message ?? "The server rejected this file.");
+        }
+
         response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<ImportSpecificationResult>(cancellationToken);
