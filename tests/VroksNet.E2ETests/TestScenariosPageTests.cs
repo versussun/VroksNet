@@ -59,9 +59,19 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
         await Expect(row).ToContainTextAsync("GET /pets");
         await Expect(row).ToContainTextAsync(connectionName);
 
-        // Run it — only that a result appears is asserted (see class doc comment).
+        // Run it — only that a result appears is asserted (see class doc comment). Two badges now
+        // exist in the row (the persisted "Last run" column, and this run's own ephemeral result
+        // detail after the action buttons) — .Last is the latter.
         await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run" }).ClickAsync();
-        await Expect(row.Locator("span.badge")).ToBeVisibleAsync();
+        await Expect(row.Locator("span.badge").Last).ToBeVisibleAsync();
+
+        // The "Last run" status is persisted server-side (RunTestScenarioHandler records it, and
+        // it's retrievable via GET /api/test-scenarios/{id} independent of this browser session)
+        // — a reload should still show it, not "Never run".
+        await Page.ReloadAsync();
+        var rowAfterReload = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = scenarioName });
+        await Expect(rowAfterReload).Not.ToContainTextAsync("Never run");
+        await Expect(rowAfterReload.Locator("span.badge")).ToBeVisibleAsync();
     }
 
     private static string BuildPetstoreYaml(string title) => $"""

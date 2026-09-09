@@ -17,6 +17,12 @@ public abstract class PageTestBase(AppHostFixture fixture) : IAsyncLifetime
         _context = await fixture.Browser.NewContextAsync(new BrowserNewContextOptions
         {
             BaseURL = fixture.WebBaseAddress.ToString(),
+            // apiservice's dev HTTPS endpoint uses ASP.NET Core's self-signed dev certificate. A
+            // real Chromium instance (unlike the .NET HttpClient VroksNet.IntegrationTests uses)
+            // would otherwise refuse it outright — see AppHostFixture's own comment on the
+            // separate, larger fix needed alongside this one (the WASM app can't even find
+            // apiservice's real port at all under the testing builder without that fix).
+            IgnoreHTTPSErrors = true,
         });
         Page = await _context.NewPageAsync();
     }

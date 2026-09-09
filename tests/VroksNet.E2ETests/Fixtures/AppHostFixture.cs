@@ -13,6 +13,8 @@ public sealed class AppHostFixture : IAsyncLifetime
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(2);
 
     private IPlaywright _playwright = null!;
+    private string? _webDevAppSettingsPath;
+    private string? _originalWebDevAppSettings;
 
     public DistributedApplication App { get; private set; } = null!;
 
@@ -36,6 +38,32 @@ public sealed class AppHostFixture : IAsyncLifetime
         App = await appHost.BuildAsync(cancellationToken).WaitAsync(StartupTimeout, cancellationToken);
         await App.StartAsync(cancellationToken).WaitAsync(StartupTimeout, cancellationToken);
 
+        // apiservice's port pin (AppHost.cs: WithHttpsEndpoint(port: 7352, ...)) is a DCP-proxy
+        // feature of a real `dotnet run` AppHost process — confirmed directly
+        // (Get-NetTCPConnection during a live run) that DistributedApplicationTestingBuilder does
+        // NOT bind that literal port at all; apiservice gets a genuine random port instead, same
+        // as every other resource under this builder. Web/wwwroot/appsettings.Development.json
+        // hardcodes 7352, so the WASM app — which reads that file itself via its own fetch(),
+        // unlike .NET clients such as CreateHttpClient below, which resolve the real endpoint
+        // through Aspire directly — tries to reach a port nothing is listening on, and every
+        // fetch() the app makes fails with net::ERR_CONNECTION_REFUSED (confirmed directly via
+        // Page.RequestFailed).
+        //
+        // Can't fix this by pointing the WASM app at a different appsettings.{Environment}.json
+        // at boot: standalone Blazor WebAssembly's environment is now (.NET 10) a build-time-only
+        // MSBuild property (WasmApplicationEnvironmentName) baked into the already-built output —
+        // ASPNETCORE_ENVIRONMENT set on the dev-server process (which controlled this in .NET
+        // 8/9) is no longer read at runtime, confirmed by testing that approach directly and
+        // seeing it have zero effect. So instead: overwrite the actual file the dev server serves
+        // with this run's real apiservice endpoint, restoring the original content in
+        // DisposeAsync. Every test in the collection shares this one instance/one file, so this
+        // only needs to happen once, here.
+        var apiServiceEndpoint = App.GetEndpoint("apiservice", "https");
+        _webDevAppSettingsPath = Path.Combine(appHost.AppHostDirectory, "..", "VroksNet.Web", "wwwroot", "appsettings.Development.json");
+        _originalWebDevAppSettings = await File.ReadAllTextAsync(_webDevAppSettingsPath, cancellationToken);
+        var patchedAppSettings = _originalWebDevAppSettings.Replace("https://localhost:7352", apiServiceEndpoint.ToString().TrimEnd('/'));
+        await File.WriteAllTextAsync(_webDevAppSettingsPath, patchedAppSettings, cancellationToken);
+
         await App.ResourceNotifications.WaitForResourceHealthyAsync("webfrontend", cancellationToken).WaitAsync(StartupTimeout, cancellationToken);
         WebBaseAddress = App.GetEndpoint("webfrontend");
 
@@ -43,6 +71,13 @@ public sealed class AppHostFixture : IAsyncLifetime
         // Headless by default (matches CI); set HEADED=1 locally to watch the browser while debugging a test.
         var headless = Environment.GetEnvironmentVariable("HEADED") != "1";
         Browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = headless });
+
+        // Playwright's Expect(...) default (5s) is too tight here, confirmed by direct testing —
+        // a fresh IBrowserContext's first page load pays Blazor WASM's full interpreted-mode
+        // startup cost, and its first outbound HTTP call goes through the standard resilience
+        // handler's retry/backoff (see ServiceDefaults) before any connection is warm. Both are
+        // one-time-per-context costs, not a sign anything's actually hung.
+        Assertions.SetDefaultExpectTimeout(15_000);
     }
 
     public async ValueTask DisposeAsync()
@@ -50,5 +85,10 @@ public sealed class AppHostFixture : IAsyncLifetime
         await Browser.CloseAsync();
         _playwright.Dispose();
         await App.DisposeAsync();
+
+        if (_webDevAppSettingsPath is not null && _originalWebDevAppSettings is not null)
+        {
+            await File.WriteAllTextAsync(_webDevAppSettingsPath, _originalWebDevAppSettings, CancellationToken.None);
+        }
     }
 }
