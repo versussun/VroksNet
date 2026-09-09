@@ -1,0 +1,91 @@
+# Placeholder sample spec for local testing — NOT a real service spec.
+# Swap in specs from your own services (see docs/project-brief.md section 6 "Первые шаги").
+#
+# AsyncAPI 3.0 counterpart to petstore-openapi.yaml. There is no AsyncApiSpecificationParser
+# (ISpecificationParser) or /api/specifications/asyncapi import endpoint yet — the async-mock
+# publish worker is Phase 03 work (see docs/project-brief.md section 2 and .claude/CLAUDE.md
+# "Infrastructure notes"). This fixture is ready for that parser's tests once it exists; it isn't
+# wired into any current import path, so it can't yet be driven through
+# VroksNet.IntegrationTests or VroksNet.E2ETests. Two operations, each with an example payload —
+# mirrors petstore-openapi.yaml's shape (multiple operations, one with a body example) so the
+# same kind of parser test coverage (operation-key extraction, example-JSON extraction) applies
+# once a parser reads this. Operation-key format follows MockEndpoint.OperationKey's documented
+# AsyncAPI convention: "{channel address}:{action}", e.g. "orders.created:send".
+asyncapi: 3.0.0
+info:
+  title: Orders Events Sample API
+  version: "1.0.0"
+  description: A tiny placeholder AsyncAPI spec used to exercise VroksNet's (future) AsyncAPI import/mock pipeline locally.
+servers:
+  rabbitmq:
+    host: localhost:5672
+    protocol: amqp
+    description: Local RabbitMQ broker (see AppHost.cs's "rabbitmq" resource).
+channels:
+  orderCreated:
+    address: orders.created
+    messages:
+      orderCreated:
+        $ref: "#/components/messages/OrderCreated"
+  orderShipped:
+    address: orders.shipped
+    messages:
+      orderShipped:
+        $ref: "#/components/messages/OrderShipped"
+operations:
+  publishOrderCreated:
+    action: send
+    channel:
+      $ref: "#/channels/orderCreated"
+    summary: Published whenever a new order is placed.
+    messages:
+      - $ref: "#/channels/orderCreated/messages/orderCreated"
+  consumeOrderShipped:
+    action: receive
+    channel:
+      $ref: "#/channels/orderShipped"
+    summary: Consumed to react to an order having shipped.
+    messages:
+      - $ref: "#/channels/orderShipped/messages/orderShipped"
+components:
+  messages:
+    OrderCreated:
+      name: OrderCreated
+      title: Order Created
+      payload:
+        $ref: "#/components/schemas/OrderCreatedPayload"
+      examples:
+        - name: OrderCreatedExample
+          payload:
+            orderId: "ord_1"
+            customerId: "cust_1"
+            amount: 42.50
+    OrderShipped:
+      name: OrderShipped
+      title: Order Shipped
+      payload:
+        $ref: "#/components/schemas/OrderShippedPayload"
+      examples:
+        - name: OrderShippedExample
+          payload:
+            orderId: "ord_1"
+            trackingNumber: "1Z999AA10123456784"
+  schemas:
+    OrderCreatedPayload:
+      type: object
+      required: [orderId, customerId, amount]
+      properties:
+        orderId:
+          type: string
+        customerId:
+          type: string
+        amount:
+          type: number
+    OrderShippedPayload:
+      type: object
+      required: [orderId, trackingNumber]
+      properties:
+        orderId:
+          type: string
+        trackingNumber:
+          type: string

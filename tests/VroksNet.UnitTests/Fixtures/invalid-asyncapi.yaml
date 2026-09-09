@@ -1,0 +1,5 @@
+# Deliberately malformed YAML (bad indentation/unterminated mapping) to exercise the parser's
+# failure path — not just a schema issue, actually unparseable. Mirrors invalid-openapi.yaml.
+asyncapi: 3.0.0
+info:
+title: [Broken

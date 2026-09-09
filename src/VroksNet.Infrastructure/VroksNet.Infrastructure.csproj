@@ -16,6 +16,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Microsoft.OpenApi.YamlReader" />
+    <PackageReference Include="SharpYaml" />
   </ItemGroup>
 
 </Project>

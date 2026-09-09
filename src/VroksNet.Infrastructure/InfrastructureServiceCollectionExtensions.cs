@@ -32,6 +32,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IApiSpecificationRepository, ApiSpecificationRepository>();
         services.AddScoped<IConnectionRepository, ConnectionRepository>();
         services.AddScoped<ISpecificationParser, OpenApiSpecificationParser>();
+        services.AddScoped<IAsyncApiSpecificationParser, AsyncApiSpecificationParser>();
         services.AddScoped<IResponseTemplateEngine, PassthroughResponseTemplateEngine>();
 
         return services;
