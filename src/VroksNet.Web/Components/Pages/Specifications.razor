@@ -1,4 +1,6 @@
 @page "/specifications"
+@using System.Text
+@using System.Text.RegularExpressions
 @inject SpecificationApiClient SpecificationApi
 
 <PageTitle>Specifications</PageTitle>
@@ -63,6 +65,17 @@ else
     // Reject anything obviously not a spec file before it hits the wire.
     private const long MaxFileSizeBytes = 1024 * 1024; // 1 MB
 
+    // Cheap "does this even look like the right kind of file" pre-check — not real validation
+    // (that stays server-side in OpenApiSpecificationParser/AsyncApiSpecificationParser, the only
+    // place that actually knows what a valid spec is; see .claude/CLAUDE.md — Web has no
+    // Infrastructure/Application reference and shouldn't duplicate their parsing logic). This just
+    // catches the single most common mistake — uploading the wrong kind of file — before spending
+    // a round trip on it. A top-level key is un-indented (or indented at most a couple of spaces
+    // for a stray BOM/odd formatting); deeper indentation means it's nested under something else,
+    // not the document's own version field.
+    private static readonly Regex OpenApiVersionField = new(@"^\s{0,3}(openapi|swagger)\s*:", RegexOptions.Multiline | RegexOptions.Compiled);
+    private static readonly Regex AsyncApiVersionField = new(@"^\s{0,3}asyncapi\s*:", RegexOptions.Multiline | RegexOptions.Compiled);
+
     private SpecificationSummary[]? specifications;
     private bool isUploading;
     private string? errorMessage;
@@ -85,10 +98,24 @@ else
 
         try
         {
-            await using var stream = e.File.OpenReadStream(MaxFileSizeBytes);
+            string content;
+            await using (var stream = e.File.OpenReadStream(MaxFileSizeBytes))
+            using (var reader = new StreamReader(stream))
+            {
+                content = await reader.ReadToEndAsync();
+            }
+
+            var mismatch = DetectKindMismatch(content, _selectedKind);
+            if (mismatch is not null)
+            {
+                errorMessage = $"'{e.File.Name}': {mismatch}";
+                return;
+            }
+
+            await using var contentStream = new MemoryStream(Encoding.UTF8.GetBytes(content));
             await (_selectedKind == SpecificationKind.AsyncApi
-                ? SpecificationApi.ImportAsyncApiAsync(stream, e.File.Name)
-                : SpecificationApi.ImportOpenApiAsync(stream, e.File.Name));
+                ? SpecificationApi.ImportAsyncApiAsync(contentStream, e.File.Name)
+                : SpecificationApi.ImportOpenApiAsync(contentStream, e.File.Name));
             await LoadAsync();
         }
         catch (Exception ex)
@@ -99,5 +126,28 @@ else
         {
             isUploading = false;
         }
+    }
+
+    /// <summary>Null if the file has the version field the selected Kind expects; otherwise an explanatory message — naming the other Kind by name if that field is the one actually present.</summary>
+    private static string? DetectKindMismatch(string content, SpecificationKind selectedKind)
+    {
+        var hasOpenApiField = OpenApiVersionField.IsMatch(content);
+        var hasAsyncApiField = AsyncApiVersionField.IsMatch(content);
+
+        if (selectedKind == SpecificationKind.OpenApi && !hasOpenApiField)
+        {
+            return hasAsyncApiField
+                ? "This looks like an AsyncAPI spec (found a top-level 'asyncapi:' field) — select AsyncAPI above, not OpenAPI."
+                : "This doesn't look like an OpenAPI spec — no top-level 'openapi:' or 'swagger:' field found.";
+        }
+
+        if (selectedKind == SpecificationKind.AsyncApi && !hasAsyncApiField)
+        {
+            return hasOpenApiField
+                ? "This looks like an OpenAPI spec (found a top-level 'openapi:'/'swagger:' field) — select OpenAPI above, not AsyncAPI."
+                : "This doesn't look like an AsyncAPI spec — no top-level 'asyncapi:' field found.";
+        }
+
+        return null;
     }
 }
