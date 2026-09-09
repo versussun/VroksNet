@@ -9,7 +9,8 @@
     <Project Path="src/VroksNet.Web/VroksNet.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/VroksNet.Tests/VroksNet.Tests.csproj" />
+    <Project Path="tests/VroksNet.E2ETests/VroksNet.E2ETests.csproj" />
+    <Project Path="tests/VroksNet.IntegrationTests/VroksNet.IntegrationTests.csproj" />
     <Project Path="tests/VroksNet.UnitTests/VroksNet.UnitTests.csproj" />
   </Folder>
 </Solution>

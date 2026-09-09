@@ -19,13 +19,13 @@
         <h3 class="h6">@(_editingId is null ? "Add connection" : "Edit connection")</h3>
 
         <div class="mb-2">
-            <label class="form-label">Name</label>
-            <input class="form-control" @bind="_formName" @bind:event="oninput" placeholder="e.g. Orders RabbitMQ" />
+            <label class="form-label" for="connection-name-input">Name</label>
+            <input id="connection-name-input" class="form-control" @bind="_formName" @bind:event="oninput" placeholder="e.g. Orders RabbitMQ" />
         </div>
 
         <div class="mb-2">
-            <label class="form-label">Service type</label>
-            <select class="form-select" @bind="_formServiceType">
+            <label class="form-label" for="connection-service-type-select">Service type</label>
+            <select id="connection-service-type-select" class="form-select" @bind="_formServiceType">
                 <option value="@ConnectionServiceType.Http">HTTP</option>
                 <option value="@ConnectionServiceType.RabbitMq">RabbitMQ</option>
                 <option value="@ConnectionServiceType.Nats">NATS</option>
@@ -33,9 +33,9 @@
         </div>
 
         <div class="mb-3">
-            <label class="form-label">@(_formServiceType == ConnectionServiceType.Http ? "URL" : "Connection string")</label>
+            <label class="form-label" for="connection-value-input">@(_formServiceType == ConnectionServiceType.Http ? "URL" : "Connection string")</label>
             <div class="input-group">
-                <input type="@(_formValueVisible ? "text" : "password")" class="form-control" @bind="_formValue" @bind:event="oninput"
+                <input id="connection-value-input" type="@(_formValueVisible ? "text" : "password")" class="form-control" @bind="_formValue" @bind:event="oninput"
                        placeholder="@ValuePlaceholder" autocomplete="off" />
                 <button type="button" class="btn btn-outline-secondary" @onclick="() => _formValueVisible = !_formValueVisible">
                     @(_formValueVisible ? "Hide" : "Show")
