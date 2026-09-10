@@ -18,6 +18,7 @@ public sealed class GetSpecificationDetailsHandler(IApiSpecificationRepository r
             specification.Id,
             specification.Title,
             specification.Kind,
+            specification.RawContent,
             specification.CreatedAt,
             specification.UpdatedAt,
             specification.Endpoints

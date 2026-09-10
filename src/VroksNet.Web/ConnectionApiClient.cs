@@ -65,4 +65,12 @@ public sealed class ConnectionApiClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<ConnectionTestResult>(JsonOptions, cancellationToken);
     }
+
+    /// <summary>Tests a URL/connection string directly — for the Add/Edit panel's "Test" button, before the connection has been saved.</summary>
+    public async Task<ConnectionTestResult> TestValueAsync(ConnectionServiceType serviceType, string value, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.PostAsJsonAsync("/api/connections/test", new { serviceType, value }, JsonOptions, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ConnectionTestResult>(JsonOptions, cancellationToken))!;
+    }
 }

@@ -1,10 +1,60 @@
 @page "/settings"
 @inject ConnectionApiClient ConnectionApi
+@inject SystemApiClient SystemApi
 @inject IJSRuntime JS
 
 <PageTitle>Settings</PageTitle>
 
 <h1>Settings</h1>
+
+<section class="mb-4">
+    <h2>Storage</h2>
+    @if (_storageStatus is null)
+    {
+        <p class="text-muted"><em>Loading...</em></p>
+    }
+    else if (_storageStatus.IsInMemory)
+    {
+        <div class="alert alert-warning d-flex align-items-start gap-2 mb-3" role="status">
+            <span aria-hidden="true">⚠️</span>
+            <div>
+                <strong>In-memory database</strong> — specifications, connections and test scenarios will all be lost the next time the app restarts.
+                Set the <code>ConnectionStrings__VroksNetDb</code> environment variable to a file path to persist data across restarts (Docker's own image already does this — see the Dockerfile).
+            </div>
+        </div>
+
+        <div class="card" style="max-width: 640px;">
+            <div class="card-body">
+                <h3 class="h6">Switch to persistent storage</h3>
+                <p class="text-muted small mb-2">
+                    This only builds the value to set — the running app can't reconnect its own database live, so it takes effect
+                    the next time the process starts. Set it as an environment variable (or the equivalent key under <code>ConnectionStrings</code> in
+                    <code>appsettings.json</code>) and restart.
+                </p>
+
+                <label class="form-label mb-1" for="storage-path-input">SQLite file path</label>
+                <div class="input-group">
+                    <input id="storage-path-input" class="form-control" @bind="_desiredStoragePath" @bind:event="oninput" placeholder="vroksnet.db" />
+                </div>
+
+                <p class="fw-semibold small mb-1 mt-3">Environment variable</p>
+                <div class="input-group input-group-sm">
+                    <code class="form-control bg-body-secondary text-break" style="height:auto;">ConnectionStrings__VroksNetDb=@EnvVarValue</code>
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CopyEnvVarValueAsync">@(_copied ? "Copied!" : "Copy")</button>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-success d-flex align-items-start gap-2 mb-0" role="status">
+            <span aria-hidden="true">✅</span>
+            <div>
+                <strong>Persistent database</strong> — data is saved to <code>@_storageStatus.FilePath</code> and survives restarts.
+            </div>
+        </div>
+    }
+</section>
 
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
@@ -91,7 +141,7 @@ else
 
         <div class="mb-2">
             <label class="form-label" for="connection-service-type-select">Service type</label>
-            <select id="connection-service-type-select" class="form-select" @bind="_formServiceType">
+            <select id="connection-service-type-select" class="form-select" @bind="_formServiceType" @bind:after="() => _formTestResult = null">
                 <option value="@ConnectionServiceType.Http">HTTP</option>
                 <option value="@ConnectionServiceType.RabbitMq">RabbitMQ</option>
                 <option value="@ConnectionServiceType.Nats">NATS</option>
@@ -101,12 +151,23 @@ else
         <div class="mb-3">
             <label class="form-label" for="connection-value-input">@(_formServiceType == ConnectionServiceType.Http ? "URL" : "Connection string")</label>
             <div class="input-group">
-                <input id="connection-value-input" type="@(_formValueVisible ? "text" : "password")" class="form-control" @bind="_formValue" @bind:event="oninput"
+                <input id="connection-value-input" type="@(_formValueVisible ? "text" : "password")" class="form-control" @bind="_formValue" @bind:event="oninput" @bind:after="() => _formTestResult = null"
                        placeholder="@ValuePlaceholder" autocomplete="off" />
                 <button type="button" class="btn btn-outline-secondary" @onclick="() => _formValueVisible = !_formValueVisible">
                     @(_formValueVisible ? "Hide" : "Show")
                 </button>
             </div>
+
+            <button type="button" class="btn btn-outline-primary btn-sm mt-2" @onclick="TestFormValueAsync" disabled="@(_isTestingForm || string.IsNullOrWhiteSpace(_formValue))">
+                @(_isTestingForm ? "Testing…" : "Test connection")
+            </button>
+            @if (_formTestResult is not null)
+            {
+                <div class="mt-1">
+                    <span class="badge @(_formTestResult.Success ? "bg-success" : "bg-danger")">@(_formTestResult.Success ? "OK" : "Failed")</span>
+                    <small class="text-muted">@_formTestResult.Message</small>
+                </div>
+            }
         </div>
 
         <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@(_isSaving || !CanSave)">
@@ -117,6 +178,9 @@ else
 </aside>
 
 @code {
+    private StorageStatus? _storageStatus;
+    private string _desiredStoragePath = "vroksnet.db";
+    private bool _copied;
     private ConnectionSummary[]? _connections;
     private readonly HashSet<Guid> _revealed = [];
     private readonly HashSet<Guid> _testingIds = [];
@@ -130,8 +194,12 @@ else
     private string _formName = string.Empty;
     private ConnectionServiceType _formServiceType = ConnectionServiceType.Http;
     private string _formValue = string.Empty;
+    private bool _isTestingForm;
+    private ConnectionTestResult? _formTestResult;
 
     private bool CanSave => !string.IsNullOrWhiteSpace(_formName) && !string.IsNullOrWhiteSpace(_formValue);
+
+    private string EnvVarValue => $"Data Source={(string.IsNullOrWhiteSpace(_desiredStoragePath) ? "vroksnet.db" : _desiredStoragePath)}";
 
     private string ValuePlaceholder => _formServiceType switch
     {
@@ -141,9 +209,29 @@ else
         _ => string.Empty
     };
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        _storageStatus = await SystemApi.GetStorageStatusAsync();
+        await LoadAsync();
+    }
 
     private async Task LoadAsync() => _connections = await ConnectionApi.GetAllAsync();
+
+    /// <summary>Copies the constructed env var value to the clipboard — a convenience only; nothing here changes the running app's own connection (see the Storage section's own note).</summary>
+    private async Task CopyEnvVarValueAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", $"ConnectionStrings__VroksNetDb={EnvVarValue}");
+            _copied = true;
+        }
+        catch (Exception)
+        {
+            // Clipboard access can be denied (permissions, non-secure context, etc.) — the value
+            // is still shown in the box, so this is a soft failure, not worth surfacing as an error.
+            _copied = false;
+        }
+    }
 
     private void OpenAddPanel()
     {
@@ -176,6 +264,27 @@ else
         _formServiceType = ConnectionServiceType.Http;
         _formValue = string.Empty;
         _formValueVisible = false;
+        _formTestResult = null;
+    }
+
+    /// <summary>Tests the URL/connection string currently typed in the panel, whether or not it's been saved yet — see TestConnectionValueHandler.</summary>
+    private async Task TestFormValueAsync()
+    {
+        _isTestingForm = true;
+        _formTestResult = null;
+
+        try
+        {
+            _formTestResult = await ConnectionApi.TestValueAsync(_formServiceType, _formValue);
+        }
+        catch (Exception ex)
+        {
+            _formTestResult = new ConnectionTestResult(false, ex.Message);
+        }
+        finally
+        {
+            _isTestingForm = false;
+        }
     }
 
     private async Task SaveAsync()

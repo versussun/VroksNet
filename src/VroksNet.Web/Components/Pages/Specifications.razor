@@ -45,6 +45,7 @@ else
                 <th>Kind</th>
                 <th>Endpoints</th>
                 <th>Updated</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -55,11 +56,37 @@ else
                     <td>@specification.Kind</td>
                     <td>@specification.EndpointCount</td>
                     <td>@specification.UpdatedAt.ToLocalTime().ToString("g")</td>
+                    <td>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => ViewAsync(specification)">View</button>
+                    </td>
                 </tr>
             }
         </tbody>
     </table>
 }
+
+@if (_isViewPanelOpen)
+{
+    <div class="spec-view-panel-backdrop" @onclick="CloseViewPanel"></div>
+}
+
+<aside class="spec-view-panel @(_isViewPanelOpen ? "open" : "")">
+    <div class="spec-view-panel-header">
+        <h3 class="h6 mb-0">@(_viewingTitle ?? "Specification")</h3>
+        <button type="button" class="btn-close" aria-label="Close" @onclick="CloseViewPanel"></button>
+    </div>
+
+    <div class="spec-view-panel-body">
+        @if (_viewingRawContent is null)
+        {
+            <p><em>Loading...</em></p>
+        }
+        else
+        {
+            <HighlightedYaml Content="_viewingRawContent" />
+        }
+    </div>
+</aside>
 
 @code {
     // Reject anything obviously not a spec file before it hits the wire.
@@ -80,6 +107,10 @@ else
     private bool isUploading;
     private string? errorMessage;
     private SpecificationKind _selectedKind = SpecificationKind.OpenApi;
+
+    private bool _isViewPanelOpen;
+    private string? _viewingTitle;
+    private string? _viewingRawContent;
 
     protected override async Task OnInitializedAsync()
     {
@@ -126,6 +157,32 @@ else
         {
             isUploading = false;
         }
+    }
+
+    /// <summary>Opens the raw-content panel immediately (showing "Loading...") and fills it in once GetByIdAsync returns — SpecificationSummary (the list) deliberately doesn't carry RawContent, so this is its own round trip.</summary>
+    private async Task ViewAsync(SpecificationSummary specification)
+    {
+        _viewingTitle = specification.Title;
+        _viewingRawContent = null;
+        errorMessage = null;
+        _isViewPanelOpen = true;
+
+        try
+        {
+            var details = await SpecificationApi.GetByIdAsync(specification.Id);
+            _viewingRawContent = details?.RawContent ?? "(This specification no longer exists — it may have been deleted elsewhere.)";
+        }
+        catch (Exception ex)
+        {
+            _viewingRawContent = $"Failed to load: {ex.Message}";
+        }
+    }
+
+    private void CloseViewPanel()
+    {
+        _isViewPanelOpen = false;
+        _viewingTitle = null;
+        _viewingRawContent = null;
     }
 
     /// <summary>Null if the file has the version field the selected Kind expects; otherwise an explanatory message — naming the other Kind by name if that field is the one actually present.</summary>

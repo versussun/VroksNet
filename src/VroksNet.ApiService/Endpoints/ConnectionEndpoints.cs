@@ -3,6 +3,7 @@ using VroksNet.Application.Connections.CreateConnection;
 using VroksNet.Application.Connections.DeleteConnection;
 using VroksNet.Application.Connections.ListConnections;
 using VroksNet.Application.Connections.TestConnection;
+using VroksNet.Application.Connections.TestConnectionValue;
 using VroksNet.Application.Connections.UpdateConnection;
 
 namespace VroksNet.ApiService.Endpoints;
@@ -53,6 +54,16 @@ public static class ConnectionEndpoints
             return result is not null ? Results.Ok(result) : Results.NotFound();
         })
         .WithName("TestConnection");
+
+        // Tests a URL/connection string the Add/Edit form hasn't saved yet — the route reads
+        // "/test" (no {id}) rather than "/{id:guid}/test" above, so routing tells the two apart
+        // on shape alone.
+        group.MapPost("/test", async (TestConnectionValue request, IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            var result = await mediator.Send(request, cancellationToken);
+            return Results.Ok(result);
+        })
+        .WithName("TestConnectionValue");
 
         return app;
     }

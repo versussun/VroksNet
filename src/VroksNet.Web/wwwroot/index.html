@@ -11,6 +11,17 @@
     <link rel="stylesheet" href="VroksNet.Web.styles.css" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="alternate icon" type="image/png" href="favicon.png" />
+    <script>
+        // Applied synchronously, before anything paints, so there's no flash of the wrong theme
+        // while Blazor boots. Mirrors window.vroksnetTheme.set (js/theme.js) but inlined here —
+        // that script tag loads too late (after <body>) to run before first paint.
+        (function () {
+            var stored = null;
+            try { stored = localStorage.getItem("vroksnet-theme"); } catch { }
+            var theme = stored || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            document.documentElement.setAttribute("data-bs-theme", theme);
+        })();
+    </script>
 </head>
 
 <body>
@@ -24,6 +35,7 @@
         <a class="dismiss">🗙</a>
     </div>
 
+    <script src="js/theme.js"></script>
     <script src="_framework/blazor.webassembly.js"></script>
 </body>
 

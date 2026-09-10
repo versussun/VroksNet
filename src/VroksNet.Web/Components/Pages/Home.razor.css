@@ -18,3 +18,13 @@
     border: 1px solid #d9f99d;
     color: #365314;
 }
+
+:root[data-bs-theme="dark"] .stat-value {
+    color: #a3e635;
+}
+
+:root[data-bs-theme="dark"] .roadmap-note {
+    background-color: #1a2e05;
+    border-color: #3f6212;
+    color: #d9f99d;
+}

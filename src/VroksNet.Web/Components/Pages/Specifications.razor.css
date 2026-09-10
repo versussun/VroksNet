@@ -1,16 +1,16 @@
-.scenario-panel-backdrop {
+.spec-view-panel-backdrop {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.4);
     z-index: 1040;
 }
 
-.scenario-panel {
+.spec-view-panel {
     position: fixed;
     top: 0;
     right: 0;
     bottom: 0;
-    width: 400px;
+    width: 560px;
     max-width: 90vw;
     background: #fff;
     box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
@@ -22,12 +22,12 @@
     visibility: hidden;
 }
 
-    .scenario-panel.open {
+    .spec-view-panel.open {
         transform: translateX(0);
         visibility: visible;
     }
 
-.scenario-panel-header {
+.spec-view-panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -35,16 +35,16 @@
     border-bottom: 1px solid #dee2e6;
 }
 
-.scenario-panel-body {
+.spec-view-panel-body {
     padding: 1rem;
     overflow-y: auto;
 }
 
-:root[data-bs-theme="dark"] .scenario-panel {
+:root[data-bs-theme="dark"] .spec-view-panel {
     background: #212529;
     box-shadow: -2px 0 8px rgba(0, 0, 0, 0.6);
 }
 
-:root[data-bs-theme="dark"] .scenario-panel-header {
+:root[data-bs-theme="dark"] .spec-view-panel-header {
     border-bottom-color: #495057;
 }

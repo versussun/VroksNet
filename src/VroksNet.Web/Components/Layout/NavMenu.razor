@@ -1,4 +1,6 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+@inject IJSRuntime JS
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">VroksNet</a>
     </div>
@@ -32,4 +34,31 @@
             </NavLink>
         </div>
     </nav>
+
+    <button type="button" class="theme-toggle" @onclick="ToggleThemeAsync">
+        <span aria-hidden="true">@(_isDark ? "☀️" : "🌙")</span> @(_isDark ? "Light mode" : "Dark mode")
+    </button>
 </div>
+
+@code {
+    private bool _isDark;
+
+    // index.html's inline script already set data-bs-theme before Blazor even booted (avoids a
+    // flash of the wrong theme) — this just reads that back so the button's own label/icon starts
+    // in sync with it, rather than assuming light.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var current = await JS.InvokeAsync<string>("vroksnetTheme.get");
+            _isDark = current == "dark";
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleThemeAsync()
+    {
+        _isDark = !_isDark;
+        await JS.InvokeVoidAsync("vroksnetTheme.set", _isDark ? "dark" : "light");
+    }
+}

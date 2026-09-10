@@ -15,15 +15,58 @@ public static class InfrastructureServiceCollectionExtensions
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        var configuredConnectionString = configuration.GetConnectionString("VroksNetDb");
+
+        // No ConnectionStrings:VroksNetDb configured → default to an in-memory SQLite database:
+        // nothing to clean up locally, fresh state every process start. Set it explicitly — a
+        // file path (ConnectionStrings__VroksNetDb env var, appsettings, user secrets, ...), or
+        // the volume-backed path Docker sets (see Dockerfile) — to persist across restarts.
+        var isInMemory = string.IsNullOrWhiteSpace(configuredConnectionString);
+
         var connectionStringBuilder = new SqliteConnectionStringBuilder(
-            configuration.GetConnectionString("VroksNetDb") ?? "Data Source=vroksnet.db")
+            isInMemory
+                // Named + shared cache, not the bare ":memory:" shorthand — ":memory:" gives every
+                // new connection (and IDbContextFactory hands out a fresh one per DbContext) its
+                // own private, empty database; shared cache is what lets them all see the same
+                // data. See InMemoryDatabaseKeepAlive for why the database still needs a
+                // dedicated connection held open for it to survive between those.
+                ? "Data Source=VroksNetInMemoryDb;Mode=Memory;Cache=Shared"
+                : configuredConnectionString!)
         {
             // busy_timeout (seconds) — see docs/project-brief.md section 3 on the concurrent-write risk.
             DefaultTimeout = 5
         };
 
+        if (!isInMemory)
+        {
+            // SQLite creates the .db file itself if it's missing (default ReadWriteCreate mode)
+            // but won't create missing parent directories — needed for a nested path like Docker's
+            // "/app/data/vroksnet.db" on a fresh volume, or anything a user types into the
+            // Settings page's "SQLite file path" field.
+            var directory = Path.GetDirectoryName(connectionStringBuilder.DataSource);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+        }
+
         services.AddDbContextFactory<VroksNetDbContext>(options =>
             options.UseSqlite(connectionStringBuilder.ConnectionString));
+
+        if (isInMemory)
+        {
+            services.AddSingleton(_ =>
+            {
+                var keepAliveConnection = new SqliteConnection(connectionStringBuilder.ConnectionString);
+                keepAliveConnection.Open();
+                return new InMemoryDatabaseKeepAlive(keepAliveConnection);
+            });
+        }
+
+        // Surfaced read-only on the Settings page (GetStorageStatusHandler) — DataSource is the
+        // file path in file mode, ignored in memory mode.
+        services.AddSingleton<IStorageStatusProvider>(
+            new StorageStatusProvider(isInMemory, isInMemory ? null : connectionStringBuilder.DataSource));
 
         // Single-writer pattern: everything that mutates the database goes through this queue
         // instead of writing directly — see IDbWriteQueue.
@@ -54,11 +97,20 @@ public static class InfrastructureServiceCollectionExtensions
     /// <summary>Applies pending migrations and enables WAL journal mode. Call once at startup.</summary>
     public static async Task InitializeDatabaseAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
     {
+        // Must happen first: in in-memory mode this opens the connection that keeps the
+        // shared-cache database alive between the short-lived ones IDbContextFactory hands out
+        // below — otherwise the database created by MigrateAsync would vanish the moment its
+        // connection closes. GetService (not GetRequiredService) — null and a no-op against a
+        // file-backed database, where nothing is registered.
+        services.GetService<InMemoryDatabaseKeepAlive>();
+
         var contextFactory = services.GetRequiredService<IDbContextFactory<VroksNetDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         await context.Database.MigrateAsync(cancellationToken);
         // WAL mode isn't a connection-string option — it must be set per-connection via PRAGMA.
+        // (A no-op against an in-memory database — SQLite doesn't support WAL there — but
+        // harmless to still call unconditionally.)
         await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", cancellationToken);
     }
 }

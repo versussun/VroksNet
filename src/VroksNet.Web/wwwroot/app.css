@@ -13,6 +13,21 @@
     --bs-link-hover-color-rgb: 12, 45, 72;
 }
 
+/* Dark variant of the same tokens — lime-700/cyan-700 read fine on white but are too dark
+   against Bootstrap's dark-mode body background, so dark mode gets brighter shades of the same
+   two hues instead of introducing new ones. Toggled by NavMenu.razor's theme switch (js/theme.js
+   sets <html data-bs-theme="dark">); Bootstrap 5.3's own components already redefine their own
+   --bs-* variables under this same attribute, this only needs to follow suit for the ones this
+   app redefined itself above. */
+:root[data-bs-theme="dark"] {
+    --bs-primary: #84cc16;
+    --bs-primary-rgb: 132, 204, 22;
+    --bs-link-color: #22d3ee;
+    --bs-link-color-rgb: 34, 211, 238;
+    --bs-link-hover-color: #67e8f9;
+    --bs-link-hover-color-rgb: 103, 232, 249;
+}
+
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
@@ -23,6 +38,14 @@ a, .btn-link {
 
     a:hover, .btn-link:hover {
         color: #0c2d48;
+    }
+
+:root[data-bs-theme="dark"] a, :root[data-bs-theme="dark"] .btn-link {
+    color: #22d3ee;
+}
+
+    :root[data-bs-theme="dark"] a:hover, :root[data-bs-theme="dark"] .btn-link:hover {
+        color: #67e8f9;
     }
 
 .btn-primary {
@@ -36,8 +59,27 @@ a, .btn-link {
         border-color: #365314;
     }
 
+/* Bright lime on dark backgrounds needs dark text to stay readable — the light-mode white text
+   would nearly disappear against #84cc16. */
+:root[data-bs-theme="dark"] .btn-primary {
+    color: #14210a;
+    background-color: #84cc16;
+    border-color: #65a30d;
+}
+
+    :root[data-bs-theme="dark"] .btn-primary:hover, :root[data-bs-theme="dark"] .btn-primary:active {
+        background-color: #65a30d;
+        border-color: #4d7c0f;
+    }
+
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
   box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #65a30d;
+}
+
+:root[data-bs-theme="dark"] .btn:focus, :root[data-bs-theme="dark"] .btn:active:focus,
+:root[data-bs-theme="dark"] .btn-link.nav-link:focus, :root[data-bs-theme="dark"] .form-control:focus,
+:root[data-bs-theme="dark"] .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem #212529, 0 0 0 0.25rem #84cc16;
 }
 
 .content {
@@ -96,4 +138,68 @@ h1:focus {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
+}
+
+/* HighlightedYaml (Components/Shared/HighlightedYaml.razor) — global rather than isolated CSS
+   because its <span> tokens are injected via MarkupString, so they never get a component's
+   scope attribute for isolated CSS to target. */
+.yaml-code {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.yaml-key {
+    color: #0c2d48;
+    font-weight: 600;
+}
+
+.yaml-string {
+    color: #4d7c0f;
+}
+
+.yaml-number {
+    color: #0e7490;
+}
+
+.yaml-bool {
+    color: #b45309;
+}
+
+.yaml-comment {
+    color: #6b7280;
+    font-style: italic;
+}
+
+.yaml-punct {
+    color: #6b7280;
+}
+
+:root[data-bs-theme="dark"] .yaml-code {
+    background-color: #1e2530;
+    border-color: #3a4453;
+}
+
+:root[data-bs-theme="dark"] .yaml-key {
+    color: #7dd3fc;
+}
+
+:root[data-bs-theme="dark"] .yaml-string {
+    color: #a3e635;
+}
+
+:root[data-bs-theme="dark"] .yaml-number {
+    color: #67e8f9;
+}
+
+:root[data-bs-theme="dark"] .yaml-bool {
+    color: #fbbf24;
+}
+
+:root[data-bs-theme="dark"] .yaml-comment,
+:root[data-bs-theme="dark"] .yaml-punct {
+    color: #94a3b8;
 }

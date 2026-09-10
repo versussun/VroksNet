@@ -1,0 +1,129 @@
+@using System.Net
+@using System.Text
+@using System.Text.RegularExpressions
+
+<pre class="yaml-code mb-0"><code>@((MarkupString)_html)</code></pre>
+
+@code {
+    // Deliberately a light heuristic, not a real YAML tokenizer — good enough to make the raw
+    // spec readable at a glance in the "View" panel (Specifications.razor) without pulling in a
+    // JS highlighting library. Content is shown verbatim (see the panel's own comment) — this
+    // only adds <span> markup around it, never reflows or re-indents anything.
+    [Parameter, EditorRequired]
+    public string Content { get; set; } = string.Empty;
+
+    private string _html = string.Empty;
+
+    private static readonly Regex CommentLine = new(@"^(\s*)#(.*)$", RegexOptions.Compiled);
+    private static readonly Regex ListItem = new(@"^(\s*)-(\s+)?(.*)$", RegexOptions.Compiled);
+    private static readonly Regex KeyValue = new(@"^(\s*)([^\s:#][^:]*?)(\s*):(\s.*|)$", RegexOptions.Compiled);
+    private static readonly Regex NumberLiteral = new(@"^-?\d+(\.\d+)?([eE][+-]?\d+)?$", RegexOptions.Compiled);
+
+    protected override void OnParametersSet()
+    {
+        var builder = new StringBuilder();
+        var lines = Content.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append('\n');
+            }
+
+            builder.Append(HighlightLine(lines[i]));
+        }
+
+        _html = builder.ToString();
+    }
+
+    private static string HighlightLine(string line)
+    {
+        if (line.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var commentMatch = CommentLine.Match(line);
+        if (commentMatch.Success)
+        {
+            return Encode(commentMatch.Groups[1].Value) + Span("yaml-comment", "#" + commentMatch.Groups[2].Value);
+        }
+
+        var listMatch = ListItem.Match(line);
+        if (listMatch.Success)
+        {
+            var indent = listMatch.Groups[1].Value;
+            var gap = listMatch.Groups[2].Value;
+            var rest = listMatch.Groups[3].Value;
+            return Encode(indent) + Span("yaml-punct", "-") + Encode(gap) + HighlightKeyOrScalar(rest);
+        }
+
+        return HighlightKeyOrScalar(line);
+    }
+
+    private static string HighlightKeyOrScalar(string text)
+    {
+        var kvMatch = KeyValue.Match(text);
+        if (!kvMatch.Success)
+        {
+            return HighlightScalar(text);
+        }
+
+        var indent = kvMatch.Groups[1].Value;
+        var key = kvMatch.Groups[2].Value;
+        var beforeColon = kvMatch.Groups[3].Value;
+        var afterColon = kvMatch.Groups[4].Value; // "" (mapping with a nested block) or " <value>"
+
+        var html = Encode(indent) + Span("yaml-key", key) + Encode(beforeColon) + Encode(":");
+        if (afterColon.Length == 0)
+        {
+            return html;
+        }
+
+        var value = afterColon.TrimStart(' ');
+        var leadingSpace = afterColon[..(afterColon.Length - value.Length)];
+        return html + Encode(leadingSpace) + HighlightScalar(value);
+    }
+
+    private static string HighlightScalar(string value)
+    {
+        if (value.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        // Split off a trailing " # inline comment" — naive (doesn't account for '#' inside a
+        // quoted string) but good enough for "some" highlighting.
+        var hashIndex = value.IndexOf(" #", StringComparison.Ordinal);
+        if (hashIndex >= 0 && !LooksQuoted(value))
+        {
+            return HighlightScalarToken(value[..hashIndex]) + Span("yaml-comment", value[hashIndex..]);
+        }
+
+        return HighlightScalarToken(value);
+    }
+
+    private static bool LooksQuoted(string value) => value.StartsWith('"') || value.StartsWith('\'');
+
+    private static string HighlightScalarToken(string value)
+    {
+        var trimmed = value.TrimEnd();
+        var trailing = value[trimmed.Length..];
+
+        var cssClass = trimmed switch
+        {
+            "" => null,
+            _ when LooksQuoted(trimmed) => "yaml-string",
+            "true" or "false" or "null" or "~" or "yes" or "no" or "True" or "False" or "Null" => "yaml-bool",
+            _ when NumberLiteral.IsMatch(trimmed) => "yaml-number",
+            _ when trimmed.StartsWith('|') || trimmed.StartsWith('>') || trimmed is "---" or "..." => "yaml-punct",
+            _ => "yaml-string"
+        };
+
+        return (cssClass is null ? Encode(trimmed) : Span(cssClass, trimmed)) + Encode(trailing);
+    }
+
+    private static string Span(string cssClass, string text) => $"<span class=\"{cssClass}\">{Encode(text)}</span>";
+
+    private static string Encode(string text) => WebUtility.HtmlEncode(text);
+}

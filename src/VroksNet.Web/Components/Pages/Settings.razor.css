@@ -39,3 +39,12 @@
     padding: 1rem;
     overflow-y: auto;
 }
+
+:root[data-bs-theme="dark"] .connection-panel {
+    background: #212529;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-bs-theme="dark"] .connection-panel-header {
+    border-bottom-color: #495057;
+}
