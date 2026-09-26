@@ -6,6 +6,8 @@ using VroksNet.Application.Connections.TestConnection;
 using VroksNet.Application.Connections.TestConnectionValue;
 using VroksNet.Application.Connections.UpdateConnection;
 
+using VroksNet.ApiService.Endpoints.Responses;
+
 namespace VroksNet.ApiService.Endpoints;
 
 /// <summary>

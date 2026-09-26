@@ -6,6 +6,8 @@ using VroksNet.Application.TestScenarios.ListTestScenarios;
 using VroksNet.Application.TestScenarios.RunTestScenario;
 using VroksNet.Application.TestScenarios.UpdateTestScenario;
 
+using VroksNet.ApiService.Endpoints.Responses;
+
 namespace VroksNet.ApiService.Endpoints;
 
 /// <summary>
