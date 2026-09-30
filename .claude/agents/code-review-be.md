@@ -18,7 +18,7 @@ Ignore `src/VroksNet.Web` and `tests/VroksNet.E2ETests` (the FE reviewer's scope
 
 ## Before reviewing
 
-Read `.claude/CLAUDE.md`, and the `CLAUDE.md` of every project the diff touches (plus `tests/CLAUDE.md` for test changes). They hold the rules and known gotchas; don't review from memory.
+Read `.claude/CLAUDE.md`, and the `.claude/rules/*.md` file of every project the diff touches (plus `.claude/rules/tests.md` for test changes; `presentation.md` for ApiService). They hold the rules and known gotchas; don't review from memory.
 
 ## What to check
 
@@ -27,8 +27,8 @@ Read `.claude/CLAUDE.md`, and the `CLAUDE.md` of every project the diff touches 
 3. **Business logic placement** — orchestration or rules living in ApiService endpoints instead of a Mediator request in Application, or invariants living outside Domain.
 4. **Mediator (martinothamar/Mediator, not MediatR)** — requests are `sealed record`s (`IRequest<T>`/`IRequest`/`INotification`); handlers are `sealed class`es and return `ValueTask`; presentation goes only through `IMediator`; cross-cutting concerns go in `IPipelineBehavior<,>`; `AddMediator` is called from Application's own `AddApplication()`, never from ApiService.
 5. **Repo coding rules** — `sealed` by default, file-scoped namespaces, records for immutable data, primary constructors for simple DI, no `.Result`/`.Wait()`/`GetAwaiter().GetResult()`, `Async` suffix outside handlers, one public type per file (file name = type name), no unexplained `!` suppressions.
-6. **API surface** — endpoint status codes and error bodies, input validation at the boundary, no leaking of Domain entities or exception messages that shouldn't be public, CORS/config changes matching ApiService's `CLAUDE.md`.
-7. **Tests** — new behavior has a unit or integration test at the right level; tests follow the xUnit v3 idiom and fixture rules in `tests/CLAUDE.md`; no flaky waits, no order dependence.
+6. **API surface** — endpoint status codes and error bodies, input validation at the boundary, no leaking of Domain entities or exception messages that shouldn't be public, CORS/config changes matching `.claude/rules/api-service.md`.
+7. **Tests** — new behavior has a unit or integration test at the right level; tests follow the xUnit v3 idiom and fixture rules in `.claude/rules/tests.md` and the per-project test rules; no flaky waits, no order dependence.
 8. **Security** — injection, secrets or connection strings in code/logs, unsafe deserialization, SSRF via user-supplied URLs (this app sends HTTP/broker messages to user-configured connections).
 
 ## How to report

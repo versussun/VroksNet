@@ -6,15 +6,15 @@
 
 ## Solution layout
 
-Each project carries its own `CLAUDE.md` with its role, constraints, and gotchas — read it before working in that project.
+Per-project rules (role, constraints, gotchas) live in `.claude/rules/`, each scoped via `paths:` frontmatter so it loads automatically when you work on files in that project. Read the matching rule file before working in a project if it isn't already loaded.
 
-- `src/VroksNet.AppHost` — Aspire orchestration only. → `src/VroksNet.AppHost/CLAUDE.md`
-- `src/VroksNet.ServiceDefaults` — shared cross-cutting Aspire wiring. → `src/VroksNet.ServiceDefaults/CLAUDE.md`
-- `src/VroksNet.Domain` — Clean Architecture Domain layer. → `src/VroksNet.Domain/CLAUDE.md`
-- `src/VroksNet.Application` — Clean Architecture Application layer; use cases and the Mediator conventions. → `src/VroksNet.Application/CLAUDE.md`
-- `src/VroksNet.Infrastructure` — Clean Architecture Infrastructure layer (persistence, parsers, external clients). → `src/VroksNet.Infrastructure/CLAUDE.md`
-- `src/VroksNet.ApiService` — the only server process / composition root. → `src/VroksNet.ApiService/CLAUDE.md`
-- `src/VroksNet.Web` — Blazor WebAssembly Admin UI, talks to the API over HTTP only. → `src/VroksNet.Web/CLAUDE.md`
+- `src/VroksNet.AppHost` — Aspire orchestration only. → `.claude/rules/apphost.md`
+- `src/VroksNet.ServiceDefaults` — shared cross-cutting Aspire wiring. → `.claude/rules/service-defaults.md`
+- `src/VroksNet.Domain` — Clean Architecture Domain layer. → `.claude/rules/domain.md`
+- `src/VroksNet.Application` — Clean Architecture Application layer; use cases and the Mediator conventions. → `.claude/rules/application.md`
+- `src/VroksNet.Infrastructure` — Clean Architecture Infrastructure layer (persistence, parsers, external clients). → `.claude/rules/infrastructure.md`
+- `src/VroksNet.ApiService` — the only server process / composition root. → `.claude/rules/api-service.md` + `.claude/rules/presentation.md`
+- `src/VroksNet.Web` — Blazor WebAssembly Admin UI, talks to the API over HTTP only. → `.claude/rules/web.md` + `.claude/rules/presentation.md`
 - `tests/VroksNet.UnitTests`, `tests/VroksNet.IntegrationTests`, `tests/VroksNet.E2ETests` — see "Testing" below.
 
 ## Architecture: Clean Architecture
@@ -28,18 +28,18 @@ Domain  ←  Application  ←  Infrastructure
 ```
 
 - Never reference outward: Domain must not reference Application/Infrastructure/Presentation; Application must not reference Infrastructure or Presentation.
-- Presentation (`VroksNet.ApiService`, `VroksNet.Web`) and everything else calls use cases only through Mediator — details in `src/VroksNet.Application/CLAUDE.md`.
+- Presentation (`VroksNet.ApiService`, `VroksNet.Web`) and everything else calls use cases only through Mediator — details in `.claude/rules/application.md`.
 - Only `VroksNet.ApiService` is a composition root; `VroksNet.Web` never is.
-- Per-layer roles and constraints live in each project's own `CLAUDE.md` (see "Solution layout").
+- Per-layer roles and constraints live in `.claude/rules/` (see "Solution layout").
 
 ## Testing
 
-All test-specific rules (fixtures, boot/lifecycle, Docker/Playwright requirements, xUnit idiom) live next to the tests, not here:
+All test-specific rules (fixtures, boot/lifecycle, Docker/Playwright requirements, xUnit idiom) live in path-scoped rule files, not here:
 
-- `tests/CLAUDE.md` — rules shared by every test project (xUnit v3 idiom).
-- `tests/VroksNet.UnitTests/CLAUDE.md` — handler/parser/repository unit tests.
-- `tests/VroksNet.IntegrationTests/CLAUDE.md` — Aspire integration tests.
-- `tests/VroksNet.E2ETests/CLAUDE.md` — Playwright browser E2E tests.
+- `.claude/rules/tests.md` — rules shared by every test project (xUnit v3 idiom).
+- `.claude/rules/unit-tests.md` — handler/parser/repository unit tests.
+- `.claude/rules/integration-tests.md` — Aspire integration tests.
+- `.claude/rules/e2e-tests.md` — Playwright browser E2E tests.
 
 ## .NET coding rules
 

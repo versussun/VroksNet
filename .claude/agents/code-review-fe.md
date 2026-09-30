@@ -17,7 +17,7 @@ Ignore backend projects (the BE reviewer's scope), except to check that Web's mi
 
 ## Before reviewing
 
-Read `.claude/CLAUDE.md`, `src/VroksNet.Web/CLAUDE.md`, `src/VroksNet.ApiService/CLAUDE.md` (shared Presentation rules), and `tests/CLAUDE.md` + `tests/VroksNet.E2ETests/CLAUDE.md` for E2E changes. Don't review from memory.
+Read `.claude/CLAUDE.md`, `.claude/rules/web.md`, `.claude/rules/presentation.md` (shared Presentation rules), and `.claude/rules/tests.md` + `.claude/rules/e2e-tests.md` for E2E changes. Don't review from memory.
 
 ## What to check
 
@@ -28,7 +28,7 @@ Read `.claude/CLAUDE.md`, `src/VroksNet.Web/CLAUDE.md`, `src/VroksNet.ApiService
 5. **UX and accessibility** — loading, empty and error states present; form validation feedback; labels tied to inputs, keyboard operability, semantic elements; works in both light and dark theme (no hard-coded colors bypassing the theme variables); responsive layout.
 6. **Repo coding rules** — `sealed` classes, file-scoped namespaces, records for DTOs, primary constructors for DI, one public type per file, nullable enabled with no unexplained `!`.
 7. **Performance** — needless re-renders, large lists without virtualization, repeated API calls that could be one, heavy work on the UI thread.
-8. **E2E tests** — follow `tests/VroksNet.E2ETests/CLAUDE.md`: resilient locators (roles/labels/test ids, not brittle CSS), auto-waiting assertions instead of fixed delays, isolated data per test, covers the changed user flow.
+8. **E2E tests** — follow `.claude/rules/e2e-tests.md`: resilient locators (roles/labels/test ids, not brittle CSS), auto-waiting assertions instead of fixed delays, isolated data per test, covers the changed user flow.
 9. **Security** — unescaped `MarkupString`/raw HTML from user or spec content (XSS), untrusted URLs rendered as links, sensitive values (connection strings, credentials) displayed or logged in the browser.
 
 ## How to report

@@ -1,0 +1,64 @@
+---
+paths:
+  - "src/VroksNet.Infrastructure/**"
+---
+
+# VroksNet.Infrastructure
+
+The Clean Architecture Infrastructure layer. It implements Application's interfaces: persistence (EF Core, repositories), parsers, external service clients, file system. It references `VroksNet.Application` (and transitively Domain).
+
+## Rules
+
+### Persistence (SQLite + EF Core)
+
+- **One `DbContext`:** `VroksNet.Infrastructure.Persistence.VroksNetDbContext`. Always resolve it through `IDbContextFactory<VroksNetDbContext>`, never by direct injection, so every read or write gets its own short-lived context.
+- **Serialize all writes through `IDbWriteQueue`.** Call sites (e.g. `ApiSpecificationRepository`) enqueue a delegate, and the single `DbWriteBackgroundService` executes them one at a time. **Never add a write path that bypasses the queue.** This guards against concurrent writes between the Mock API and the async publish worker (`docs/project-brief.md` §3).
+- **Connection setup lives in `InfrastructureServiceCollectionExtensions`.** `AddInfrastructure(...)` configures the connection with a 5s `busy_timeout`. `InitializeDatabaseAsync()`, called once at ApiService startup, runs migrations plus `PRAGMA journal_mode=WAL`.
+- **Keep the unique index on `ApiSpecification.Title`** (`VroksNetDbContext.OnModelCreating`). `ApiSpecificationRepository.UpsertAsync` relies on it: it deletes the existing row with the same `Title` (cascading to its `MockEndpoint`s) and inserts fresh. Don't switch to attaching/patching a detached graph, which threw `DbUpdateConcurrencyException`.
+- **Add migrations from the repo root:**
+
+  ```
+  dotnet ef migrations add <Name> --project src/VroksNet.Infrastructure --startup-project src/VroksNet.ApiService --output-dir Persistence/Migrations
+  ```
+
+  `Microsoft.EntityFrameworkCore.Design` must be referenced by **both** Infrastructure (the model) and ApiService (`dotnet ef` requires it on the startup project).
+
+### Storage modes
+
+- **In-memory by default.** When `ConnectionStrings:VroksNetDb` isn't set, the app uses `Data Source=VroksNetInMemoryDb;Mode=Memory;Cache=Shared`: named and shared-cache, **never** bare `:memory:`. With `:memory:`, every factory-issued connection would get its own empty database.
+- **Keep `InMemoryDatabaseKeepAlive`.** It is a singleton, resolved eagerly at the top of `InitializeDatabaseAsync` before migrations, and holds one connection open for the app's lifetime. Without it the shared-cache DB is dropped when the first short-lived connection closes.
+- **File mode = set `ConnectionStrings:VroksNetDb`** (config, `ConnectionStrings__VroksNetDb` env var, or user secrets) to a file path. That value is the only switch; don't add a separate flag.
+- **In file mode, `AddInfrastructure` creates the missing parent directory** (`Directory.CreateDirectory` on the `SqliteConnectionStringBuilder.DataSource` directory). SQLite creates the `.db` file itself (`ReadWriteCreate`) but never missing directories.
+- **Docker uses file mode.** The image sets `ConnectionStrings__VroksNetDb=Data Source=/app/data/vroksnet.db` with `VOLUME /app/data`. Local `dotnet run` gets the in-memory default.
+- **Never add a live "switch storage" or "restart now" button.** The Settings page's `Storage` section only builds the `ConnectionStrings__VroksNetDb` value and copies it to the clipboard. `IDbContextFactory` is wired once at startup, so switching modes means setting the env var and restarting, and the app has no supervisor to bring itself back up outside a Docker restart policy.
+
+### Spec parsing
+
+- **OpenAPI:** use `Microsoft.OpenApi` + `Microsoft.OpenApi.YamlReader` (the 3.x line). **Register the YAML reader explicitly:** `new OpenApiReaderSettings().AddYamlReader()` (from `Microsoft.OpenApi.Reader`), then `OpenApiDocument.LoadAsync(stream, "yaml", settings, cancellationToken)`. Without it you get `NotSupportedException: Format 'yaml' is not supported.`
+- **AsyncAPI** (`AsyncApiSpecificationParser`): NuGet has no typed AsyncAPI model, so the parser walks the raw YAML via `SharpYaml` (`YamlMappingNode`/`YamlSequenceNode`/`YamlScalarNode`) and resolves the spec's own local `"#/a/b/c"` `$ref`s by hand. Keep that minimal: no general JSON Reference or external-file support.
+- **Pin `SharpYaml` to the exact version `Microsoft.OpenApi.YamlReader` brings transitively** (currently `2.1.5`), so it can't drift. Don't add a second general-purpose YAML library.
+- **AsyncAPI operation keys use the format `"{channel address}:{action}"`** (e.g. `"orders.created:send"`, per `MockEndpoint.OperationKey`). They are **not** invokable through `/mock/{**path}`, because `MockInvocationEndpoints`/`OperationKeyMatcher` assume HTTP method + path. Publishing them is Phase 03 work (see "Message brokers" in `.claude/rules/apphost.md`).
+- **Keep the two parser interfaces separate.** `ISpecificationParser` (→ `OpenApiSpecificationParser`) and `IAsyncApiSpecificationParser : ISpecificationParser` (→ `AsyncApiSpecificationParser`) are registered side by side. The derived interface adds no members; it exists so DI can tell the two apart (otherwise the last registration silently wins).
+- **Each spec kind is its own vertical slice:** its own `Application/Specifications/Import{Kind}Spec` request + handler and its own `POST /api/specifications/{openapi|asyncapi}` endpoint, with no `Kind` parameter branching. Follow this pattern for any new spec kind.
+
+### Connection testing
+
+- **`IConnectionTester` → `ConnectionTester`** (`POST /api/connections/{id}/test`) actually reaches the stored `Connection`'s target instead of only validating its shape.
+- **Don't reuse the Aspire-wired broker clients** (`AddRabbitMQClient`/`AddNatsClient`). They point at the dev-time AppHost resources, while a `Connection` holds arbitrary user-typed host and credentials. Open clients directly:
+  - `Http`: a short-timeout `HttpClient` GET. Any HTTP response counts as reachable, even a 4xx; only a thrown exception counts as failure.
+  - `RabbitMq`: `RabbitMQ.Client` `ConnectionFactory.CreateConnectionAsync`.
+  - `Nats`: `NATS.Client.Core` `NatsConnection.PingAsync`.
+- **Reference `RabbitMQ.Client` and `NATS.Client.Core` directly**, not the `NATS.Net`/`Aspire.NATS.Net` meta-packages, which pull in JetStream/KV/ObjectStore/Hosting. Pin them to the exact versions the Aspire client packages already resolve.
+- **All branches share one 5s timeout and return `ConnectionTestResult(bool Success, string Message)`.** Make `Message` safe to show verbatim in the UI: never a raw connection string or a full stack trace.
+- `MessageSender` (Test Scenarios) follows the same branching and clients, but publishes or POSTs for real. See `.claude/rules/application.md`.
+
+### Contract-testing schema foundation
+
+- **The full plan is in `docs/contract-testing-plan.md`.** Don't wire up validation against these schemas without updating that plan too. This is only the foundation ("Фаза A").
+- **`ISchemaValidator` → `VroksNet.Infrastructure.SchemaValidation.SchemaValidator`** validates JSON against a JSON Schema using `JsonSchema.Net`. That library is pinned in `Directory.Packages.props` and referenced only here.
+- **Both parsers extract request/response schemas at import time** and store them on `MockEndpoint.RequestSchema`/`ResponseSchema`. For AsyncAPI, the message payload reuses `ResponseSchemaJson`. Schemas are self-contained:
+  - OpenAPI inlines local `$ref`s via `IOpenApiSchema.SerializeAsV31(...)` with `OpenApiWriterSettings { InlineLocalReferences = true }`.
+  - AsyncAPI follows one manual `$ref` hop.
+
+  Schemas are stored instead of re-parsed on demand for the same reason `ExampleTemplate` stores the example.
+- **Nothing consumes these schemas yet.** They aren't exposed via `MockEndpointDetail`, the API or the UI.

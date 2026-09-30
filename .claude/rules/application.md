@@ -1,0 +1,63 @@
+---
+paths:
+  - "src/VroksNet.Application/**"
+---
+
+# VroksNet.Application
+
+The Clean Architecture Application layer: use cases, orchestration, DTOs, validation, and Mediator requests/handlers. It references only `VroksNet.Domain`.
+
+## Rules
+
+- **Depend only on Domain.** Define interfaces here (repositories, external services) for Infrastructure to implement. No concrete infrastructure types in this project.
+- **Use [martinothamar/Mediator](https://github.com/martinothamar/Mediator) for all use-case dispatch**, not MediatR. It is source-generator based and uses no reflection.
+- **Call `AddMediator(...)` only from inside Application**, via `AddApplication()`. Never call it from ApiService or any other project (see Gotchas).
+- **Group requests + handlers by feature**, e.g. `Application/Orders/CreateOrder/`, with one request + handler pair per file group.
+- **Requests and notifications are `sealed record`s** implementing `IRequest<TResponse>`, `IRequest` or `INotification`.
+- **Handlers are `sealed class`es** implementing `IRequestHandler<,>` / `IRequestHandler<>` / `INotificationHandler<>`. `Handle` keeps the interface's name, with no `Async` suffix.
+- **Put cross-cutting concerns (validation, logging, transactions) in `IPipelineBehavior<,>`** implementations registered via `options.PipelineBehaviors = [...]`. Don't scatter them across handlers.
+- **Bump Mediator versions deliberately.** They are pinned exactly in `Directory.Packages.props` (Central Package Management rejects floating versions):
+
+  ```xml
+  <PackageVersion Include="Mediator.Abstractions" Version="3.0.2" />
+  <PackageVersion Include="Mediator.SourceGenerator" Version="3.0.2" />
+  ```
+
+## Canonical shape
+
+```csharp
+// VroksNet.Application/ApplicationServiceCollectionExtensions.cs
+public static IServiceCollection AddApplication(this IServiceCollection services)
+{
+    services.AddMediator(options =>
+    {
+        options.ServiceLifetime = ServiceLifetime.Scoped; // matches VroksNet.Infrastructure's scoped DbContext usage
+    });
+    return services;
+}
+
+// VroksNet.ApiService/Program.cs
+builder.Services.AddApplication();
+```
+
+```csharp
+public sealed record CreateOrder(string CustomerId, decimal Amount) : IRequest<OrderId>;
+
+public sealed class CreateOrderHandler(IOrderRepository repository) : IRequestHandler<CreateOrder, OrderId>
+{
+    public async ValueTask<OrderId> Handle(CreateOrder request, CancellationToken cancellationToken)
+    {
+        // orchestrate domain logic, call repository
+    }
+}
+```
+
+## Gotchas
+
+- **Why `AddMediator` must live in Application:** the source generator only inspects `AddMediator` calls inside its own compilation, which is the project referencing `Mediator.SourceGenerator`. A call from ApiService is invisible to it, so the generator bakes in the default Singleton lifetime, and startup then throws `Invalid configuration detected for Mediator... generated code for 'Singleton' lifetime, but got 'Scoped'`. This has happened before; don't reintroduce it. If Web ever gets its own composition root, it still has to go through `AddApplication()`.
+
+## Feature notes
+
+- **Test Scenarios** (`TestScenario` entity, `Application/TestScenarios/*`, `/api/test-scenarios`, the "Test Scenarios" Web page): a saved "send this message somewhere". It combines one operation (`MockEndpointId`) from one specification (`SpecificationId`), sent through one `Connection` (`ConnectionId`), with an optional `PayloadOverride`. Sending goes through `IMessageSender`/`MessageSender`, the sibling of `ConnectionTester`. It uses the same per-`ConnectionServiceType` branching but actually publishes/POSTs. See "Connection testing" in `.claude/rules/infrastructure.md`.
+  - **Don't add FK constraints from `TestScenario`** to the specification, operation or connection it references. This is the same loose coupling as `CallRecord`. When a reference is deleted, the scenario fails gracefully at run time: `RunTestScenarioHandler` returns an unsuccessful result and doesn't throw. `ListTestScenariosHandler`'s `TestScenarioSummary` shows `"(deleted specification)"` / `"(deleted connection)"` placeholders instead of crashing.
+  - **Every run logs a `CallRecord`** through `ICallRecordRepository`, which is write-only for now. Reading records back is Phase 04 ("история и логи"). The record uses `CallDirection.OutboundHttpRequest` (an `Http`-connection run is neither `InboundHttpRequest` nor `OutboundBrokerPublish`) and sets `CallRecord.ConnectionId`.
