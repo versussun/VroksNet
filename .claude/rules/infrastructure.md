@@ -54,11 +54,12 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
 
 ### Contract-testing schema foundation
 
-- **The full plan is in `docs/contract-testing-plan.md`.** Don't wire up validation against these schemas without updating that plan too. This is only the foundation ("Фаза A").
+- **The full plan is in `docs/contract-testing-plan.md`.** Don't wire up validation against these schemas without updating that plan too. Phases A (foundation) and B (Test Scenario HTTP response validation) are done.
 - **`ISchemaValidator` → `VroksNet.Infrastructure.SchemaValidation.SchemaValidator`** validates JSON against a JSON Schema using `JsonSchema.Net`. That library is pinned in `Directory.Packages.props` and referenced only here.
 - **Both parsers extract request/response schemas at import time** and store them on `MockEndpoint.RequestSchema`/`ResponseSchema`. For AsyncAPI, the message payload reuses `ResponseSchemaJson`. Schemas are self-contained:
   - OpenAPI inlines local `$ref`s via `IOpenApiSchema.SerializeAsV31(...)` with `OpenApiWriterSettings { InlineLocalReferences = true }`.
   - AsyncAPI follows one manual `$ref` hop.
 
   Schemas are stored instead of re-parsed on demand for the same reason `ExampleTemplate` stores the example.
-- **Nothing consumes these schemas yet.** They aren't exposed via `MockEndpointDetail`, the API or the UI.
+- **OpenAPI also stores every declared response's schema** in `MockEndpoint.ResponseSchemasByStatus`, keyed `"200"`/`"4XX"` (range keys upper-cased)/`"default"`, value `null` when that response declares no JSON body. It's one JSON column via a value converter in `VroksNetDbContext`, defaulting to `"{}"` for rows that predate it. Never let that default become `""`: it wouldn't deserialize, and every read of an old endpoint would throw.
+- **Only `RunTestScenarioHandler` consumes these schemas so far** (validating an Http run's response). They aren't exposed via `MockEndpointDetail`, the API or the UI.
