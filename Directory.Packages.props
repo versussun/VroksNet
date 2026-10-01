@@ -4,11 +4,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting.Nats" Version="13.5.3" />
-    <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.5.3" />
-    <PackageVersion Include="Aspire.Hosting.Testing" Version="13.2.2" />
-    <PackageVersion Include="Aspire.NATS.Net" Version="13.5.3" />
-    <PackageVersion Include="Aspire.RabbitMQ.Client" Version="13.5.3" />
+    <PackageVersion Include="Aspire.Hosting.Nats" Version="13.6.0" />
+    <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.6.0" />
+    <PackageVersion Include="Aspire.Hosting.Testing" Version="13.6.0" />
+    <PackageVersion Include="Aspire.NATS.Net" Version="13.6.0" />
+    <PackageVersion Include="Aspire.RabbitMQ.Client" Version="13.6.0" />
     <PackageVersion Include="coverlet.collector" Version="6.0.2" />
     <PackageVersion Include="JsonSchema.Net" Version="7.3.4" />
     <PackageVersion Include="Mediator.Abstractions" Version="3.0.2" />
@@ -26,7 +26,7 @@
     <PackageVersion Include="Microsoft.OpenApi" Version="3.10.2" />
     <PackageVersion Include="Microsoft.OpenApi.YamlReader" Version="3.10.2" />
     <PackageVersion Include="Microsoft.Playwright" Version="1.55.0" />
-    <PackageVersion Include="NATS.Client.Core" Version="2.8.0" />
+    <PackageVersion Include="NATS.Client.Core" Version="2.8.2" />
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.0" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.0" />

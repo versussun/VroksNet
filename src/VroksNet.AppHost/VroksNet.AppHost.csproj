@@ -1,4 +1,4 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.5.3">
+<Project Sdk="Aspire.AppHost.Sdk/13.6.0">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -6,6 +6,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UserSecretsId>ce879c98-9d23-4fe7-bb8c-bd5f6e49831e</UserSecretsId>
+    <!-- Aspire 13.6 defaults this to false and warns about it (ASPIRE010). DCP and the dashboard
+         keep coming from the NuGet orchestration/dashboard packages, which is how this repo (and
+         Aspire.Hosting.Testing in the integration/E2E tests) runs the AppHost — no Aspire CLI
+         bundle required. Stated explicitly so a future default flip doesn't change that silently. -->
+    <AspireUseCliBundle>false</AspireUseCliBundle>
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

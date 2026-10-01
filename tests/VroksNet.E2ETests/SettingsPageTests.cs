@@ -18,7 +18,8 @@ public sealed class SettingsPageTests(AppHostFixture fixture) : PageTestBase(fix
         var name = $"E2E Test Connection {Guid.NewGuid()}";
         await Page.GotoAsync("/settings");
 
-        // Add
+        // Add — the form lives in a slide-out panel opened from the page header
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add connection" }).ClickAsync();
         await Page.GetByLabel("Name").FillAsync(name);
         await Page.GetByLabel("URL").FillAsync("https://api.example.com");
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
