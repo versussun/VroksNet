@@ -12,6 +12,9 @@ public abstract class PageTestBase(AppHostFixture fixture) : IAsyncLifetime
 
     protected IPage Page { get; private set; } = null!;
 
+    /// <summary>The shared app graph — for tests that need more than <see cref="Page"/>, e.g. <see cref="AppHostFixture.ApiServiceBaseAddress"/>.</summary>
+    protected AppHostFixture Fixture => fixture;
+
     public async ValueTask InitializeAsync()
     {
         _context = await fixture.Browser.NewContextAsync(new BrowserNewContextOptions

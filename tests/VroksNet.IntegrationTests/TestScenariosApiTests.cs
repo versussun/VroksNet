@@ -59,6 +59,9 @@ public sealed class TestScenariosApiTests(AppHostFixture fixture)
         Assert.Equal(HttpStatusCode.OK, runResponse.StatusCode);
         var runResult = await runResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
         Assert.True(runResult!["success"]!.GetValue<bool>());
+        Assert.Equal(200, runResult["statusCode"]!.GetValue<int>());
+        // The fixture spec declares "200" with no JSON body — declared, so the contract holds.
+        Assert.True(runResult["contractValidation"]!["isValid"]!.GetValue<bool>());
 
         // Running an unknown id 404s
         var runUnknownResponse = await client.PostAsync($"/api/test-scenarios/{Guid.NewGuid()}/run", null, cancellationToken);
@@ -96,6 +99,57 @@ public sealed class TestScenariosApiTests(AppHostFixture fixture)
         Assert.Equal(HttpStatusCode.NotFound, deleteAgainResponse.StatusCode);
     }
 
+    [Theory]
+    [InlineData("array", true)]
+    [InlineData("object", false)]
+    public async Task Run_ValidatesResponseBodyAgainstDeclaredSchema(string declaredType, bool expectValid)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = fixture.ApiServiceClient;
+        var suffix = Guid.NewGuid();
+
+        // ApiService's own GET /api/connections always answers 200 with a JSON array — declaring
+        // it as an object instead must surface as a contract violation, not a transport failure.
+        var yaml = $"""
+            openapi: 3.0.3
+            info:
+              title: "Contract Fixture {suffix}"
+              version: "1.0.0"
+            paths:
+              /api/connections:
+                get:
+                  responses:
+                    "200":
+                      description: OK
+                      content:
+                        application/json:
+                          schema:
+                            type: {declaredType}
+            """;
+        var (specificationId, endpointId) = await ImportYamlAsync(client, yaml, cancellationToken);
+        var connectionId = await CreateConnectionAsync(client, suffix, client.BaseAddress!.ToString(), cancellationToken);
+
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/test-scenarios",
+            new { Name = $"Contract Test Scenario {suffix}", SpecificationId = specificationId, MockEndpointId = endpointId, ConnectionId = connectionId, PayloadOverride = (string?)null },
+            cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, createResponse.StatusCode);
+        var scenarioId = (await createResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!["id"]!.GetValue<Guid>();
+
+        var runResponse = await client.PostAsync($"/api/test-scenarios/{scenarioId}/run", null, cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, runResponse.StatusCode);
+        var runResult = await runResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+
+        Assert.Equal(200, runResult!["statusCode"]!.GetValue<int>());
+        Assert.Equal(expectValid, runResult["success"]!.GetValue<bool>());
+        var contract = runResult["contractValidation"]!;
+        Assert.Equal(expectValid, contract["isValid"]!.GetValue<bool>());
+        Assert.Equal(expectValid, contract["errors"]!.AsArray().Count == 0);
+
+        var afterRun = await client.GetFromJsonAsync<JsonNode>($"/api/test-scenarios/{scenarioId}", cancellationToken);
+        Assert.Equal(expectValid, afterRun!["lastRunSuccess"]!.GetValue<bool>());
+    }
+
     private static async Task<(Guid SpecificationId, Guid EndpointId)> ImportSpecAsync(HttpClient client, Guid suffix, CancellationToken cancellationToken)
     {
         var yaml = $"""
@@ -112,11 +166,17 @@ public sealed class TestScenariosApiTests(AppHostFixture fixture)
                       description: OK
             """;
 
+        return await ImportYamlAsync(client, yaml, cancellationToken);
+    }
+
+    /// <summary>Imports a single-operation OpenAPI document and returns its id plus that one operation's id.</summary>
+    private static async Task<(Guid SpecificationId, Guid EndpointId)> ImportYamlAsync(HttpClient client, string yaml, CancellationToken cancellationToken)
+    {
         using var importRequest = new HttpRequestMessage(HttpMethod.Post, "/api/specifications/openapi")
         {
             Content = new StringContent(yaml, Encoding.UTF8, "text/plain"),
         };
-        importRequest.Headers.Add("X-File-Name", "health.yaml");
+        importRequest.Headers.Add("X-File-Name", "spec.yaml");
         var importResponse = await client.SendAsync(importRequest, cancellationToken);
         Assert.Equal(HttpStatusCode.OK, importResponse.StatusCode);
         var imported = await importResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);

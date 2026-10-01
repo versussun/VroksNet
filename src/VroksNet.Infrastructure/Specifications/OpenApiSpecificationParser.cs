@@ -69,11 +69,21 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
         // body's; null if the spec has neither.
         var example = firstJsonResponse?.Example ?? requestMediaType?.Example;
 
+        // Every declared response, not just the first — a contract check has to validate whatever
+        // status the real service actually returns against that status's own schema.
+        var responseSchemasByStatus = new Dictionary<string, string?>();
+        foreach (var response in operation.Responses ?? [])
+        {
+            var statusKey = response.Key.Equals("default", StringComparison.OrdinalIgnoreCase) ? "default" : response.Key.ToUpperInvariant();
+            responseSchemasByStatus[statusKey] = await ExtractSchemaJsonAsync(JsonMediaTypeOf(response.Value.Content)?.Schema, cancellationToken);
+        }
+
         return new ParsedOperation(
             operationKey,
             example?.ToJsonString(ExampleJsonOptions),
             await ExtractSchemaJsonAsync(requestMediaType?.Schema, cancellationToken),
-            await ExtractSchemaJsonAsync(firstJsonResponse?.Schema, cancellationToken));
+            await ExtractSchemaJsonAsync(firstJsonResponse?.Schema, cancellationToken),
+            responseSchemasByStatus);
     }
 
     private static IOpenApiMediaType? JsonMediaTypeOf(IDictionary<string, IOpenApiMediaType>? content)

@@ -54,6 +54,27 @@ public class OpenApiSpecificationParserTests
     }
 
     [Fact]
+    public async Task ParseAsync_ExtractsEveryDeclaredResponseSchemaKeyedByStatus()
+    {
+        var yaml = await File.ReadAllTextAsync(FixturePath("response-statuses-openapi.yaml"), TestContext.Current.CancellationToken);
+
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+
+        var schemas = Assert.Single(result.Operations).ResponseSchemasByStatus;
+        Assert.NotNull(schemas);
+        Assert.Equal(new[] { "200", "404", "5XX", "default" }, schemas.Keys.Order(StringComparer.Ordinal));
+
+        Assert.NotNull(schemas["200"]);
+        Assert.DoesNotContain("$ref", schemas["200"]);
+        Assert.Contains("\"id\"", schemas["200"]);
+        Assert.Contains("\"message\"", schemas["404"]);
+
+        // Declared, but with no JSON body — the key is kept so the status counts as declared.
+        Assert.Null(schemas["5XX"]);
+        Assert.Null(schemas["default"]);
+    }
+
+    [Fact]
     public async Task ParseAsync_MalformedYaml_Throws()
     {
         var yaml = await File.ReadAllTextAsync(FixturePath("invalid-openapi.yaml"), TestContext.Current.CancellationToken);
