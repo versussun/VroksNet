@@ -23,6 +23,14 @@ public sealed class TestScenario
     /// <summary>Overrides the operation's own <see cref="MockEndpoints.MockEndpoint.ExampleTemplate"/> when sending, if set.</summary>
     public string? PayloadOverride { get; set; }
 
+    public TestScenarioKind Kind { get; set; } = TestScenarioKind.Send;
+
+    /// <summary>How long a <see cref="TestScenarioKind.Listen"/> run waits for a message — <see cref="TestScenarioListening.DefaultTimeoutSeconds"/> if null. Null for <see cref="TestScenarioKind.Send"/>.</summary>
+    public int? ListenTimeoutSeconds { get; set; }
+
+    /// <summary>The RabbitMQ exchange a <see cref="TestScenarioKind.Listen"/> run binds its own temporary queue to — <see cref="TestScenarioListening.DefaultRabbitMqExchange"/> if null. Ignored for NATS.</summary>
+    public string? ListenExchange { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

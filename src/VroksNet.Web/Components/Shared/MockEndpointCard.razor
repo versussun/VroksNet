@@ -86,13 +86,8 @@
     private int? _responseStatus;
     private string? _responseBody;
 
-    /// <summary>
-    /// OpenAPI operation keys are always "METHOD /path" (see OpenApiSpecificationParser); AsyncAPI
-    /// ones are "channel/address:action" (see MockEndpoint.OperationKey) — no space. That's the
-    /// cheapest reliable way to tell them apart here without the card needing to know the
-    /// specification's own Kind.
-    /// </summary>
-    private bool IsHttpOperation => Endpoint.OperationKey.Contains(' ');
+    /// <summary>Whether this is an HTTP (OpenAPI) operation — decided by the server (MockEndpointDetail.RequiresHttpConnection), not re-derived from the key here.</summary>
+    private bool IsHttpOperation => Endpoint.RequiresHttpConnection;
 
     private string ResolvedPath
     {

@@ -48,6 +48,9 @@ public sealed class TestScenarioRepository(
                     .SetProperty(s => s.MockEndpointId, scenario.MockEndpointId)
                     .SetProperty(s => s.ConnectionId, scenario.ConnectionId)
                     .SetProperty(s => s.PayloadOverride, scenario.PayloadOverride)
+                    .SetProperty(s => s.Kind, scenario.Kind)
+                    .SetProperty(s => s.ListenTimeoutSeconds, scenario.ListenTimeoutSeconds)
+                    .SetProperty(s => s.ListenExchange, scenario.ListenExchange)
                     .SetProperty(s => s.UpdatedAt, scenario.UpdatedAt), ct);
 
             updated = rows > 0;

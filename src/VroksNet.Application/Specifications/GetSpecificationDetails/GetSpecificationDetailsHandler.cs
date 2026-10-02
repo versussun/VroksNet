@@ -1,5 +1,6 @@
 using Mediator;
 using VroksNet.Application.Abstractions;
+using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Application.Specifications.GetSpecificationDetails;
 
@@ -23,7 +24,14 @@ public sealed class GetSpecificationDetailsHandler(IApiSpecificationRepository r
             specification.UpdatedAt,
             specification.Endpoints
                 .OrderBy(endpoint => endpoint.OperationKey, StringComparer.Ordinal)
-                .Select(endpoint => new MockEndpointDetail(endpoint.Id, endpoint.OperationKey, endpoint.IsEnabled, endpoint.ExampleTemplate))
+                .Select(endpoint => new MockEndpointDetail(
+                    endpoint.Id,
+                    endpoint.OperationKey,
+                    endpoint.IsEnabled,
+                    endpoint.ExampleTemplate,
+                    OperationCompatibility.IsHttpOperation(endpoint.OperationKey),
+                    TestScenarioListening.CanListen(endpoint.OperationKey),
+                    TestScenarioListening.DefaultKindFor(endpoint.OperationKey)))
                 .ToList());
     }
 }

@@ -14,8 +14,10 @@ public sealed class CreateTestScenarioHandler(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Name);
 
-        await TestScenarioTargetResolver.ResolveAsync(
+        var target = await TestScenarioTargetResolver.ResolveAsync(
             specifications, connections, request.SpecificationId, request.MockEndpointId, request.ConnectionId, cancellationToken);
+        var (listenTimeoutSeconds, listenExchange) = TestScenarioTargetResolver.ValidateListenSettings(
+            target, request.Kind, request.ListenTimeoutSeconds, request.ListenExchange);
 
         var scenario = new TestScenario
         {
@@ -25,6 +27,9 @@ public sealed class CreateTestScenarioHandler(
             MockEndpointId = request.MockEndpointId,
             ConnectionId = request.ConnectionId,
             PayloadOverride = request.PayloadOverride,
+            Kind = request.Kind,
+            ListenTimeoutSeconds = listenTimeoutSeconds,
+            ListenExchange = listenExchange,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };

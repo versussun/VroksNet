@@ -53,6 +53,14 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
 - **All branches share one 5s timeout and return `ConnectionTestResult(bool Success, string Message)`.** Make `Message` safe to show verbatim in the UI: never a raw connection string or a full stack trace.
 - `MessageSender` (Test Scenarios) follows the same branching and clients, but publishes or POSTs for real. It appends the operation's path to the connection URL's own base path and keeps its query string (`https://host/v1?api-key=x` + `/pets` → `/v1/pets?api-key=x`). `MessageSenderUrlTests` covers this. Don't go back to `new Uri(baseUri, path)`, which drops both. See `.claude/rules/application.md`.
 
+- **Open RabbitMQ connections only through `RabbitMqConnections.OpenAsync`.** It sets the client's own timeouts, disables automatic recovery and *cancels* the attempt on timeout. Don't go back to `CreateConnectionAsync(...).WaitAsync(timeout)`: that only abandons the attempt, which can still open later and stay alive through recovery for the life of the process.
+- **`MessageListener` (Listen-mode Test Scenarios) must never take messages from a channel's real consumers.**
+  - RabbitMQ: a server-named exclusive auto-delete queue, bound to the scenario's exchange (default `amq.topic`). Never consume the channel's own queue. On a fanout/headers exchange the binding key is ignored, so any message on the exchange counts.
+  - NATS: a core subscription, then `PingAsync` so the subscription is registered before the listen window starts.
+  - Both subscribe with `TestScenarioListening.SubscriptionPatternOf(channel address)`, where whole-segment `{param}`s become `*`.
+  - Everything lives only for one run. Connect/setup (10s) is separate from the listen timeout. Each stage reports its own message, and a missing exchange reports a readable one.
+  - Time the listen wait out by cancelling the read, not via `WaitAsync`: an abandoned NATS read faults unobserved when the subscription is disposed.
+
 ### Contract-testing schema foundation
 
 - **The full plan is in `docs/contract-testing-plan.md`.** Don't wire up validation against these schemas without updating that plan too. Phases A (foundation) and B (Test Scenario HTTP response validation) are done.
@@ -63,4 +71,4 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
 
   Schemas are stored instead of re-parsed on demand for the same reason `ExampleTemplate` stores the example.
 - **OpenAPI also stores every declared response's schema** in `MockEndpoint.ResponseSchemasByStatus`, keyed `"200"`/`"4XX"` (range keys upper-cased)/`"default"`, value `null` when that response declares no JSON body. It's one JSON column via a value converter in `VroksNetDbContext`, defaulting to `"{}"` for rows that predate it. Never let that default become `""`: it wouldn't deserialize, and every read of an old endpoint would throw.
-- **Only `RunTestScenarioHandler` consumes these schemas so far** (validating an Http run's response). They aren't exposed via `MockEndpointDetail`, the API or the UI.
+- **Only `RunTestScenarioHandler` consumes these schemas so far.** It validates an Http run's response against `ResponseSchemasByStatus` and a Listen run's message against `ResponseSchema` (the AsyncAPI payload). They aren't exposed via `MockEndpointDetail`, the API or the UI.

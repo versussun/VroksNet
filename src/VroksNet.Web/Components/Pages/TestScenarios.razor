@@ -47,7 +47,13 @@ else
                 <tr>
                     <td>@scenario.Name</td>
                     <td>@scenario.SpecificationTitle</td>
-                    <td><code>@scenario.OperationKey</code></td>
+                    <td>
+                        <code>@scenario.OperationKey</code>
+                        @if (scenario.Kind == TestScenarioKind.Listen)
+                        {
+                            <span class="badge bg-info text-dark ms-1">Listen</span>
+                        }
+                    </td>
                     <td>@scenario.ConnectionName (@scenario.ConnectionServiceType)</td>
                     <td>@scenario.UpdatedAt.ToLocalTime().ToString("g")</td>
                     <td>
@@ -65,7 +71,7 @@ else
                     <td>
                         @if (_running.ContainsKey(scenario.Id))
                         {
-                            <button type="button" class="btn btn-outline-primary btn-sm" disabled>Running…</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" disabled>@(scenario.Kind == TestScenarioKind.Listen ? "Listening…" : "Running…")</button>
                             <button type="button" class="btn btn-outline-warning btn-sm ms-1" @onclick="() => StopAsync(scenario)">Stop</button>
                         }
                         else
@@ -140,7 +146,7 @@ else
 
         <div class="mb-2">
             <label class="form-label" for="scenario-operation-select">Operation</label>
-            <select id="scenario-operation-select" class="form-select" @bind="_formMockEndpointId" disabled="@(_specificationEndpoints is null)">
+            <select id="scenario-operation-select" class="form-select" @bind="_formMockEndpointId" @bind:after="OnOperationChanged" disabled="@(_specificationEndpoints is null)">
                 <option value="">Select an operation…</option>
                 @if (_specificationEndpoints is not null)
                 {
@@ -163,15 +169,49 @@ else
             </select>
             @if (SelectedEndpoint is not null && _connections is { Length: > 0 } && !CompatibleConnections.Any())
             {
-                <div class="form-text text-danger">No @(SelectedEndpoint.OperationKey.Contains(' ') ? "Http" : "RabbitMq/Nats") connections yet — add one on the Settings page first.</div>
+                <div class="form-text text-danger">No @(SelectedEndpoint.RequiresHttpConnection ? "Http" : "RabbitMq/Nats") connections yet — add one on the Settings page first.</div>
             }
         </div>
 
-        <div class="mb-3">
-            <label class="form-label" for="scenario-payload-textarea">Payload (optional override)</label>
-            <textarea id="scenario-payload-textarea" class="form-control" rows="4" @bind="_formPayloadOverride" @bind:event="oninput"
-                      placeholder="Leave blank to send the operation's own example from the spec"></textarea>
-        </div>
+        @if (CanChooseMode)
+        {
+            <div class="mb-2">
+                <label class="form-label" for="scenario-kind-select">Mode</label>
+                <select id="scenario-kind-select" class="form-select" @bind="_formKind">
+                    <option value="@TestScenarioKind.Send">Publish a message to the channel</option>
+                    <option value="@TestScenarioKind.Listen">Listen for a message and validate it</option>
+                </select>
+            </div>
+        }
+
+        @if (IsListening)
+        {
+            <div class="mb-2">
+                <label class="form-label" for="scenario-timeout-input">Wait up to (seconds)</label>
+                <input id="scenario-timeout-input" type="number" min="1" max="@MaxListenTimeoutSeconds" class="form-control @(IsListenTimeoutValid ? "" : "is-invalid")"
+                       @bind="_formListenTimeoutText" @bind:event="oninput" placeholder="30" aria-describedby="scenario-timeout-help" />
+                <div id="scenario-timeout-help" class="@(IsListenTimeoutValid ? "form-text" : "invalid-feedback")">
+                    A whole number from 1 to @MaxListenTimeoutSeconds. Leave blank for 30.
+                </div>
+            </div>
+
+            @if (SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq)
+            {
+                <div class="mb-3">
+                    <label class="form-label" for="scenario-exchange-input">Exchange</label>
+                    <input id="scenario-exchange-input" class="form-control" @bind="_formListenExchange" @bind:event="oninput" placeholder="amq.topic" aria-describedby="scenario-exchange-help" />
+                    <div id="scenario-exchange-help" class="form-text">A temporary queue is bound to this exchange with the channel address as binding key, so the service's own consumers still get every message.</div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="mb-3">
+                <label class="form-label" for="scenario-payload-textarea">Payload (optional override)</label>
+                <textarea id="scenario-payload-textarea" class="form-control" rows="4" @bind="_formPayloadOverride" @bind:event="oninput"
+                          placeholder="Leave blank to send the operation's own example from the spec"></textarea>
+            </div>
+        }
 
         <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@(_isSaving || !CanSave)">
             @(_isSaving ? "Saving…" : _editingId is null ? "Add" : "Save changes")
@@ -206,12 +246,35 @@ else
     private string _formMockEndpointId = string.Empty;
     private string _formConnectionId = string.Empty;
     private string _formPayloadOverride = string.Empty;
+    private TestScenarioKind _formKind = TestScenarioKind.Send;
+    private string _formListenTimeoutText = string.Empty;
+
+    /// <summary>Mirrors the server's TestScenarioListening.MaxTimeoutSeconds, only to give feedback before saving — the server still validates.</summary>
+    private const int MaxListenTimeoutSeconds = 80;
+
+    /// <summary>Blank means "use the server default"; otherwise a whole number in range.</summary>
+    private bool IsListenTimeoutValid => string.IsNullOrWhiteSpace(_formListenTimeoutText)
+        || (int.TryParse(_formListenTimeoutText, out var seconds) && seconds is >= 1 and <= MaxListenTimeoutSeconds);
+
+    private int? ListenTimeoutSeconds => int.TryParse(_formListenTimeoutText, out var seconds) ? seconds : null;
+    private string _formListenExchange = string.Empty;
+
+    /// <summary>The server decides which operations can be listened to (MockEndpointDetail.CanListen).</summary>
+    private bool CanChooseMode => SelectedEndpoint?.CanListen == true;
+
+    private bool IsListening => CanChooseMode && _formKind == TestScenarioKind.Listen;
+
+    private ConnectionSummary? SelectedConnection => _connections?.FirstOrDefault(c => c.Id.ToString() == _formConnectionId);
+
+    /// <summary>Starts a newly picked operation in the mode the server suggests for it (see MockEndpointDetail.DefaultTestScenarioKind).</summary>
+    private void OnOperationChanged() => _formKind = SelectedEndpoint?.DefaultTestScenarioKind ?? TestScenarioKind.Send;
 
     private bool CanSave =>
         !string.IsNullOrWhiteSpace(_formName)
         && Guid.TryParse(_formSpecificationId, out _)
         && Guid.TryParse(_formMockEndpointId, out _)
-        && Guid.TryParse(_formConnectionId, out _);
+        && Guid.TryParse(_formConnectionId, out _)
+        && (!IsListening || IsListenTimeoutValid);
 
     private MockEndpointDetail? SelectedEndpoint => _specificationEndpoints?.FirstOrDefault(e => e.Id.ToString() == _formMockEndpointId);
 
@@ -219,7 +282,7 @@ else
     private IEnumerable<ConnectionSummary> CompatibleConnections =>
         _connections is null ? []
         : SelectedEndpoint is null ? _connections
-        : _connections.Where(c => (c.ServiceType == ConnectionServiceType.Http) == SelectedEndpoint.OperationKey.Contains(' '));
+        : _connections.Where(c => (c.ServiceType == ConnectionServiceType.Http) == SelectedEndpoint.RequiresHttpConnection);
 
     protected override async Task OnInitializedAsync()
     {
@@ -235,6 +298,7 @@ else
             if (QueryMockEndpointId is { } mockEndpointId && _specificationEndpoints!.Any(e => e.Id == mockEndpointId))
             {
                 _formMockEndpointId = mockEndpointId.ToString();
+                OnOperationChanged();
             }
 
             errorMessage = null;
@@ -269,7 +333,10 @@ else
         _formName = scenario.Name;
         _formSpecificationId = scenario.SpecificationId.ToString();
         _formConnectionId = scenario.ConnectionId.ToString();
-        _formPayloadOverride = string.Empty;
+        _formPayloadOverride = scenario.PayloadOverride ?? string.Empty;
+        _formKind = scenario.Kind;
+        _formListenTimeoutText = scenario.ListenTimeoutSeconds?.ToString() ?? string.Empty;
+        _formListenExchange = scenario.ListenExchange ?? string.Empty;
         errorMessage = null;
 
         await OnSpecificationChangedAsync();
@@ -291,6 +358,9 @@ else
         _formMockEndpointId = string.Empty;
         _formConnectionId = string.Empty;
         _formPayloadOverride = string.Empty;
+        _formKind = TestScenarioKind.Send;
+        _formListenTimeoutText = string.Empty;
+        _formListenExchange = string.Empty;
         _specificationEndpoints = null;
     }
 
@@ -304,15 +374,23 @@ else
         _isSaving = true;
         errorMessage = null;
 
-        var specificationId = Guid.Parse(_formSpecificationId);
-        var mockEndpointId = Guid.Parse(_formMockEndpointId);
-        var connectionId = Guid.Parse(_formConnectionId);
-        var payloadOverride = string.IsNullOrWhiteSpace(_formPayloadOverride) ? null : _formPayloadOverride;
+        var listening = IsListening;
+        var form = new TestScenarioForm(
+            _formName,
+            Guid.Parse(_formSpecificationId),
+            Guid.Parse(_formMockEndpointId),
+            Guid.Parse(_formConnectionId),
+            listening || string.IsNullOrWhiteSpace(_formPayloadOverride) ? null : _formPayloadOverride,
+            listening ? TestScenarioKind.Listen : TestScenarioKind.Send,
+            listening ? ListenTimeoutSeconds : null,
+            listening && SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq && !string.IsNullOrWhiteSpace(_formListenExchange)
+                ? _formListenExchange
+                : null);
 
         try
         {
             var ok = _editingId is { } id
-                ? await TestScenarioApi.UpdateAsync(id, _formName, specificationId, mockEndpointId, connectionId, payloadOverride)
+                ? await TestScenarioApi.UpdateAsync(id, form)
                 : await CreatedOk();
 
             if (!ok)
@@ -334,7 +412,7 @@ else
 
         async Task<bool> CreatedOk()
         {
-            await TestScenarioApi.CreateAsync(_formName, specificationId, mockEndpointId, connectionId, payloadOverride);
+            await TestScenarioApi.CreateAsync(form);
             return true;
         }
     }
@@ -397,8 +475,9 @@ else
 
     /// <summary>
     /// Cancels the in-flight HTTP call. ASP.NET Core binds the request's CancellationToken through
-    /// to RunTestScenarioHandler and on into MessageSender.SendAsync, so this actually aborts the
-    /// server-side send too — not just the client's wait for a response.
+    /// to RunTestScenarioHandler and on into MessageSender.SendAsync / MessageListener.ListenAsync,
+    /// so this actually aborts the server-side send or stops the listen wait too — not just the
+    /// client's wait for a response.
     /// </summary>
     private void StopAsync(TestScenarioSummary scenario)
     {

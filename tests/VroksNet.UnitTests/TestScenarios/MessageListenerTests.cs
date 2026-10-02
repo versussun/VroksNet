@@ -1,0 +1,46 @@
+using VroksNet.Domain.Connections;
+using VroksNet.Infrastructure.Connections;
+
+namespace VroksNet.UnitTests.TestScenarios;
+
+/// <summary>
+/// The real <see cref="MessageListener"/> against unreachable or mismatched targets — the
+/// failure paths, fast and offline, like <see cref="MessageSenderTests"/>. Receiving for real is
+/// covered against the AppHost's brokers in VroksNet.IntegrationTests.
+/// </summary>
+public class MessageListenerTests
+{
+    private static readonly MessageListener Listener = new();
+
+    [Fact]
+    public async Task ListenAsync_HttpOperation_FailsWithoutConnecting()
+    {
+        var result = await Listener.ListenAsync(Connection(ConnectionServiceType.RabbitMq, "amqp://127.0.0.1:1"), "GET /pets", TimeSpan.FromSeconds(1), "amq.topic", TestContext.Current.CancellationToken);
+
+        Assert.False(result.Received);
+        Assert.Contains("AsyncAPI-shaped", result.Message);
+    }
+
+    [Fact]
+    public async Task ListenAsync_HttpConnection_Fails()
+    {
+        var result = await Listener.ListenAsync(Connection(ConnectionServiceType.Http, "https://api.example.com"), "orders.created:send", TimeSpan.FromSeconds(1), "amq.topic", TestContext.Current.CancellationToken);
+
+        Assert.False(result.Received);
+        Assert.Contains("only RabbitMq/Nats", result.Message);
+    }
+
+    [Theory]
+    [InlineData(ConnectionServiceType.RabbitMq, "amqp://guest:guest@127.0.0.1:1")]
+    [InlineData(ConnectionServiceType.Nats, "nats://127.0.0.1:1")]
+    public async Task ListenAsync_UnreachableBroker_FailsWithoutThrowing(ConnectionServiceType serviceType, string value)
+    {
+        var result = await Listener.ListenAsync(Connection(serviceType, value), "orders.created:send", TimeSpan.FromSeconds(1), "amq.topic", TestContext.Current.CancellationToken);
+
+        Assert.False(result.Received);
+        Assert.False(string.IsNullOrWhiteSpace(result.Message));
+    }
+
+    private static Connection Connection(ConnectionServiceType serviceType, string value)
+        => new() { Id = Guid.NewGuid(), Name = "Target", ServiceType = serviceType, Value = value };
+}

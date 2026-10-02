@@ -45,7 +45,7 @@ public class RunTestScenarioHandlerTests
             PayloadOverride = null
         }, TestContext.Current.CancellationToken);
 
-        var handler = new RunTestScenarioHandler(scenarios, specifications, connections, sender, new SchemaValidator(), callRecords);
+        var handler = new RunTestScenarioHandler(scenarios, specifications, connections, sender, new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), callRecords);
         var result = await handler.Handle(new RunTestScenario(scenarioId), TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
@@ -104,7 +104,7 @@ public class RunTestScenarioHandlerTests
             PayloadOverride = "{\"orderId\":\"custom\"}"
         }, TestContext.Current.CancellationToken);
 
-        var handler = new RunTestScenarioHandler(scenarios, specifications, connections, sender, new SchemaValidator(), new FakeCallRecordRepository());
+        var handler = new RunTestScenarioHandler(scenarios, specifications, connections, sender, new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), new FakeCallRecordRepository());
         await handler.Handle(new RunTestScenario(scenarioId), TestContext.Current.CancellationToken);
 
         Assert.Equal("{\"orderId\":\"custom\"}", sender.LastSend!.Value.Payload);
@@ -115,7 +115,7 @@ public class RunTestScenarioHandlerTests
     {
         var handler = new RunTestScenarioHandler(
             new FakeTestScenarioRepository(), new FakeApiSpecificationRepository(), new FakeConnectionRepository(),
-            new FakeMessageSender(new MessageSendResult(true, "unused")), new SchemaValidator(), new FakeCallRecordRepository());
+            new FakeMessageSender(new MessageSendResult(true, "unused")), new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), new FakeCallRecordRepository());
 
         var result = await handler.Handle(new RunTestScenario(Guid.NewGuid()), TestContext.Current.CancellationToken);
 
@@ -151,7 +151,7 @@ public class RunTestScenarioHandlerTests
             ConnectionId = Guid.NewGuid() // never inserted into `connections`
         }, TestContext.Current.CancellationToken);
 
-        var handler = new RunTestScenarioHandler(scenarios, specifications, connections, sender, new SchemaValidator(), callRecords);
+        var handler = new RunTestScenarioHandler(scenarios, specifications, connections, sender, new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), callRecords);
         var result = await handler.Handle(new RunTestScenario(scenarioId), TestContext.Current.CancellationToken);
 
         Assert.NotNull(result);
@@ -351,7 +351,7 @@ public class RunTestScenarioHandlerTests
             ConnectionId = connectionId
         }, TestContext.Current.CancellationToken);
 
-        var handler = new RunTestScenarioHandler(scenarios, specifications, connections, new FakeMessageSender(sendResult), new SchemaValidator(), callRecords);
+        var handler = new RunTestScenarioHandler(scenarios, specifications, connections, new FakeMessageSender(sendResult), new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), callRecords);
         return (handler, scenarioId, callRecords, scenarios);
     }
 }

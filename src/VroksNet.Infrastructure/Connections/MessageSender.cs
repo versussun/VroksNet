@@ -72,7 +72,7 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
 
     private static async Task<MessageSendResult> PublishRabbitMqAsync(string connectionString, string operationKey, string? payload, CancellationToken cancellationToken)
     {
-        var channelAddress = ChannelAddressOf(operationKey);
+        var channelAddress = OperationCompatibility.ChannelAddressOf(operationKey);
         if (channelAddress is null)
         {
             return new MessageSendResult(false, "This operation isn't AsyncAPI-shaped (expected \"channel:action\") — it can't be published to a RabbitMq connection.");
@@ -85,8 +85,7 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
 
         try
         {
-            var factory = new ConnectionFactory { Uri = uri };
-            await using var connection = await factory.CreateConnectionAsync(cancellationToken).WaitAsync(Timeout, cancellationToken);
+            await using var connection = await RabbitMqConnections.OpenAsync(uri, Timeout, cancellationToken);
             await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
             // The default exchange ("") routes by routing key = queue name — simplest reasonable
@@ -111,7 +110,7 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
 
     private static async Task<MessageSendResult> PublishNatsAsync(string connectionString, string operationKey, string? payload, CancellationToken cancellationToken)
     {
-        var subject = ChannelAddressOf(operationKey);
+        var subject = OperationCompatibility.ChannelAddressOf(operationKey);
         if (subject is null)
         {
             return new MessageSendResult(false, "This operation isn't AsyncAPI-shaped (expected \"channel:action\") — it can't be published to a Nats connection.");
@@ -131,17 +130,5 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
         {
             return new MessageSendResult(false, ex.Message);
         }
-    }
-
-    /// <summary>AsyncAPI operation keys are "channel/address:action" — the channel address is everything before the last ':'; null if the key isn't AsyncAPI-shaped at all.</summary>
-    private static string? ChannelAddressOf(string operationKey)
-    {
-        if (OperationCompatibility.IsHttpOperation(operationKey))
-        {
-            return null;
-        }
-
-        var separatorIndex = operationKey.LastIndexOf(':');
-        return separatorIndex > 0 ? operationKey[..separatorIndex] : null;
     }
 }

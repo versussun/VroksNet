@@ -58,8 +58,7 @@ public sealed class ConnectionTester(IHttpClientFactory httpClientFactory) : ICo
 
         try
         {
-            var factory = new ConnectionFactory { Uri = uri };
-            await using var connection = await factory.CreateConnectionAsync(cancellationToken).WaitAsync(Timeout, cancellationToken);
+            await using var connection = await RabbitMqConnections.OpenAsync(uri, Timeout, cancellationToken);
             return new ConnectionTestResult(true, $"Connected to {connection.Endpoint}.");
         }
         catch (TimeoutException)

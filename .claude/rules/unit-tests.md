@@ -21,4 +21,5 @@ Everything that isn't a full-graph test: handler tests, parser tests, repository
 
 ## Known gaps
 
-- The Http round-trip success path of `MessageSender` is covered only end-to-end in IntegrationTests. RabbitMq/Nats success paths aren't covered end-to-end anywhere yet: that needs a real broker and a way to assert on what it received.
+- The Http round-trip success path of `MessageSender` is covered only end-to-end in IntegrationTests (`MessageSenderUrlTests` covers just URL composition, through a capturing handler).
+- Broker success paths are covered only in IntegrationTests against the AppHost's containers: publishing in `MessageSenderApiTests` and receiving in `ListenScenarioApiTests`.

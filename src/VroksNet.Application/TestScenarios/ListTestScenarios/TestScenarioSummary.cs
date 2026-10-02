@@ -1,4 +1,5 @@
 using VroksNet.Domain.Connections;
+using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Application.TestScenarios.ListTestScenarios;
 
@@ -13,6 +14,10 @@ public sealed record TestScenarioSummary(
     Guid ConnectionId,
     string ConnectionName,
     ConnectionServiceType ConnectionServiceType,
+    string? PayloadOverride,
+    TestScenarioKind Kind,
+    int? ListenTimeoutSeconds,
+    string? ListenExchange,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? LastRunAt,
     bool? LastRunSuccess,
