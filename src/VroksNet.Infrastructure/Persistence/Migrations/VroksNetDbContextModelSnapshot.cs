@@ -156,6 +156,9 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("ServeAtRealPath")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid>("SpecificationId")
                         .HasColumnType("TEXT");
 

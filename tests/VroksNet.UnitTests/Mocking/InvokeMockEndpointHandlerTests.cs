@@ -4,6 +4,7 @@ using VroksNet.Application.Mocking.InvokeMockEndpoint;
 using VroksNet.Domain.ApiSpecifications;
 using VroksNet.Domain.CallRecords;
 using VroksNet.Domain.MockEndpoints;
+using VroksNet.Infrastructure.SchemaValidation;
 using VroksNet.UnitTests.TestDoubles;
 
 namespace VroksNet.UnitTests.Mocking;
@@ -17,7 +18,7 @@ public class InvokeMockEndpointHandlerTests
         await repository.UpsertAsync(CreateSpecification("Petstore Sample API",
             new MockEndpoint { Id = Guid.NewGuid(), OperationKey = "GET /pets/{petId}", IsEnabled = true, ExampleTemplate = "{\"id\":1}" }),
             TestContext.Current.CancellationToken);
-        var handler = new InvokeMockEndpointHandler(repository, new FakeCallRecordRepository(), NullLogger<InvokeMockEndpointHandler>.Instance);
+        var handler = new InvokeMockEndpointHandler(repository, new FakeCallRecordRepository(), new SchemaValidator(), NullLogger<InvokeMockEndpointHandler>.Instance);
 
         var result = await handler.Handle(new InvokeMockEndpoint("GET", "/pets/1"), TestContext.Current.CancellationToken);
 
@@ -33,7 +34,7 @@ public class InvokeMockEndpointHandlerTests
         await repository.UpsertAsync(CreateSpecification("Petstore Sample API",
             new MockEndpoint { Id = Guid.NewGuid(), OperationKey = "GET /pets", IsEnabled = true }),
             TestContext.Current.CancellationToken);
-        var handler = new InvokeMockEndpointHandler(repository, new FakeCallRecordRepository(), NullLogger<InvokeMockEndpointHandler>.Instance);
+        var handler = new InvokeMockEndpointHandler(repository, new FakeCallRecordRepository(), new SchemaValidator(), NullLogger<InvokeMockEndpointHandler>.Instance);
 
         var result = await handler.Handle(new InvokeMockEndpoint("GET", "/orders"), TestContext.Current.CancellationToken);
 
@@ -49,7 +50,7 @@ public class InvokeMockEndpointHandlerTests
         await repository.UpsertAsync(CreateSpecification("Petstore Sample API",
             new MockEndpoint { Id = Guid.NewGuid(), OperationKey = "GET /pets", IsEnabled = false, ExampleTemplate = "[]" }),
             TestContext.Current.CancellationToken);
-        var handler = new InvokeMockEndpointHandler(repository, new FakeCallRecordRepository(), NullLogger<InvokeMockEndpointHandler>.Instance);
+        var handler = new InvokeMockEndpointHandler(repository, new FakeCallRecordRepository(), new SchemaValidator(), NullLogger<InvokeMockEndpointHandler>.Instance);
 
         var result = await handler.Handle(new InvokeMockEndpoint("GET", "/pets"), TestContext.Current.CancellationToken);
 
@@ -64,7 +65,7 @@ public class InvokeMockEndpointHandlerTests
         var specification = CreateSpecification("Petstore Sample API", endpoint);
         await repository.UpsertAsync(specification, TestContext.Current.CancellationToken);
         var callRecords = new FakeCallRecordRepository();
-        var handler = new InvokeMockEndpointHandler(repository, callRecords, NullLogger<InvokeMockEndpointHandler>.Instance);
+        var handler = new InvokeMockEndpointHandler(repository, callRecords, new SchemaValidator(), NullLogger<InvokeMockEndpointHandler>.Instance);
 
         var result = await handler.Handle(new InvokeMockEndpoint("POST", "/pets", "?dryRun=true", """{"name":"Fido"}"""), TestContext.Current.CancellationToken);
 
@@ -86,7 +87,7 @@ public class InvokeMockEndpointHandlerTests
     public async Task Handle_UnmatchedCall_IsStillLoggedAs404WithItsRequestLine()
     {
         var callRecords = new FakeCallRecordRepository();
-        var handler = new InvokeMockEndpointHandler(new FakeApiSpecificationRepository(), callRecords, NullLogger<InvokeMockEndpointHandler>.Instance);
+        var handler = new InvokeMockEndpointHandler(new FakeApiSpecificationRepository(), callRecords, new SchemaValidator(), NullLogger<InvokeMockEndpointHandler>.Instance);
 
         var result = await handler.Handle(new InvokeMockEndpoint("GET", "/orders/7"), TestContext.Current.CancellationToken);
 
@@ -107,7 +108,7 @@ public class InvokeMockEndpointHandlerTests
             new MockEndpoint { Id = Guid.NewGuid(), OperationKey = "GET /pets", IsEnabled = true, ExampleTemplate = "[]" }),
             TestContext.Current.CancellationToken);
         var callRecords = new FakeCallRecordRepository { InsertFailure = new InvalidOperationException("database is locked") };
-        var handler = new InvokeMockEndpointHandler(repository, callRecords, NullLogger<InvokeMockEndpointHandler>.Instance);
+        var handler = new InvokeMockEndpointHandler(repository, callRecords, new SchemaValidator(), NullLogger<InvokeMockEndpointHandler>.Instance);
 
         var result = await handler.Handle(new InvokeMockEndpoint("GET", "/pets"), TestContext.Current.CancellationToken);
 
@@ -119,7 +120,7 @@ public class InvokeMockEndpointHandlerTests
     public async Task Handle_OversizedBody_IsTruncatedInTheHistory()
     {
         var callRecords = new FakeCallRecordRepository();
-        var handler = new InvokeMockEndpointHandler(new FakeApiSpecificationRepository(), callRecords, NullLogger<InvokeMockEndpointHandler>.Instance);
+        var handler = new InvokeMockEndpointHandler(new FakeApiSpecificationRepository(), callRecords, new SchemaValidator(), NullLogger<InvokeMockEndpointHandler>.Instance);
 
         await handler.Handle(new InvokeMockEndpoint("POST", "/big", Body: new string('x', CallRecordSnapshot.MaxLength + 1)), TestContext.Current.CancellationToken);
 

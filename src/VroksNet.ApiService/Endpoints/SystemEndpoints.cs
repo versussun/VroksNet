@@ -1,4 +1,5 @@
 using Mediator;
+using VroksNet.Application.System.GetProviderInfo;
 using VroksNet.Application.System.GetStorageStatus;
 
 namespace VroksNet.ApiService.Endpoints;
@@ -17,6 +18,14 @@ public static class SystemEndpoints
             return Results.Ok(status);
         })
         .WithName("GetStorageStatus");
+
+        // Whether provider mode's port is configured, and where a service under test should point.
+        app.MapGet("/api/system/provider", async (IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            var info = await mediator.Send(new GetProviderInfo(), cancellationToken);
+            return Results.Ok(info);
+        })
+        .WithName("GetProviderInfo");
 
         return app;
     }

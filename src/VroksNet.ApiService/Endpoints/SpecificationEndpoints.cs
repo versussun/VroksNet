@@ -1,4 +1,6 @@
 using Mediator;
+using VroksNet.ApiService.Endpoints.Requests;
+using VroksNet.Application.Mocking.SetSpecificationProviderMode;
 using VroksNet.Application.Specifications.GetSpecificationDetails;
 using VroksNet.Application.Specifications.ImportAsyncApiSpec;
 using VroksNet.Application.Specifications.ImportOpenApiSpec;
@@ -30,6 +32,25 @@ public static class SpecificationEndpoints
             return details is not null ? Results.Ok(details) : Results.NotFound();
         })
         .WithName("GetSpecificationDetails");
+
+        // Body: { "enabled": true|false }. Enabling serves every HTTP operation that doesn't overlap
+        // one already served and reports the rest as skipped, with why.
+        group.MapPut("/{id:guid}/provider-mode", async (Guid id, ProviderModeBody body, IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            if (body.Enabled is not { } enabled)
+            {
+                return Results.Problem(detail: "The body must say { \"enabled\": true } or { \"enabled\": false }.", statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            var result = await mediator.Send(new SetSpecificationProviderMode(id, enabled), cancellationToken);
+            return result switch
+            {
+                null => Results.NotFound(),
+                { Refusal: { } refusal } => Results.Problem(detail: refusal, statusCode: StatusCodes.Status409Conflict),
+                _ => Results.Ok(result)
+            };
+        })
+        .WithName("SetSpecificationProviderMode");
 
         group.MapPost("/openapi", async (HttpRequest request, IMediator mediator, CancellationToken cancellationToken) =>
         {

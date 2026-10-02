@@ -70,3 +70,8 @@ public sealed class CreateOrderHandler(IOrderRepository repository) : IRequestHa
   - **Cap stored bodies with `CallRecordSnapshot.Truncate`** (64K chars plus a "…(truncated)" marker) wherever a `CallRecord` is written. The history list (`CallRecordSummary`) carries no bodies; `GetCallRecord` returns them for one record.
   - **Resolve display names through `ICallRecordNameResolver`** (id → name projections for just the page's ids). Don't go back to listing every specification, connection and scenario per page.
   - **`ICallRecordRepository.InsertAsync` completes only once the row is written** (`IDbWriteQueue.EnqueueAsync` awaits the job), so a record is readable as soon as the call that wrote it returns. No polling needed in tests.
+- **Provider mode** (`Application/Mocking/Set*ProviderMode`, `InvokeMockEndpoint.ProviderMode`; contract-testing "Фаза D").
+  - On the provider port only operations with `ServeAtRealPath` answer; `/mock` keeps answering every enabled operation.
+  - The incoming body is validated against `RequestSchema` in both modes, and the outcome only goes to the history. The response never depends on it. Only JSON content types (`application/json`, `*+json`) are validated. HEAD matches the GET operation.
+  - `SetServeAtRealPathAsync` returns the rows it updated. Fewer than asked (a concurrent re-import replaced the endpoints) must be a refusal (409), never a reported success.
+  - Re-importing a spec must keep `ServeAtRealPath` for operations whose key is unchanged (`ImportOpenApiSpecHandler`).

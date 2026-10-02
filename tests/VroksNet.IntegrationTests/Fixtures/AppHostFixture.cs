@@ -26,6 +26,9 @@ public sealed class AppHostFixture : IAsyncLifetime
     /// </summary>
     public Uri ApiServiceHttpAddress { get; private set; } = null!;
 
+    /// <summary>apiservice's provider-mode port (AppHost.cs "provider" endpoint): the mock at real spec paths, nothing else.</summary>
+    public Uri ProviderAddress { get; private set; } = null!;
+
     public async ValueTask InitializeAsync()
     {
         // No TestContext exists yet during fixture construction — CancellationToken.None is the
@@ -45,6 +48,7 @@ public sealed class AppHostFixture : IAsyncLifetime
 
         ApiServiceClient = App.CreateHttpClient("apiservice", "https");
         ApiServiceHttpAddress = App.GetEndpoint("apiservice", "http");
+        ProviderAddress = App.GetEndpoint("apiservice", "provider");
     }
 
     public async ValueTask DisposeAsync()

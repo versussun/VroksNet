@@ -19,6 +19,14 @@ public sealed class MockEndpoint
 
     public bool IsEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Provider mode ("Тип 3" in docs/contract-testing-plan.md): also answer this operation at its
+    /// real path on the separate provider port, not just under /mock. Only for HTTP operations, and
+    /// only when no other provider-mode operation could match the same request — see
+    /// <see cref="OperationOverlap"/>.
+    /// </summary>
+    public bool ServeAtRealPath { get; set; }
+
     /// <summary>The example (from the spec, or a generated placeholder) used as the response/payload template.</summary>
     public string? ExampleTemplate { get; set; }
 

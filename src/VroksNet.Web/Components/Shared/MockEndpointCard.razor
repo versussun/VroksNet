@@ -2,7 +2,7 @@
 @inject SpecificationApiClient SpecificationApi
 @inject NavigationManager Navigation
 
-<div class="card mb-3">
+<div class="card mb-3" role="region" aria-label="@Endpoint.OperationKey">
     <div class="card-header d-flex justify-content-between align-items-center">
         <code>@Endpoint.OperationKey</code>
         <div class="d-flex align-items-center gap-2">
@@ -35,6 +35,32 @@
         }
         else
         {
+            <div class="form-check form-switch mb-2">
+                @* Re-keyed after a refused change: the browser already ticked the box, and re-rendering the
+                   same "false" wouldn't be seen as a change, so the element is recreated instead (and
+                   focus put back on it). *@
+                <input @key="_providerSwitchVersion" @ref="_providerSwitch" class="form-check-input" type="checkbox" role="switch" id="@($"provider-mode-{Endpoint.Id}")"
+                       checked="@_serveAtRealPath" disabled="@(_isTogglingProvider || Provider?.Enabled != true)" @onchange="ToggleProviderModeAsync"
+                       aria-describedby="@($"provider-mode-help-{Endpoint.Id}")" />
+                <label class="form-check-label" for="@($"provider-mode-{Endpoint.Id}")">Serve at real path</label>
+                <div id="@($"provider-mode-help-{Endpoint.Id}")" class="form-text">
+                    @if (Provider?.Enabled != true)
+                    {
+                        <text>Provider mode isn't configured on this server (set <code>Provider__Port</code>), so operations can't be served at their real path.</text>
+                    }
+                    else
+                    {
+                        <text>Also answer on the provider port without the <code>/mock</code> prefix: </text>
+                        <code>@Method @ProviderBase@PathTemplate</code>
+                        <text>. Point the service under test there; request bodies are checked against the spec (see Call History).</text>
+                    }
+                </div>
+                @if (_providerError is not null)
+                {
+                    <div class="text-danger small" role="alert">@_providerError</div>
+                }
+            </div>
+
             @if (_pathParameters.Count > 0)
             {
                 <p class="fw-semibold mb-1">Path parameters</p>
@@ -83,6 +109,20 @@
     private readonly List<string> _pathParameters = [];
     private readonly Dictionary<string, string> _paramValues = [];
     private bool _isSending;
+    private bool _serveAtRealPath;
+    private bool _isTogglingProvider;
+    private string? _providerError;
+    private int _providerSwitchVersion;
+    private bool _refocusProviderSwitch;
+    private ElementReference _providerSwitch;
+    private MockEndpointDetail? _lastEndpoint;
+
+    /// <summary>Where the provider port is (from GET /api/system/provider) — null while loading or if it couldn't be read.</summary>
+    [Parameter]
+    public ProviderInfo? Provider { get; set; }
+
+    /// <summary>The provider port's base URL as users should call it: the configured public URL, or just the port when the deployment can't know its own external address (e.g. behind Docker's port mapping).</summary>
+    private string ProviderBase => Provider?.PublicUrl ?? $"<provider host>:{Provider?.Port}";
     private int? _responseStatus;
     private string? _responseBody;
 
@@ -105,6 +145,15 @@
 
     protected override void OnParametersSet()
     {
+        // The parent re-sends its (possibly older) Endpoint on every render; only a *new* one — after
+        // the page reloaded its details — replaces the state this card has confirmed with the server.
+        if (!ReferenceEquals(Endpoint, _lastEndpoint))
+        {
+            _lastEndpoint = Endpoint;
+            _serveAtRealPath = Endpoint.ServeAtRealPath;
+            _providerError = null;
+        }
+
         var parts = Endpoint.OperationKey.Split(' ', 2);
         Method = parts[0];
         PathTemplate = parts.Length > 1 ? parts[1] : "/";
@@ -118,6 +167,47 @@
     }
 
     private void OnParamChanged(string name, string value) => _paramValues[name] = value;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_refocusProviderSwitch)
+        {
+            _refocusProviderSwitch = false;
+            await _providerSwitch.FocusAsync();
+        }
+    }
+
+    /// <summary>The server decides whether it's allowed (overlaps are refused) — on a refusal the switch stays off and shows why.</summary>
+    private async Task ToggleProviderModeAsync(ChangeEventArgs e)
+    {
+        var enabled = e.Value is true;
+        _isTogglingProvider = true;
+        _providerError = null;
+
+        try
+        {
+            _providerError = await SpecificationApi.SetEndpointProviderModeAsync(Endpoint.Id, enabled);
+            if (_providerError is null)
+            {
+                _serveAtRealPath = enabled;
+            }
+            else
+            {
+                _providerSwitchVersion++;
+                _refocusProviderSwitch = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _providerError = $"Failed to change provider mode: {ex.Message}";
+            _providerSwitchVersion++;
+            _refocusProviderSwitch = true;
+        }
+        finally
+        {
+            _isTogglingProvider = false;
+        }
+    }
 
     private async Task SendAsync()
     {

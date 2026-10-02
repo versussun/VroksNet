@@ -11,6 +11,10 @@ Aspire orchestration only.
 
 - **No business logic in AppHost.** It only declares resources and wiring.
 - **Keep `apiservice`'s HTTPS endpoint pinned to port `7352`:** `.WithHttpsEndpoint(port: 7352, name: "https")` in `AppHost.cs`. The port must match `ApiService:BaseAddress` in `src/VroksNet.Web/wwwroot/appsettings.Development.json`. If you change it, **update both places together**.
+- **Keep the `provider` endpoint pinned to `7353` with `env: "Provider__Port"`, plus `Provider__PublicUrl=http://localhost:7353`.**
+  - `Provider__Port` is how ApiService learns which (target) port is the provider one.
+  - The pin gives services under test a stable URL.
+  - `Provider__PublicUrl` is what the Admin UI shows. The target port behind Aspire's proxy isn't it.
 - **Leave `webfrontend`'s port unpinned.** ApiService's dev CORS policy accepts any loopback origin. See `.claude/rules/api-service.md`.
 - **Don't trust `launchSettings.json` ports under AppHost.** Check listening ports directly (`Get-NetTCPConnection`) when debugging connectivity.
 

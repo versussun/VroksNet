@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using VroksNet.Application.Abstractions;
 using VroksNet.Infrastructure.Connections;
+using VroksNet.Infrastructure.Hosting;
 using VroksNet.Infrastructure.Persistence;
 using VroksNet.Infrastructure.SchemaValidation;
 using VroksNet.Infrastructure.Specifications;
@@ -80,6 +81,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ICallRecordRepository, CallRecordRepository>();
         services.AddScoped<ICallRecordNameResolver, CallRecordNameResolver>();
         services.AddSingleton<IMessageListener, MessageListener>();
+        services.AddSingleton<IProviderSettings>(new ProviderSettings(configuration));
         services.AddScoped<ISpecificationParser, OpenApiSpecificationParser>();
         services.AddScoped<IAsyncApiSpecificationParser, AsyncApiSpecificationParser>();
         services.AddScoped<IResponseTemplateEngine, PassthroughResponseTemplateEngine>();
