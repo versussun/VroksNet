@@ -10,6 +10,7 @@ An internal mock server and contract-testing tool for OpenAPI and AsyncAPI speci
 - [Contract testing guides](docs/guides/contract-testing/README.md): getting started, and a step-by-step guide with examples for each of the four test types.
 - [Runbook](docs/runbook.md): deploying, configuring, backing up, upgrading and troubleshooting an instance.
 - `docs/project-brief.md`: product goals, scope and architecture.
+- [Implementation plan](docs/implementation-plan.md): the next steps, from the accepted ADRs in `docs/adr/`.
 - `docs/contract-testing-plan.md`: design and decisions behind contract testing.
 
 ## Run it
