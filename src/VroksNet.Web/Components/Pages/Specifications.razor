@@ -70,7 +70,7 @@ else
     <div class="spec-view-panel-backdrop" @onclick="CloseViewPanel"></div>
 }
 
-<aside class="spec-view-panel @(_isViewPanelOpen ? "open" : "")">
+<aside class="spec-view-panel @(_isViewPanelOpen ? "open" : "")" aria-label="Specification source">
     <div class="spec-view-panel-header">
         <h3 class="h6 mb-0">@(_viewingTitle ?? "Specification")</h3>
         <button type="button" class="btn-close" aria-label="Close" @onclick="CloseViewPanel"></button>
@@ -83,7 +83,7 @@ else
         }
         else
         {
-            <HighlightedYaml Content="_viewingRawContent" />
+            <HighlightedYaml Content="@_viewingRawContent" />
         }
     </div>
 </aside>

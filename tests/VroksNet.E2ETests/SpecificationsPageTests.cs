@@ -33,6 +33,14 @@ public sealed class SpecificationsPageTests(AppHostFixture fixture) : PageTestBa
         await Expect(row.Locator("td").Nth(1)).ToHaveTextAsync("OpenApi");
         await Expect(row.Locator("td").Nth(2)).ToHaveTextAsync("1");
 
+        // View raw source — the panel must show the uploaded YAML itself, not a literal
+        // "_viewingRawContent" (a string component parameter passed without "@" is taken verbatim).
+        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "View" }).ClickAsync();
+        var sourcePanel = Page.GetByRole(AriaRole.Complementary, new PageGetByRoleOptions { Name = "Specification source" });
+        await Expect(sourcePanel.Locator("pre")).ToContainTextAsync("openapi: 3.0.3");
+        await Expect(sourcePanel.Locator("pre")).ToContainTextAsync(title);
+        await sourcePanel.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Close" }).ClickAsync();
+
         // Detail
         await row.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = title, Exact = true }).ClickAsync();
         await Expect(Page.Locator("h1")).ToHaveTextAsync(title);
