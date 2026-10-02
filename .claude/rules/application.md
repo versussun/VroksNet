@@ -79,12 +79,12 @@ public sealed class CreateOrderHandler(IOrderRepository repository) : IRequestHa
 - **Provider mode** (`Application/Mocking/Set*ProviderMode`, `InvokeMockEndpoint.ProviderMode`; contract-testing "Phase D").
   - On the provider port only operations with `ServeAtRealPath` answer; `/mock` keeps answering every enabled operation.
   - The incoming body is validated against `RequestSchema` in both modes, and the outcome only goes to the history. The response never depends on it. Only JSON content types (`application/json`, `*+json`) are validated. HEAD matches the GET operation.
-  - `SetServeAtRealPathAsync` returns the rows it updated. Fewer than asked (a concurrent re-import replaced the endpoints) must be a refusal (409), never a reported success.
-  - Re-importing a spec must keep `ServeAtRealPath` for operations whose key is unchanged (`ImportOpenApiSpecHandler`).
+  - `SetServeAtRealPathAsync` returns the rows it updated. Fewer than asked (a concurrent re-import removed the operation from the spec) must be a refusal (409), never a reported success.
+  - Re-importing a spec must keep `ServeAtRealPath` for operations whose key is unchanged. That follows from the in-place update (`ApiSpecification.ApplyReimport`, see "Persistence" in `.claude/rules/infrastructure.md`); the import handlers don't carry it over themselves.
 - **Enabling/disabling an operation** (`Application/Mocking/SetEndpointEnabled`, `PUT /api/mock-endpoints/{id}/enabled`, the "Mock enabled" switch on the operation card).
   - Only HTTP operations can be switched (AsyncAPI ones aren't served by the mock). A disabled operation answers 404 on both surfaces; its `ServeAtRealPath` is left as it was.
   - `SetEnabledAsync` returns the rows it updated, and fewer than asked is a 409 refusal, same as provider mode.
-  - Re-importing a spec keeps `IsEnabled = false` for operations whose key is unchanged (`ImportOpenApiSpecHandler`).
+  - Re-importing a spec keeps `IsEnabled = false` for operations whose key is unchanged, through the same in-place update.
 - **Response templating** (`IResponseTemplateEngine`, contract-testing "Phase F", see `docs/contract-testing-plan.md` 4.6).
   - `InvokeMockEndpointHandler` renders `ExampleTemplate` with a `TemplateContext` built from the match (`OperationKeyMatcher.TryMatch` gives the path parameters) and the request (`QueryParameters`, `Headers`, `Body`), and answers with `MockEndpoint.ExampleStatusCode ?? 200`. Keep that choice in the handler; the endpoint only maps `MockInvocationResult.StatusCode`/`ResponseBody` to HTTP.
   - A status that can't carry a body (204, 304) answers with an empty `ResponseBody`, and the endpoint writes no body for it. Don't render or send `"{}"` there: Kestrel refuses to write it.

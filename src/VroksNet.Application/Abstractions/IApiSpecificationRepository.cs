@@ -18,6 +18,12 @@ public interface IApiSpecificationRepository
     /// <returns>How many endpoints were updated — fewer than asked means some no longer exist.</returns>
     Task<int> SetEnabledAsync(IReadOnlyCollection<Guid> mockEndpointIds, bool enabled, CancellationToken cancellationToken);
 
-    /// <summary>Inserts a new specification, or replaces the existing one with the same <see cref="ApiSpecification.Title"/>.</summary>
-    Task UpsertAsync(ApiSpecification specification, CancellationToken cancellationToken);
+    /// <summary>
+    /// Inserts <paramref name="imported"/>, or — when a specification with the same
+    /// <see cref="ApiSpecification.Title"/> exists — updates that one in place through
+    /// <see cref="ApiSpecification.ApplyReimport"/>: kept operations keep their ids and admin-set
+    /// state, and storing an unchanged import writes nothing.
+    /// </summary>
+    /// <returns>The stored specification's id: the existing one's when it was updated, otherwise <paramref name="imported"/>'s.</returns>
+    Task<Guid> UpsertAsync(ApiSpecification imported, CancellationToken cancellationToken);
 }

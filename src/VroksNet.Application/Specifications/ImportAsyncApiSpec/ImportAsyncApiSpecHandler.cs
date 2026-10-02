@@ -7,8 +7,10 @@ using VroksNet.Domain.MockEndpoints;
 namespace VroksNet.Application.Specifications.ImportAsyncApiSpec;
 
 /// <summary>
-/// Parses an AsyncAPI YAML document and stores it, replacing any existing specification with the
-/// same <c>info.title</c> — see docs/project-brief.md section 2 "Specification versioning".
+/// Parses an AsyncAPI YAML document and stores it. An existing specification with the same
+/// <c>info.title</c> is updated in place, idempotently — see docs/project-brief.md section 2
+/// "Specification versioning" and <see cref="ApiSpecification.ApplyReimport"/>: operations that
+/// are still in the spec keep their ids, so Publishers and Test Scenarios on them keep working.
 /// Mirrors <c>ImportOpenApiSpecHandler</c>; kept as its own vertical (own request, own handler,
 /// own parser interface) rather than branching on kind in one shared handler, matching how the
 /// two kinds are already split at the endpoint level (<c>/api/specifications/openapi</c> vs.
@@ -23,34 +25,34 @@ public sealed class ImportAsyncApiSpecHandler(
     {
         var parsed = await parser.ParseAsync(request.YamlContent, cancellationToken);
 
-        var specification = await repository.FindByTitleAsync(parsed.Title, cancellationToken)
-            ?? new ApiSpecification
-            {
-                Id = Guid.NewGuid(),
-                CreatedAt = DateTimeOffset.UtcNow
-            };
-
-        specification.Title = parsed.Title;
-        specification.Kind = SpecificationKind.AsyncApi;
-        specification.RawContent = request.YamlContent;
-        specification.UpdatedAt = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.UtcNow;
+        var specification = new ApiSpecification
+        {
+            Id = Guid.NewGuid(),
+            Title = parsed.Title,
+            Kind = SpecificationKind.AsyncApi,
+            RawContent = request.YamlContent,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
         specification.Endpoints = parsed.Operations
-            .Select(operation => new MockEndpoint
+            .Select((operation, position) => new MockEndpoint
             {
                 Id = Guid.NewGuid(),
                 SpecificationId = specification.Id,
                 OperationKey = operation.OperationKey,
+                Position = position,
                 ExampleTemplate = operation.ExampleJson,
                 ResponseSchema = operation.ResponseSchemaJson
             })
             .ToList();
 
-        await repository.UpsertAsync(specification, cancellationToken);
+        var storedId = await repository.UpsertAsync(specification, cancellationToken);
 
         logger.LogInformation(
             "Imported AsyncAPI spec '{Title}' ({FileName}) with {EndpointCount} endpoint(s): {Endpoints}",
             parsed.Title, request.FileName, parsed.Operations.Count, string.Join(", ", parsed.Operations.Select(o => o.OperationKey)));
 
-        return specification.Id;
+        return storedId;
     }
 }

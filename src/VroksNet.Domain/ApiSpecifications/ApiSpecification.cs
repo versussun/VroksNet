@@ -22,4 +22,82 @@ public sealed class ApiSpecification
     public DateTimeOffset UpdatedAt { get; set; }
 
     public ICollection<MockEndpoints.MockEndpoint> Endpoints { get; set; } = new List<MockEndpoints.MockEndpoint>();
+
+    /// <summary>
+    /// Brings this (already stored) specification in line with a fresh import of the same title,
+    /// as an idempotent update rather than a replacement:
+    /// <list type="bullet">
+    /// <item>an operation whose <see cref="MockEndpoints.MockEndpoint.OperationKey"/> is still in
+    /// <paramref name="imported"/> is updated in place — its spec-derived content (example,
+    /// status, schemas) is refreshed, while its id, <c>IsEnabled</c> and <c>ServeAtRealPath</c>
+    /// are kept, so Test Scenarios, Publishers and call records that reference it keep working;</item>
+    /// <item>a new operation is added; one no longer in the spec is removed.</item>
+    /// </list>
+    /// Operations sharing a key (possible in AsyncAPI: two "send" operations on one channel) are
+    /// paired by their order of appearance (<see cref="MockEndpoints.MockEndpoint.Position"/>).
+    /// A field is only written when its value differs, so importing the same file again changes
+    /// nothing and reports <see cref="ReimportChanges.AnyChange"/> = false. A renamed operation
+    /// can't be told apart from a removed one plus a new one.
+    /// </summary>
+    public ReimportChanges ApplyReimport(ApiSpecification imported)
+    {
+        var anyChange = false;
+        if (Kind != imported.Kind)
+        {
+            Kind = imported.Kind;
+            anyChange = true;
+        }
+
+        if (!string.Equals(RawContent, imported.RawContent, StringComparison.Ordinal))
+        {
+            RawContent = imported.RawContent;
+            anyChange = true;
+        }
+
+        // Ordered by position so operations sharing a key pair up in the order they appear in the
+        // spec — the order they're loaded in is arbitrary.
+        var existingByKey = Endpoints
+            .OrderBy(endpoint => endpoint.Position)
+            .GroupBy(endpoint => endpoint.OperationKey, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => new Queue<MockEndpoints.MockEndpoint>(group), StringComparer.Ordinal);
+
+        var kept = new HashSet<MockEndpoints.MockEndpoint>(ReferenceEqualityComparer.Instance);
+        var added = new List<MockEndpoints.MockEndpoint>();
+        foreach (var incoming in imported.Endpoints)
+        {
+            if (existingByKey.TryGetValue(incoming.OperationKey, out var candidates) && candidates.TryDequeue(out var existing))
+            {
+                anyChange |= existing.RefreshFrom(incoming);
+                kept.Add(existing);
+            }
+            else
+            {
+                incoming.SpecificationId = Id;
+                added.Add(incoming);
+            }
+        }
+
+        var removed = Endpoints.Where(endpoint => !kept.Contains(endpoint)).ToList();
+        foreach (var endpoint in removed)
+        {
+            Endpoints.Remove(endpoint);
+        }
+
+        foreach (var endpoint in added)
+        {
+            Endpoints.Add(endpoint);
+        }
+
+        if (added.Count > 0 || removed.Count > 0)
+        {
+            anyChange = true;
+        }
+
+        if (anyChange)
+        {
+            UpdatedAt = imported.UpdatedAt;
+        }
+
+        return new ReimportChanges(added, removed, anyChange);
+    }
 }

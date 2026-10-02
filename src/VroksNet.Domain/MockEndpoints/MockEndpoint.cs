@@ -16,6 +16,14 @@ public sealed class MockEndpoint
     /// <summary>E.g. "GET /pets/{id}" for OpenAPI, or "orders.created:send" for AsyncAPI.</summary>
     public string OperationKey { get; set; } = string.Empty;
 
+    /// <summary>
+    /// The operation's 0-based position among the spec's operations at import. Only used to pair
+    /// operations that share an <see cref="OperationKey"/> on re-import (see
+    /// <see cref="ApiSpecifications.ApiSpecification.ApplyReimport"/>); operations stored before it
+    /// was tracked all have 0.
+    /// </summary>
+    public int Position { get; set; }
+
     public bool IsEnabled { get; set; } = true;
 
     /// <summary>
@@ -54,6 +62,55 @@ public sealed class MockEndpoint
     /// "nothing to validate against", not "no status is allowed".
     /// </summary>
     public Dictionary<string, string?> ResponseSchemasByStatus { get; set; } = [];
+
+    /// <summary>
+    /// Takes the spec-derived content (position, example, status, schemas) of the same operation from a fresh
+    /// import, keeping this endpoint's id and its admin-set state (<see cref="IsEnabled"/>,
+    /// <see cref="ServeAtRealPath"/>). Only fields whose value differs are written.
+    /// </summary>
+    /// <returns>Whether anything changed.</returns>
+    public bool RefreshFrom(MockEndpoint imported)
+    {
+        var changed = false;
+        if (Position != imported.Position)
+        {
+            Position = imported.Position;
+            changed = true;
+        }
+
+        if (!string.Equals(ExampleTemplate, imported.ExampleTemplate, StringComparison.Ordinal))
+        {
+            ExampleTemplate = imported.ExampleTemplate;
+            changed = true;
+        }
+
+        if (ExampleStatusCode != imported.ExampleStatusCode)
+        {
+            ExampleStatusCode = imported.ExampleStatusCode;
+            changed = true;
+        }
+
+        if (!string.Equals(RequestSchema, imported.RequestSchema, StringComparison.Ordinal))
+        {
+            RequestSchema = imported.RequestSchema;
+            changed = true;
+        }
+
+        if (!string.Equals(ResponseSchema, imported.ResponseSchema, StringComparison.Ordinal))
+        {
+            ResponseSchema = imported.ResponseSchema;
+            changed = true;
+        }
+
+        if (ResponseSchemasByStatus.Count != imported.ResponseSchemasByStatus.Count
+            || ResponseSchemasByStatus.Except(imported.ResponseSchemasByStatus).Any())
+        {
+            ResponseSchemasByStatus = new Dictionary<string, string?>(imported.ResponseSchemasByStatus);
+            changed = true;
+        }
+
+        return changed;
+    }
 
     /// <summary>
     /// Finds the response the spec declares for <paramref name="statusCode"/>, using OpenAPI's

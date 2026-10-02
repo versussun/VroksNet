@@ -182,7 +182,7 @@ The connection string is resolved inside the container. `localhost` there is the
 
 - On port `8080`, mocks are under `/mock/…`. Real paths only work on the provider port.
 - On the provider port, an operation answers only if its endpoint is enabled and **Serve at real path** (provider mode) is on for it. See [Type 3](guides/contract-testing/type-3-provider-http.md).
-- Re-importing a spec with the same `info.title` replaces it, including example edits made in the UI.
+- Re-importing a spec with the same `info.title` updates it in place: an operation still in the spec gets the new example and schemas but keeps its enabled state and **Serve at real path**, while an operation removed from the spec is gone. Examples can't be edited in the UI; change the spec and re-import it.
 
 ### A browser app can't call the provider port
 
