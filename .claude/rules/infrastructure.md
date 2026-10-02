@@ -14,6 +14,7 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
 - **One `DbContext`:** `VroksNet.Infrastructure.Persistence.VroksNetDbContext`. Always resolve it through `IDbContextFactory<VroksNetDbContext>`, never by direct injection, so every read or write gets its own short-lived context.
 - **Serialize all writes through `IDbWriteQueue`.** Call sites (e.g. `ApiSpecificationRepository`) enqueue a delegate, and the single `DbWriteBackgroundService` executes them one at a time. **Never add a write path that bypasses the queue.** This guards against concurrent writes between the Mock API and the async publish worker (`docs/project-brief.md` §3).
 - **Connection setup lives in `InfrastructureServiceCollectionExtensions`.** `AddInfrastructure(...)` configures the connection with a 5s `busy_timeout`. `InitializeDatabaseAsync()`, called once at ApiService startup, runs migrations plus `PRAGMA journal_mode=WAL`.
+- **`CallRecord.Timestamp` is stored as UTC ticks (`INTEGER`)** through a value converter in `VroksNetDbContext`. The SQLite provider can't `ORDER BY` or compare `DateTimeOffset`, and EF's default ISO text would order wrongly across offsets anyway. Apply the same treatment to any other `DateTimeOffset` you need to sort or filter on in SQL. Changing an existing column's storage needs a data-converting migration (see `AddCallHistoryIndexesAndRequestLine`), not just the generated `AlterColumn`.
 - **Keep the unique index on `ApiSpecification.Title`** (`VroksNetDbContext.OnModelCreating`). `ApiSpecificationRepository.UpsertAsync` relies on it: it deletes the existing row with the same `Title` (cascading to its `MockEndpoint`s) and inserts fresh. Don't switch to attaching/patching a detached graph, which threw `DbUpdateConcurrencyException`.
 - **Add migrations from the repo root:**
 
@@ -50,7 +51,7 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
   - `Nats`: `NATS.Client.Core` `NatsConnection.PingAsync`.
 - **Reference `RabbitMQ.Client` and `NATS.Client.Core` directly**, not the `NATS.Net`/`Aspire.NATS.Net` meta-packages, which pull in JetStream/KV/ObjectStore/Hosting. Pin them to the exact versions the Aspire client packages already resolve.
 - **All branches share one 5s timeout and return `ConnectionTestResult(bool Success, string Message)`.** Make `Message` safe to show verbatim in the UI: never a raw connection string or a full stack trace.
-- `MessageSender` (Test Scenarios) follows the same branching and clients, but publishes or POSTs for real. See `.claude/rules/application.md`.
+- `MessageSender` (Test Scenarios) follows the same branching and clients, but publishes or POSTs for real. It appends the operation's path to the connection URL's own base path and keeps its query string (`https://host/v1?api-key=x` + `/pets` → `/v1/pets?api-key=x`). `MessageSenderUrlTests` covers this. Don't go back to `new Uri(baseUri, path)`, which drops both. See `.claude/rules/application.md`.
 
 ### Contract-testing schema foundation
 

@@ -1,6 +1,6 @@
 # Contract Testing — план реализации
 
-**Статус:** Фазы A и B реализованы; C–E — не начаты.
+**Статус:** Фазы A, B и E реализованы; C и D — не начаты.
 **Контекст:** детализация Фазы 04 из `docs/project-brief.md` («Contract testing + полировка»). Тот документ фиксирует *что* и *зачем* на уровне продукта; этот — *как*, на уровне доменной модели, компонентов и шагов реализации. Правила структуры/стиля кода — как обычно, в `.claude/CLAUDE.md`.
 
 ## 1. Четыре вида тестов
@@ -24,7 +24,7 @@
 - **`Connection`/`ConnectionServiceType`** — именованные подключения (Http/RabbitMq/Nats), CRUD на странице Settings, `IConnectionTester`/`ConnectionTester` — проверка доступности (не путать с валидацией контракта).
 - **`TestScenario`** (`VroksNet.Domain.TestScenarios`) — сохранённый сценарий «операция X спеки → Connection Y», CRUD + `RunTestScenarioHandler`, UI на странице Test Scenarios.
 - **`IMessageSender`/`MessageSender`** (`VroksNet.Infrastructure.Connections`) — реальная отправка: HTTP-запрос (для `Http`-connection) или publish в RabbitMQ/NATS (для `RabbitMq`/`Nats`-connection). Не переиспользует Aspire dev-ресурсы из `AppHost.cs` — открывает соединение по данным, введённым в `Connection.Value`.
-- **`CallRecord`/`CallDirection`** — сущность для истории вызовов. `CallDirection` уже включает `InboundHttpRequest`, `OutboundBrokerPublish`, `OutboundHttpRequest`. **Но:** `ICallRecordRepository` сейчас **write-only** (`InsertAsync` — и всё, ни списка, ни чтения) и **`InboundHttpRequest` никем не пишется** — только `RunTestScenarioHandler` пишет `OutboundHttpRequest`/`OutboundBrokerPublish`.
+- **`CallRecord`/`CallDirection`** — сущность для истории вызовов. `CallDirection` уже включает `InboundHttpRequest`, `OutboundBrokerPublish`, `OutboundHttpRequest`. После Фазы E история читается (`GET /api/call-records`, страница Call History), и её пишут оба источника: `RunTestScenarioHandler` (`OutboundHttpRequest`/`OutboundBrokerPublish`) и `InvokeMockEndpointHandler` (`InboundHttpRequest`).
 
 ### 2.2 Тип 1 (Consumer, request/response) — ✅ реализовано (Фаза B)
 
@@ -40,7 +40,7 @@
 
 1. **Путь.** Мок сейчас живёт под префиксом `/mock/...`, а не на «именно том пути, который указан в спецификации» — реальный сервис, который настроен стучаться на `/orders`, никогда не попадёт на `/mock/orders` сам по себе. Нужен режим раздачи на реальном пути (см. 4.4; риски — в 3.5).
 2. **Валидация входящего запроса.** Сейчас `InvokeMockEndpointHandler` вообще не смотрит на тело запроса — только матчит операцию и отдаёт статичный пример. Схема (`MockEndpoint.RequestSchema`) и валидатор (`ISchemaValidator`) после Фазы A есть, но здесь не вызываются.
-3. **История.** `CallDirection.InboundHttpRequest` существует, но `MockInvocationEndpoints`/`InvokeMockEndpointHandler` не пишут `CallRecord` вообще — обычные mock-вызовы сейчас нигде не логируются, не то что провалидированные.
+3. ~~**История.**~~ ✅ Закрыто в Фазе E: каждый вызов мока, включая несовпавшие (404), пишет `CallRecord` (`InboundHttpRequest`, `RequestLine`, тело запроса/ответа, статус). Валидации входящего запроса пока нет — это Фаза D.
 
 ### 2.5 Тип 4 (Provider, async listen) — не реализовано
 
@@ -116,19 +116,29 @@
 - Новый роутинг-слой в `ApiService`, параллельный `MockInvocationEndpoints`: catch-all на корневых путях включённых операций (не под `/mock`). Нужна проверка коллизий при включении флага (см. 3.5) — вероятно, отдельный Application-хендлер `EnableProviderMode(MockEndpointId)`, который проверяет пересечения путей по всем включённым `MockEndpoint` перед тем, как позволить включить.
 - `InvokeMockEndpointHandler` (или его аналог для этого роута) валидирует тело входящего запроса против `MockEndpoint.RequestSchema`, пишет `CallRecord` (`Direction = InboundHttpRequest`, `ContractValid`/`ValidationErrors` — см. 3.7) — независимо от результата валидации, ответ всё равно отдаётся по текущей логике (пример / будущий templating из раздела «Динамика ответов» в `project-brief.md`, который тоже пока не реализован — отдельная, не блокирующая эту фазу задача).
 
-### 4.5 Фаза E — История вызовов (нужна не позже Фазы D, стоит сделать раньше)
+### 4.5 Фаза E — История вызовов — ✅ реализовано
 
-- Read-сторона `ICallRecordRepository` (список с пагинацией/фильтром по спеке/операции/направлению).
-- Страница «Call History» в `VroksNet.Web` — без неё результаты Типа 3 (и отчасти Типа 1/4, если смотреть не только последний Run) физически негде увидеть. Технически не зависит от Фаз B–D, можно сделать сразу после Фазы A на существующих `OutboundHttpRequest`/`OutboundBrokerPublish` записях (которые `RunTestScenarioHandler` уже пишет) — и того будет достаточно, чтобы отдать пользу раньше, не дожидаясь Provider-режима.
-- Поля `CallRecord` для истории уже добавлены в Фазе B: `StatusCode`, `TestScenarioId` (фильтр «прогоны этого сценария»; `null` для входящих mock-вызовов), `ContractValid` + `ValidationErrors` (см. 3.7). Осталось добавить:
-  - индексы по `Timestamp` и `(SpecificationId, Timestamp)` — сейчас у `CallRecord` есть только PK, а список сортируется по времени и фильтруется по спеке.
-- **Учесть:** `CallRecordRepository.InsertAsync` пишет через `IDbWriteQueue`, т.е. асинхронно — запись может появиться в чтении не сразу после Run. Для integration/E2E-тестов страницы истории нужно ожидание с ретраями (poll до появления записи), а не чтение сразу после ответа Run.
+Принятые решения:
+- **Входящие вызовы мока логируются уже сейчас** (пробел №3 из 2.4), не дожидаясь Фазы D: иначе на странице истории видны только прогоны сценариев. Несовпавшие вызовы (404) тоже пишутся — «почему сервис получил 404?» как раз вопрос к истории.
+- **Очистка — явная кнопка «Clear history»** (`DELETE /api/call-records`, с подтверждением в UI). Автоматического лимита/ротации нет.
+
+Реализация:
+- `ICallRecordRepository.ListAsync(CallRecordFilter, CallRecordCursor?, limit)` + `DeleteAllAsync`. Фильтры: спека, операция, сценарий, направление, исход контракта. Порядок — новые сверху, по (`Timestamp`, `Id`); пагинация **курсорная (keyset)**, не offset, поэтому новые записи между запросами не сдвигают страницы. `Id` — тай-брейкер для записей с одинаковым временем.
+- **`CallRecord.Timestamp` хранится как UTC-тики (`INTEGER`)**, а не ISO-текст по умолчанию: SQLite-провайдер EF Core не умеет `ORDER BY`/сравнение по `DateTimeOffset`, а текстовый порядок неверен при разных offset'ах. Миграция `AddCallHistoryIndexesAndRequestLine` конвертирует существующие текстовые значения SQL-ем (через `julianday`) и обратно в `Down`.
+- Новое поле `CallRecord.RequestLine` — для входящих вызовов фактическая строка запроса (`GET /mock/pets/1?x=1`); единственный способ понять, что запрашивали, когда ничего не совпало. Индексы: (`Timestamp`, `Id`) и (`SpecificationId`, `Timestamp`, `Id`) — покрывают весь keyset-порядок без временной сортировки.
+- **Тела ограничены и не входят в список.** Сохраняемые тела запроса/ответа обрезаются до 64K символов с маркером `…(truncated)` (`CallRecordSnapshot`); мок-эндпоинт и не читает из запроса больше. Список истории тел не содержит — их отдаёт `GET /api/call-records/{id}` (`GetCallRecord`), UI подгружает их по «Details».
+- Application: `ListCallRecords` → `CallRecordPage(Items, NextCursor)` с денормализованными именами (спека/операция/подключение/сценарий, `"(deleted …)"` для удалённых) — их подтягивает `ICallRecordNameResolver` проекциями только по id текущей страницы, без загрузки спек со схемами; `ValidationErrors` разобраны в массив; `limit` по умолчанию 50, максимум 200; битый курсор → `ArgumentException` (как остальная валидация — пока 500). `ClearCallRecords` → число удалённых.
+- `InvokeMockEndpointHandler` пишет `CallRecord`; выбор тела ответа (пример или `"{}"`) переехал из эндпоинта в хендлер. Логирование **best-effort**: сбой записи в историю логируется как warning, мок всё равно отвечает. Для 404 в историю пишется текст сообщения, а клиент получает его обёрнутым в ProblemDetails.
+- UI: страница **Call History** (`/call-history`, пункт меню): фильтры, таблица (время, вид, операция/строка запроса, сценарий/подключение, статус, контракт), раскрытие деталей (строка запроса, нарушения, тела), «Load older», «Refresh», «Clear history».
+- Попутно исправлено: `MessageSender` терял базовый путь и query string подключения (`https://host/v1?api-key=…` + `/pets` уходил на `https://host/pets`) — теперь сохраняются оба.
+- Ротации/лимита истории нет — только «Clear history»; при активном использовании мока история растёт (по ≤128K символов тел на запись).
+- Опасение из ранней версии плана про «запись появляется не сразу после Run» не подтвердилось: `IDbWriteQueue.EnqueueAsync` ждёт выполнения записи, так что после ответа Run запись уже читается.
 
 ## 5. Порядок реализации (рекомендация)
 
 1. ✅ **Фаза A** (схемы + валидатор) — сделано, см. 4.1.
 2. ✅ **Фаза B** (Тип 1) — сделано, см. 4.2 (сделана раньше E по решению заказчика; поля `CallRecord` из 3.7 добавлены в её миграции).
-3. **Фаза E** (история) — следующий шаг. Отдача видна сразу на уже существующих Send/Publish-записях, теперь вместе со статусом и исходом валидации.
+3. ✅ **Фаза E** (история) — сделано, см. 4.5.
 4. **Фаза C** (Тип 4) — новый, но изолированный компонент (`IMessageListener`), не трогает существующие роуты. Перед стартом — закрыть 3.3 (`TestScenario.Kind`).
 5. **Фаза D** (Тип 3) — самая рискованная (реальные пути, коллизии, потенциальное пересечение с существующими маршрутами `ApiService`) — имеет смысл делать последней и явно проговорить план коллизий (3.5) до начала.
 
