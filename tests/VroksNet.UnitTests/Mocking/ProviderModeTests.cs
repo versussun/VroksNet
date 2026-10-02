@@ -8,6 +8,7 @@ using VroksNet.Application.Specifications.ImportOpenApiSpec;
 using VroksNet.Domain.ApiSpecifications;
 using VroksNet.Domain.MockEndpoints;
 using VroksNet.Infrastructure.SchemaValidation;
+using VroksNet.Infrastructure.Templating;
 using VroksNet.UnitTests.TestDoubles;
 
 namespace VroksNet.UnitTests.Mocking;
@@ -248,7 +249,7 @@ public sealed class ProviderModeTests
 
     private SetSpecificationProviderModeHandler SpecificationHandler => new(_specifications);
 
-    private InvokeMockEndpointHandler MockHandler => new(_specifications, _callRecords, new SchemaValidator(), NullLogger<InvokeMockEndpointHandler>.Instance);
+    private InvokeMockEndpointHandler MockHandler => new(_specifications, _callRecords, new SchemaValidator(), new ResponseTemplateEngine(TimeProvider.System), NullLogger<InvokeMockEndpointHandler>.Instance);
 
     /// <summary>Adds a spec with the given operations; returns it and its first operation.</summary>
     private async Task<(ApiSpecification Specification, MockEndpoint First)> AddSpecAsync(string title, params string[] operationKeys)

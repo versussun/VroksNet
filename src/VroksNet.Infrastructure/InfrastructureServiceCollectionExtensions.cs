@@ -84,7 +84,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IProviderSettings>(new ProviderSettings(configuration));
         services.AddScoped<ISpecificationParser, OpenApiSpecificationParser>();
         services.AddScoped<IAsyncApiSpecificationParser, AsyncApiSpecificationParser>();
-        services.AddScoped<IResponseTemplateEngine, PassthroughResponseTemplateEngine>();
+        // Stateless apart from the clock it reads for {{now}}.
+        services.AddSingleton<IResponseTemplateEngine>(new ResponseTemplateEngine(TimeProvider.System));
         // Stateless — no scoped dependencies of its own, so Singleton avoids reallocating it per request.
         services.AddSingleton<ISchemaValidator, SchemaValidator>();
 

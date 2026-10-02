@@ -59,15 +59,16 @@ Create/update body:
 
 | Method & path | Body | Returns |
 |---|---|---|
-| any of GET/POST/PUT/PATCH/DELETE `/mock/{path}` | the request | the matching enabled operation's example (`200`), or `404` |
-| anything on the provider port (`:7353`), at the real path | the request | the example for an operation served at its real path (`200`), or `404` |
+| any of GET/POST/PUT/PATCH/DELETE `/mock/{path}` | the request | the matching enabled operation's example, placeholders filled in, at the spec's status; or `404` |
+| anything on the provider port (`:7353`), at the real path | the request | the same, for an operation served at its real path; or `404` |
 | `PUT /api/mock-endpoints/{id}/provider-mode` | `{ "enabled": true }` | `204`; `404`; `409 { "detail" }` with the reason (e.g. an overlap) |
+| `PUT /api/mock-endpoints/{id}/enabled` | `{ "enabled": false }` | `204`; `404`; `409 { "detail" }` for a non-HTTP operation. A disabled operation answers `404` under `/mock` and on the provider port |
 | `GET /api/system/provider` | | `{ "enabled", "port", "publicUrl" }` |
 
 ## Call History
 
 | Method & path | Query / body | Returns |
 |---|---|---|
-| `GET /api/call-records` | `specificationId`, `mockEndpointId`, `testScenarioId`, `direction`, `contractValid`, `cursor`, `limit` | `{ "items": [], "nextCursor" }` |
+| `GET /api/call-records` | `specificationId`, `mockEndpointId`, `testScenarioId`, `direction`, `contractValid`, `cursor`, `limit` | `{ "items": [], "nextCursor" }` — each item carries `statusCode`, `contractValid`, `validationErrors[]` and `warnings[]` (e.g. response placeholders that couldn't be filled in) |
 | `GET /api/call-records/{id}` | | `{ "id", "requestSnapshot", "responseSnapshot" }` / `404` |
 | `DELETE /api/call-records` | | `{ "deleted" }` |

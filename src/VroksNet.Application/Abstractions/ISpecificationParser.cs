@@ -27,12 +27,18 @@ public interface ISpecificationParser
 /// upper-cased — or "default"), mapped to that response's JSON body schema (self-contained the
 /// same way), or null if it declares no JSON body. Null for AsyncAPI.
 /// </param>
+/// <param name="ExampleStatusCode">
+/// OpenAPI only: the status the mock answers with — that of the response <see cref="ExampleJson"/>
+/// was taken from ("2XX" counts as 200), or, when the example came from the request body or there
+/// is none, the lowest declared 2xx. Null when neither applies (the mock then answers 200), and for AsyncAPI.
+/// </param>
 public sealed record ParsedOperation(
     string OperationKey,
     string? ExampleJson,
     string? RequestSchemaJson = null,
     string? ResponseSchemaJson = null,
-    IReadOnlyDictionary<string, string?>? ResponseSchemasByStatus = null);
+    IReadOnlyDictionary<string, string?>? ResponseSchemasByStatus = null,
+    int? ExampleStatusCode = null);
 
 /// <summary>Title (the version-matching key) plus its flat list of operations.</summary>
 public sealed record ParsedSpecification(string Title, IReadOnlyList<ParsedOperation> Operations);

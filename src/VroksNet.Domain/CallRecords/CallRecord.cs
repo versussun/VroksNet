@@ -41,4 +41,7 @@ public sealed class CallRecord
 
     /// <summary>JSON array of the contract violations found (UI-safe strings) — null unless <see cref="ContractValid"/> is false.</summary>
     public string? ValidationErrors { get; set; }
+
+    /// <summary>JSON array of non-fatal problems with the call (UI-safe strings), e.g. response placeholders that couldn't be filled in — null when there were none.</summary>
+    public string? Warnings { get; set; }
 }

@@ -1,0 +1,58 @@
+# Operations whose mock status comes from different places — exercises
+# OpenApiSpecificationParser's ExampleStatusCode (docs/contract-testing-plan.md 3.8).
+openapi: 3.0.3
+info:
+  title: Example Statuses Sample API
+  version: "1.0.0"
+paths:
+  /pets:
+    # The example comes from the 201 response.
+    post:
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              example:
+                id: "{{uuid}}"
+        "400":
+          description: Bad request
+    # No example anywhere — the lowest declared 2xx.
+    get:
+      responses:
+        "206":
+          description: Partial
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+  /pets/{id}:
+    # Example from the request body (fallback) — the lowest 2xx, from a range key.
+    put:
+      requestBody:
+        content:
+          application/json:
+            example:
+              name: Fido
+      responses:
+        "2XX":
+          description: Updated
+        "404":
+          description: Not found
+    # No content at all.
+    delete:
+      responses:
+        "204":
+          description: Deleted
+  /health:
+    # Only "default" — nothing to take a status from.
+    get:
+      responses:
+        default:
+          description: Anything
+          content:
+            application/json:
+              example:
+                ok: true

@@ -105,6 +105,69 @@ public sealed class ProviderModeApiTests(AppHostFixture fixture)
     }
 
     [Fact]
+    public async Task ServedOperation_RendersItsTemplate_AtTheSpecStatus()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = fixture.ApiServiceClient;
+        var suffix = Guid.NewGuid().ToString("N");
+        var yaml = $$$"""
+            openapi: 3.0.3
+            info:
+              title: "Templating Fixture {{{suffix}}}"
+              version: "1.0.0"
+            paths:
+              /templating-{{{suffix}}}/owners/{ownerId}/pets:
+                post:
+                  responses:
+                    "201":
+                      description: Created
+                      content:
+                        application/json:
+                          example:
+                            id: "{{uuid}}"
+                            owner: "{{request.path.ownerId}}"
+                            name: "{{request.body.$.name}}"
+                            lang: "{{request.query.lang}}"
+                            missing: "{{request.header.X-Absent}}"
+            """;
+        using var import = new HttpRequestMessage(HttpMethod.Post, "/api/specifications/openapi")
+        {
+            Content = new StringContent(yaml, System.Text.Encoding.UTF8, "text/plain"),
+        };
+        import.Headers.Add("X-File-Name", "templating.yaml");
+        var imported = await client.SendAsync(import, cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
+        var specificationId = (await imported.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!["id"]!.GetValue<Guid>();
+        await client.PutAsJsonAsync($"/api/specifications/{specificationId}/provider-mode", new { enabled = true }, cancellationToken);
+        using var provider = new HttpClient { BaseAddress = fixture.ProviderAddress };
+
+        try
+        {
+            var response = await provider.PostAsJsonAsync($"/templating-{suffix}/owners/7/pets?lang=uk", new { name = "Fido" }, cancellationToken);
+
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+            Assert.True(Guid.TryParse(body!["id"]!.GetValue<string>(), out _));
+            Assert.Equal("7", body["owner"]!.GetValue<string>());
+            Assert.Equal("Fido", body["name"]!.GetValue<string>());
+            Assert.Equal("uk", body["lang"]!.GetValue<string>());
+            Assert.Equal(string.Empty, body["missing"]!.GetValue<string>());
+
+            // The history keeps the rendered response, its status, and the unfilled placeholder as a warning.
+            var history = await client.GetFromJsonAsync<JsonNode>($"/api/call-records?specificationId={specificationId}", cancellationToken);
+            var record = history!["items"]![0]!;
+            Assert.Equal(201, record["statusCode"]!.GetValue<int>());
+            Assert.Contains("X-Absent", Assert.Single(record["warnings"]!.AsArray())!.GetValue<string>());
+            var details = await client.GetFromJsonAsync<JsonNode>($"/api/call-records/{record["id"]!.GetValue<Guid>()}", cancellationToken);
+            Assert.Contains("Fido", details!["responseSnapshot"]!.GetValue<string>());
+        }
+        finally
+        {
+            await client.PutAsJsonAsync($"/api/specifications/{specificationId}/provider-mode", new { enabled = false }, cancellationToken);
+        }
+    }
+
+    [Fact]
     public async Task EnablingAnOverlappingOperation_Is409_AndServeAllReportsItAsSkipped()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

@@ -20,6 +20,21 @@ public class OpenApiSpecificationParserTests
             result.Operations.Select(operation => operation.OperationKey));
     }
 
+    [Theory]
+    [InlineData("POST /pets", 201)] // the response the example came from
+    [InlineData("GET /pets", 200)] // no example: the lowest declared 2xx
+    [InlineData("PUT /pets/{id}", 200)] // example from the request body: lowest 2xx, "2XX" counting as 200
+    [InlineData("DELETE /pets/{id}", 204)]
+    [InlineData("GET /health", null)] // only "default"
+    public async Task ParseAsync_ExampleStatuses_RecordsTheStatusTheMockAnswersWith(string operationKey, int? expected)
+    {
+        var yaml = await File.ReadAllTextAsync(FixturePath("example-statuses-openapi.yaml"), TestContext.Current.CancellationToken);
+
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, result.Operations.Single(operation => operation.OperationKey == operationKey).ExampleStatusCode);
+    }
+
     [Fact]
     public async Task ParseAsync_PetstoreSample_ExtractsResponseExampleAsIndentedJson()
     {

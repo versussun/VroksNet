@@ -23,4 +23,11 @@ public class OperationKeyMatcherTests
     {
         Assert.False(OperationKeyMatcher.Matches("GETpets", "GET", "/pets"));
     }
+
+    [Fact]
+    public void TryMatch_ReturnsEachParameterSegmentsValue()
+    {
+        Assert.True(OperationKeyMatcher.TryMatch("GET /pets/{petId}/toys/{toyId}", "GET", "/pets/1/toys/9", out var parameters));
+        Assert.Equal(new Dictionary<string, string> { ["petId"] = "1", ["toyId"] = "9" }, parameters);
+    }
 }

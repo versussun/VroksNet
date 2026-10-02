@@ -78,6 +78,25 @@ public sealed class SpecificationApiClient(HttpClient httpClient)
         return result!.Id;
     }
 
+    /// <summary>Turns one operation's mock on or off. Returns null on success, or a UI-safe reason it didn't happen.</summary>
+    public async Task<string?> SetEndpointEnabledAsync(Guid mockEndpointId, bool enabled, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.PutAsJsonAsync($"/api/mock-endpoints/{mockEndpointId}/enabled", new { enabled }, JsonOptions, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return "This operation no longer exists — the specification may have been re-imported or deleted. Reload the page.";
+        }
+
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemResponse>(JsonOptions, cancellationToken);
+            return problem?.Detail ?? "The server refused the change.";
+        }
+
+        response.EnsureSuccessStatusCode();
+        return null;
+    }
+
     /// <summary>Turns provider mode on/off for one operation. Returns null on success, or the server's reason when it refused (409) — e.g. an overlap with an operation already served.</summary>
     public async Task<string?> SetEndpointProviderModeAsync(Guid mockEndpointId, bool enabled, CancellationToken cancellationToken = default)
     {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -12,8 +13,8 @@ namespace VroksNet.Infrastructure.Specifications;
 /// into a minimal <see cref="ParsedSpecification"/> — a flat operation list, each carrying the
 /// spec's own example (if any) pretty-printed as JSON, plus its request/response JSON Schemas
 /// (see <see cref="ParsedOperation"/>) for the contract-testing checks described in
-/// docs/contract-testing-plan.md. Full schema-based example generation (for operations with no
-/// example in the spec) is Phase 01 — see docs/project-brief.md.
+/// docs/contract-testing-plan.md, and the status the mock answers with. There's no schema-based
+/// example generation for operations with no example in the spec — the mock answers those "{}".
 /// </summary>
 public sealed class OpenApiSpecificationParser : ISpecificationParser
 {
@@ -72,14 +73,18 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
         CancellationToken cancellationToken)
     {
         var requestMediaType = JsonMediaTypeOf(operation.RequestBody?.Content);
-        var firstJsonResponse = operation.Responses?
+        var (firstJsonStatusKey, firstJsonResponse) = operation.Responses?
             .OrderBy(response => response.Key, StringComparer.Ordinal)
-            .Select(response => JsonMediaTypeOf(response.Value.Content))
-            .FirstOrDefault(mediaType => mediaType is not null);
+            .Select(response => (response.Key, MediaType: JsonMediaTypeOf(response.Value.Content)))
+            .FirstOrDefault(response => response.MediaType is not null) ?? default;
 
         // Prefers the first (by status code) JSON response example, falling back to the request
-        // body's; null if the spec has neither.
+        // body's; null if the spec has neither. The mock answers with the status of the response
+        // the example came from — otherwise (no example, or the request body's) with the lowest
+        // declared 2xx (docs/contract-testing-plan.md 3.8).
         var example = firstJsonResponse?.Example ?? requestMediaType?.Example;
+        var exampleStatusCode = (firstJsonResponse?.Example is not null ? StatusCodeOf(firstJsonStatusKey!) : null)
+            ?? LowestSuccessStatusCode(operation.Responses?.Keys);
 
         // Every declared response, not just the first — a contract check has to validate whatever
         // status the real service actually returns against that status's own schema.
@@ -95,8 +100,26 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
             example?.ToJsonString(ExampleJsonOptions),
             await ExtractSchemaJsonAsync(requestMediaType?.Schema, componentSchemas, cancellationToken),
             await ExtractSchemaJsonAsync(firstJsonResponse?.Schema, componentSchemas, cancellationToken),
-            responseSchemasByStatus);
+            responseSchemasByStatus,
+            exampleStatusCode);
     }
+
+    /// <summary>"201" → 201, "2XX" → 200; null for "default" or anything unrecognizable.</summary>
+    private static int? StatusCodeOf(string statusKey)
+    {
+        if (int.TryParse(statusKey, NumberStyles.None, CultureInfo.InvariantCulture, out var code) && code is >= 100 and <= 599)
+        {
+            return code;
+        }
+
+        return statusKey is [>= '1' and <= '5', 'X' or 'x', 'X' or 'x'] ? (statusKey[0] - '0') * 100 : null;
+    }
+
+    private static int? LowestSuccessStatusCode(IEnumerable<string>? statusKeys)
+        => statusKeys?
+            .Select(StatusCodeOf)
+            .Where(code => code is >= 200 and < 300)
+            .Min();
 
     private static IOpenApiMediaType? JsonMediaTypeOf(IDictionary<string, IOpenApiMediaType>? content)
         => content is not null && content.TryGetValue("application/json", out var mediaType) ? mediaType : null;

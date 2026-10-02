@@ -23,4 +23,5 @@ public sealed record CallRecordSummary(
     string? RequestLine,
     int? StatusCode,
     bool? ContractValid,
-    IReadOnlyList<string> ValidationErrors);
+    IReadOnlyList<string> ValidationErrors,
+    IReadOnlyList<string> Warnings);
