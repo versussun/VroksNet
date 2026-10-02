@@ -1,6 +1,6 @@
 # Contract Testing — план реализации
 
-**Статус:** Фазы A, B и E реализованы; C и D — не начаты.
+**Статус:** Фазы A, B, C и E реализованы; D — не начата.
 **Контекст:** детализация Фазы 04 из `docs/project-brief.md` («Contract testing + полировка»). Тот документ фиксирует *что* и *зачем* на уровне продукта; этот — *как*, на уровне доменной модели, компонентов и шагов реализации. Правила структуры/стиля кода — как обычно, в `.claude/CLAUDE.md`.
 
 ## 1. Четыре вида тестов
@@ -42,9 +42,9 @@
 2. **Валидация входящего запроса.** Сейчас `InvokeMockEndpointHandler` вообще не смотрит на тело запроса — только матчит операцию и отдаёт статичный пример. Схема (`MockEndpoint.RequestSchema`) и валидатор (`ISchemaValidator`) после Фазы A есть, но здесь не вызываются.
 3. ~~**История.**~~ ✅ Закрыто в Фазе E: каждый вызов мока, включая несовпавшие (404), пишет `CallRecord` (`InboundHttpRequest`, `RequestLine`, тело запроса/ответа, статус). Валидации входящего запроса пока нет — это Фаза D.
 
-### 2.5 Тип 4 (Provider, async listen) — не реализовано
+### 2.5 Тип 4 (Provider, async listen) — ✅ реализовано (Фаза C)
 
-Нет ни абстракции слушателя, ни подписки на RabbitMQ/NATS, ни соответствующего вида `TestScenario`. `MessageSender` умеет только публиковать.
+`TestScenario` в режиме `Listen` ждёт следующее сообщение на канале операции через `IMessageListener` (RabbitMQ/NATS) и валидирует его по payload-схеме AsyncAPI. Подробности — в 4.3.
 
 ### 2.6 Схемы операций — ✅ закрыто Фазой A
 
@@ -54,7 +54,7 @@
 
 1. ~~**Библиотека JSON Schema.**~~ **Решено и сделано (Фаза A):** [`JsonSchema.Net`](https://github.com/gregsdennis/json-everything) 7.3.4, пинована в `Directory.Packages.props`, используется только внутри `SchemaValidator` (`VroksNet.Infrastructure.SchemaValidation`) — наружу течёт исключительно через `ISchemaValidator`.
 2. ~~**Где хранить схему.**~~ **Решено и сделано (Фаза A):** на импорте — `MockEndpoint.RequestSchema`/`ResponseSchema` (nullable `string`, миграция `AddMockEndpointSchemas`), заполняются `ImportOpenApiSpecHandler`/`ImportAsyncApiSpecHandler` из `ParsedOperation.RequestSchemaJson`/`ResponseSchemaJson`. Для AsyncAPI `ResponseSchemaJson` несёт схему payload'а сообщения (решение по пункту ниже про "одно поле вместо трёх" — см. 4.1).
-3. **Модель данных для «Слушать» (Тип 4).** Расширить существующий `TestScenario` полем `Kind` (`SendHttp` / `PublishBroker` / `ListenBroker`) с опциональным `TimeoutSeconds`, или завести отдельную сущность. **Рекомендация: расширить `TestScenario`** — три «по требованию»-режима укладываются в одну модель «операция + connection + как именно её прогнать», отличие только в поведении при Run.
+3. ~~**Модель данных для «Слушать» (Тип 4).**~~ **Решено (Фаза C):** `TestScenario` расширен полем `Kind` — `Send` (HTTP-запрос или публикация, как раньше) / `Listen` — плюс `ListenTimeoutSeconds` и `ListenExchange`. HTTP vs брокер по-прежнему определяется типом connection, отдельные `SendHttp`/`PublishBroker` не нужны. Режим нового сценария по умолчанию берётся из `action` операции (см. 4.3), пользователь может переключить; существующие сценарии остались `Send`.
 4. **Модель для пассивного Provider-режима (Тип 3).** Это НЕ «сценарий, который прогоняют» — это состояние мок-эндпоинта. Предлагается булев флаг на `MockEndpoint` (например `ServeAtRealPath` + `ValidateIncomingRequests`, можно объединить в один) в дополнение к существующему `IsEnabled`, а не отдельная сущность.
 5. **Коллизии реальных путей.** Если два импортированных спеки объявляют одинаковый путь (`/health` у обоих), и оба включат «раздавать на реальном пути» — конфликт. Нужна политика: либо запрет на включение флага при коллизии (проверка при выставлении флага), либо явный приоритет (например, последний включённый побеждает — рискованно). Отдельный риск: реальный путь может случайно перекрыть существующий маршрут `ApiService` (`/api/...`, `/health`, `/`) — нужен guard-список зарезервированных префиксов.
 6. **История/отчётность.** Без read-стороны у `ICallRecordRepository` результаты Типа 3 (и отчасти Типа 4, если сохранять историю прогонов) физически некуда посмотреть, кроме как через сам ответ одного Run. Нужна страница «История вызовов» (уже заявлена в MVP, раздел 2 `project-brief.md`) — реализация read-стороны репозитория и минимального списка/фильтра. Решено: делается Фазой E (см. 4.5).
@@ -93,20 +93,25 @@
 - UI (Test Scenarios): под результатом Run — отдельный бейдж «Matches spec» / «Contract violated» со списком ошибок (`role="status"`, `aria-label="Contract check"`).
 - Тесты: юнит — хендлер (совпадение, нарушение, схема своего статуса, range/default, необъявленный статус, статус без тела, пустое тело, нет объявленных ответов, провал отправки), парсер (fixture `response-statuses-openapi.yaml`), round-trip словаря через реальный SQLite; интеграционный — прогон против собственного `GET /api/connections` ApiService со схемой-массивом (проходит) и схемой-объектом (нарушение); E2E — бейдж «Contract violated» на странице Test Scenarios.
 
-### 4.3 Фаза C — Тип 4: Listen & validate
+### 4.3 Фаза C — Тип 4: Listen & validate — ✅ реализовано
 
-- Новая абстракция, симметричная `IMessageSender`:
-  ```
-  public interface IMessageListener
-  {
-      Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, CancellationToken cancellationToken);
-  }
-  public sealed record MessageListenResult(bool Received, string? Payload, string? Message);
-  ```
-- `MessageListener` (Infrastructure) — RabbitMQ: временная эксклюзивная очередь, `QueueBindAsync` на нужный routing key (адрес канала), `BasicConsumeAsync`/ожидание с таймаутом, удаление очереди по завершении. NATS: `NatsConnection.SubscribeAsync(subject)` с таймаутом на первое сообщение. Оба — короткоживущие, без постоянной подписки (в отличие от Типа 3, который живёт пока включён).
-- `TestScenario.Kind = ListenBroker` (см. 3.3) + `TimeoutSeconds`. `RunTestScenarioHandler` ветвится по `Kind`: `SendHttp`/`PublishBroker` — как сейчас, `ListenBroker` — вызывает `IMessageListener`, затем (если получено) `ISchemaValidator` по `MockEndpoint.ResponseSchema` операции (для AsyncAPI это payload-схема — отдельного поля нет, см. 3.2).
-- Новое значение `CallDirection.InboundBrokerMessage` (симметрично `OutboundBrokerPublish`).
-- UI: при выборе AsyncAPI-операции с `action: receive` — показывать режим «Listen», поле таймаута; кнопка Run показывает «Ожидание…» на время таймаута.
+Принятые решения:
+- **Режим — явное поле `TestScenario.Kind` с дефолтом по `action`** (см. 3.3). AsyncAPI-операция `action: send` — это то, что публикует сам описанный сервис, поэтому её проверка — слушать (`Listen`); `action: receive` (сервис потребляет) и HTTP — отправлять (`Send`). Правило — `TestScenarioListening.DefaultKindFor` в Domain; сервер отдаёт его как `MockEndpointDetail.DefaultTestScenarioKind`, форма подставляет при выборе операции.
+- **RabbitMQ слушается своей временной очередью на exchange**, а не чтением очереди канала: серверно-именованная exclusive + auto-delete очередь, привязанная к exchange с binding key = адрес канала. Реальные потребители получают свою копию, ничего не «крадётся». Exchange задаётся в сценарии (`ListenExchange`), по умолчанию `amq.topic`. Следствие: сервис должен публиковать в exchange — сообщение, отправленное напрямую в очередь через default exchange (как это делает наш `MessageSender`), так не подслушать.
+- NATS — обычная core-подписка; после неё `PING`, чтобы подписка точно была зарегистрирована до начала ожидания.
+- **Параметры каналов.** Подписка идёт по шаблону: сегмент адреса, целиком являющийся параметром AsyncAPI (`orders.{region}.created`), становится wildcard'ом `*` (одинаково в RabbitMQ topic и NATS). Если параметр — часть сегмента или адрес разделён `/` (`user/{id}/signedup`), подписаться нельзя: такой сценарий не сохраняется (`CanListen` = false). На fanout/headers-exchange binding key игнорируется — засчитается любое сообщение exchange'а.
+- **Ограничение:** Listen не слышит наш собственный Send на той же операции — Send публикует в default exchange, к которому нельзя привязать очередь. Опция «exchange для Send» — отдельная задача.
+
+Реализация:
+- `IMessageListener.ListenAsync(connection, operationKey, timeout, exchange)` → `MessageListenResult(Received, Message, Payload)`; `MessageListener` (Infrastructure) — короткоживущий, подключение/очередь/подписка живут только на время прогона. Подключение и настройка подписки (10s) отделены от таймаута ожидания, у каждого этапа своё сообщение; отсутствующий exchange — понятная ошибка. Соединения RabbitMQ открываются через общий `RabbitMqConnections` (таймауты клиента, без автовосстановления, отмена по токену) — им же теперь пользуются `ConnectionTester`/`MessageSender`, иначе брошенное по таймауту подключение утекало.
+- Таймаут ожидания: 1–80 секунд, по умолчанию 30 (`TestScenarioListening`). Верхняя граница — чтобы прогон (ожидание + до 10s на подключение и настройку), который держит HTTP-запрос открытым, укладывался в таймаут HttpClient'а Admin UI (100s).
+- `RunTestScenarioHandler` ветвится по `Kind`: `Listen` → слушатель → (если получено и у операции есть payload-схема) `ISchemaValidator`. Не получено за таймаут — провал прогона без валидации. Пустое сообщение при объявленной схеме — нарушение.
+- Новое `CallDirection.InboundBrokerMessage`; запись истории хранит полученное сообщение (или причину неудачи) в `ResponseSnapshot`.
+- Валидация на create/update: неизвестный `Kind` отклоняется; `Listen` только для операций с подписываемым каналом, таймаут в диапазоне; exchange хранится только для RabbitMQ-подключения; для `Send` настройки прослушивания отбрасываются. Миграция `AddTestScenarioListenMode`.
+- Правила для UI (`RequiresHttpConnection`, `CanListen`, `DefaultTestScenarioKind`) сервер отдаёт в `MockEndpointDetail` — Web их не выводит сам из ключа операции.
+- `ChannelAddressOf` (адрес канала из ключа операции) переехал из `MessageSender` в Domain (`OperationCompatibility`) — общий для отправки и прослушивания.
+- UI (Test Scenarios): для AsyncAPI-операции — выбор режима; в режиме Listen вместо payload — «Wait up to (seconds)» и (для RabbitMQ-подключения) «Exchange». В таблице — бейдж «Listen», во время прогона — «Listening…». В Call History — «Broker message (in)».
+- Тесты: юнит — дефолт режима, валидация create, ветка Listen (получено/нарушение/таймаут/дефолты), `MessageListener` на недоступных брокерах; интеграционные — реальные RabbitMQ (через `amq.topic`, валидное и невалидное сообщение) и NATS, таймаут; E2E — форма предлагает Listen для `send`-операции, прогон с таймаутом 1s сообщает «No message».
 
 ### 4.4 Фаза D — Тип 3: Provider-режим (реальный путь + валидация входящих)
 
@@ -139,7 +144,7 @@
 1. ✅ **Фаза A** (схемы + валидатор) — сделано, см. 4.1.
 2. ✅ **Фаза B** (Тип 1) — сделано, см. 4.2 (сделана раньше E по решению заказчика; поля `CallRecord` из 3.7 добавлены в её миграции).
 3. ✅ **Фаза E** (история) — сделано, см. 4.5.
-4. **Фаза C** (Тип 4) — новый, но изолированный компонент (`IMessageListener`), не трогает существующие роуты. Перед стартом — закрыть 3.3 (`TestScenario.Kind`).
+4. ✅ **Фаза C** (Тип 4) — сделано, см. 4.3.
 5. **Фаза D** (Тип 3) — самая рискованная (реальные пути, коллизии, потенциальное пересечение с существующими маршрутами `ApiService`) — имеет смысл делать последней и явно проговорить план коллизий (3.5) до начала.
 
 ## 6. Не входит в этот план (сознательно)
