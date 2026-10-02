@@ -52,6 +52,24 @@ public class MessageSenderTests
     }
 
     [Fact]
+    public async Task SendAsync_HttpOperationThroughKafkaConnection_FailsWithoutAttemptingAnyRequest()
+    {
+        var result = await Sender.SendAsync(Connection("Kafka", "127.0.0.1:1"), "GET /pets", null, null, TestContext.Current.CancellationToken);
+
+        Assert.False(result.Success);
+        Assert.Contains("AsyncAPI-shaped", result.Message);
+    }
+
+    [Fact]
+    public async Task SendAsync_Kafka_ClosedPort_FailsWithinTheTimeout()
+    {
+        var result = await Sender.SendAsync(Connection("Kafka", "127.0.0.1:1"), "orders.created:send", "{}", null, TestContext.Current.CancellationToken);
+
+        Assert.False(result.Success);
+        Assert.False(string.IsNullOrWhiteSpace(result.Message));
+    }
+
+    [Fact]
     public async Task SendAsync_Nats_ClosedPort_Fails()
     {
         var result = await Sender.SendAsync(Connection("Nats", "nats://127.0.0.1:1"), "orders.created:send", "{}", null, TestContext.Current.CancellationToken);

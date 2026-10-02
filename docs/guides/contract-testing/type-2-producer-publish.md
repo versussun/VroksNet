@@ -6,7 +6,7 @@
 **How:** fire-and-forget. A run passes when the broker accepts the message; nothing is validated.
 
 ```
-VroksNet ── publish {"orderId":"ord_1",…} ──▶ RabbitMQ / NATS ──▶ your service
+VroksNet ── publish {"orderId":"ord_1",…} ──▶ RabbitMQ / NATS / Kafka ──▶ your service
 ```
 
 ## 1. The spec
@@ -55,12 +55,13 @@ The operation key is `orders.shipped:receive`, so the channel address is `orders
 |---|---|
 | RabbitMQ | the scenario's **Exchange** with routing key = channel address (`orders.shipped`). A new scenario starts with `amq.topic`, so the service's queue must be bound to it with a matching key, and a Type 4 Listen scenario on the same exchange hears the message. Clear the field (`exchange: null`) to publish through the **default exchange** `""`, i.e. **straight into the queue named `orders.shipped`**, which must exist. If the exchange doesn't exist, the run fails with a readable message. |
 | NATS | subject = channel address (`orders.shipped`). Core NATS doesn't queue: the service must be subscribed when you run. |
+| Kafka | topic = channel address (`orders.shipped`). The run succeeds only once the broker has acknowledged the write; a missing topic fails it unless the broker auto-creates topics. |
 
 > If nothing is bound to the exchange with a matching key, RabbitMQ drops the message and the run still succeeds — publishing doesn't confirm delivery.
 
 ## 3. Create the scenario
 
-Import the spec as **AsyncAPI** and add a **RabbitMQ** or **NATS** connection ([Getting started](getting-started.md)).
+Import the spec as **AsyncAPI** and add a **RabbitMQ**, **NATS** or **Kafka** connection ([Getting started](getting-started.md)).
 
 **UI:** **Test Scenarios** → **+ Add test scenario**:
 
@@ -69,7 +70,7 @@ Import the spec as **AsyncAPI** and add a **RabbitMQ** or **NATS** connection ([
 | Name | `Publish order shipped` |
 | Specification | `Shipping Events (AsyncApi)` |
 | Operation | `orders.shipped:receive` |
-| Connection | your RabbitMQ or NATS connection |
+| Connection | your RabbitMQ, NATS or Kafka connection |
 | Mode | **Publish a message to the channel** (the default for `receive` operations) |
 | Payload (optional override) | blank = the spec's example; or your own JSON, e.g. an edge case |
 | Exchange | RabbitMQ only; starts as `amq.topic`, blank = straight into the queue named after the channel |

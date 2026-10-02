@@ -1,4 +1,5 @@
 using System.Text;
+using Confluent.Kafka;
 using NATS.Client.Core;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -19,8 +20,12 @@ namespace VroksNet.Infrastructure.Connections;
 /// exchange the binding key is a pattern; a fanout/headers exchange ignores it, so any message on
 /// the exchange counts.</item>
 /// <item>NATS: a plain core subscription.</item>
+/// <item>Kafka: no consumer group at all — the partitions of every matching topic are assigned by
+/// hand, starting at their current end, and nothing is committed. The topic's real consumer
+/// groups don't notice, and a message written after the listen window opens can't be missed
+/// waiting for a group rebalance.</item>
 /// </list>
-/// Both subscribe with <see cref="TestScenarioListening.SubscriptionPatternOf"/> — the channel
+/// All three subscribe with <see cref="TestScenarioListening.SubscriptionPatternOf"/> — the channel
 /// address with whole-segment parameters turned into "*".
 /// </summary>
 public sealed class MessageListener : IMessageListener
@@ -46,7 +51,8 @@ public sealed class MessageListener : IMessageListener
         {
             ConnectionServiceType.RabbitMq => ListenRabbitMqAsync(connection.Value, pattern, exchange, timeout, cancellationToken),
             ConnectionServiceType.Nats => ListenNatsAsync(connection.Value, pattern, timeout, cancellationToken),
-            _ => Task.FromResult(new MessageListenResult(false, $"Can't listen through a {connection.ServiceType} connection — only RabbitMq/Nats."))
+            ConnectionServiceType.Kafka => ListenKafkaAsync(connection.Value, pattern, timeout, cancellationToken),
+            _ => Task.FromResult(new MessageListenResult(false, $"Can't listen through a {connection.ServiceType} connection — only RabbitMq/Nats/Kafka."))
         };
     }
 
@@ -132,6 +138,65 @@ public sealed class MessageListener : IMessageListener
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new MessageListenResult(false, ex.Message);
+        }
+    }
+
+    private static async Task<MessageListenResult> ListenKafkaAsync(string connectionString, string pattern, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var config = KafkaClients.ConfigFrom(connectionString);
+        if (config is null)
+        {
+            return new MessageListenResult(false, KafkaClients.InvalidConnectionStringMessage);
+        }
+
+        var topicRegex = KafkaClients.TopicRegexOf(pattern);
+        var stage = ListenStage.Connecting;
+        try
+        {
+            // The Kafka client's calls block the calling thread, so each runs via Task.Run.
+            using var admin = KafkaClients.CreateAdminClient(config, ConnectTimeout);
+            var metadata = await Task.Run(() => admin.GetMetadata(ConnectTimeout), cancellationToken);
+            stage = ListenStage.SettingUp;
+
+            var partitions = metadata.Topics
+                .Where(topic => topic.Error.Code == ErrorCode.NoError && topicRegex.IsMatch(topic.Topic))
+                .SelectMany(topic => topic.Partitions.Select(partition => new TopicPartition(topic.Topic, partition.PartitionId)))
+                .ToList();
+            if (partitions.Count == 0)
+            {
+                return new MessageListenResult(false, $"No topic matching \"{pattern}\" exists on this broker.");
+            }
+
+            using var setupCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            setupCts.CancelAfter(ConnectTimeout);
+            using var consumer = KafkaClients.CreateConsumer(config, ConnectTimeout);
+
+            // Start each partition at its concrete high watermark rather than Offset.End: "end" is
+            // only resolved once fetching starts, so a message written in between would be skipped.
+            var start = await Task.Run(
+                () => partitions.Select(partition => new TopicPartitionOffset(partition, consumer.QueryWatermarkOffsets(partition, ConnectTimeout).High)).ToList(),
+                setupCts.Token);
+            consumer.Assign(start);
+            stage = ListenStage.Listening;
+
+            // Consume(token) gives up by throwing OperationCanceledException — the read is
+            // cancelled, not abandoned, so nothing is left polling once the consumer is disposed.
+            using var listenCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            listenCts.CancelAfter(timeout);
+            var result = await Task.Run(() => consumer.Consume(listenCts.Token), CancellationToken.None);
+            return new MessageListenResult(true, $"Received on topic \"{result.Topic}\" (partition {result.Partition.Value}, offset {result.Offset.Value}).", result.Message.Value);
+        }
+        catch (KafkaException ex) when (stage == ListenStage.Connecting && ex.Error.Code is ErrorCode.Local_TimedOut or ErrorCode.Local_Transport or ErrorCode.Local_AllBrokersDown)
+        {
+            return new MessageListenResult(false, TimeoutMessage(stage, $"topics matching \"{pattern}\"", timeout));
+        }
+        catch (Exception ex) when (ex is TimeoutException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            return new MessageListenResult(false, TimeoutMessage(stage, $"topics matching \"{pattern}\"", timeout));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new MessageListenResult(false, ex is KafkaException kafka ? kafka.Error.Reason : ex.Message);
         }
     }
 

@@ -23,4 +23,4 @@ Everything that isn't a full-graph test: handler tests, parser tests, repository
 ## Known gaps
 
 - The Http round-trip success path of `MessageSender` is covered only end-to-end in IntegrationTests (`MessageSenderUrlTests` covers just URL composition, through a capturing handler).
-- Broker success paths are covered only in IntegrationTests against the AppHost's containers: publishing in `MessageSenderApiTests` and receiving in `ListenScenarioApiTests`.
+- Broker success paths are covered only in IntegrationTests against the AppHost's containers: publishing in `MessageSenderApiTests` and receiving in `ListenScenarioApiTests` (Kafka: both in `KafkaApiTests`).

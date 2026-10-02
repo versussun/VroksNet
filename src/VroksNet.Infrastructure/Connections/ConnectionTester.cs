@@ -1,3 +1,4 @@
+using Confluent.Kafka;
 using NATS.Client.Core;
 using RabbitMQ.Client;
 using VroksNet.Application.Abstractions;
@@ -9,8 +10,8 @@ namespace VroksNet.Infrastructure.Connections;
 /// Actually reaches a <see cref="Connection"/>'s target: a short-timeout GET for
 /// <see cref="ConnectionServiceType.Http"/> (any HTTP response counts as reachable — even a
 /// 404/401 proves DNS+TCP+TLS all worked, which is the point; only a thrown exception counts as
-/// failure), or opening a real client connection and pinging it for RabbitMq/Nats. This never
-/// touches the Aspire-wired dev "rabbitmq"/"nats" resources from AppHost.cs — it connects to
+/// failure), or opening a real client connection and pinging it for RabbitMq/Nats (for Kafka: a
+/// cluster metadata request). This never touches the Aspire-wired dev "rabbitmq"/"nats"/"kafka" resources from AppHost.cs — it connects to
 /// whatever host/credentials the user typed into <see cref="Connection.Value"/>.
 /// </summary>
 public sealed class ConnectionTester(IHttpClientFactory httpClientFactory) : IConnectionTester
@@ -22,6 +23,7 @@ public sealed class ConnectionTester(IHttpClientFactory httpClientFactory) : ICo
         ConnectionServiceType.Http => TestHttpAsync(connection.Value, cancellationToken),
         ConnectionServiceType.RabbitMq => TestRabbitMqAsync(connection.Value, cancellationToken),
         ConnectionServiceType.Nats => TestNatsAsync(connection.Value, cancellationToken),
+        ConnectionServiceType.Kafka => TestKafkaAsync(connection.Value, cancellationToken),
         _ => Task.FromResult(new ConnectionTestResult(false, $"Unsupported service type '{connection.ServiceType}'."))
     };
 
@@ -86,6 +88,31 @@ public sealed class ConnectionTester(IHttpClientFactory httpClientFactory) : ICo
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new ConnectionTestResult(false, ex.Message);
+        }
+    }
+
+    private static async Task<ConnectionTestResult> TestKafkaAsync(string connectionString, CancellationToken cancellationToken)
+    {
+        var config = KafkaClients.ConfigFrom(connectionString);
+        if (config is null)
+        {
+            return new ConnectionTestResult(false, KafkaClients.InvalidConnectionStringMessage);
+        }
+
+        try
+        {
+            using var admin = KafkaClients.CreateAdminClient(config, Timeout);
+            // GetMetadata blocks the calling thread for up to Timeout, so keep it off the request's.
+            var metadata = await Task.Run(() => admin.GetMetadata(Timeout), cancellationToken);
+            return new ConnectionTestResult(true, $"Connected — {metadata.Brokers.Count} broker(s) in the cluster.");
+        }
+        catch (KafkaException ex) when (ex.Error.Code is ErrorCode.Local_TimedOut or ErrorCode.Local_Transport or ErrorCode.Local_AllBrokersDown)
+        {
+            return new ConnectionTestResult(false, $"Couldn't reach the cluster within {Timeout.TotalSeconds:0}s ({ex.Error.Reason}).");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new ConnectionTestResult(false, ex is KafkaException kafka ? kafka.Error.Reason : ex.Message);
         }
     }
 }

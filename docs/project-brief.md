@@ -1,6 +1,6 @@
 # VroksNet — Project Brief
 
-**Status:** Draft v0.7
+**Status:** Draft v0.8
 **Stack:** .NET 10, .NET Aspire, Clean Architecture, Blazor WebAssembly, Docker
 **Users:** single internal team, no auth on MVP
 
@@ -22,7 +22,7 @@
 |---|---|
 | Загрузка спецификаций | Импорт OpenAPI (2.0/3.x, YAML/JSON) и AsyncAPI (2.x/3.x) файлов через UI и через REST API |
 | REST-моки | Генерация ответов по примерам из спецификации (examples / schema-based fallback), матчинг по методу, пути, query и телу запроса |
-| Async-моки | Публикация тестовых сообщений в NATS и RabbitMQ по описанным в AsyncAPI каналам, с заданной периодичностью или по триггеру |
+| Async-моки | Публикация тестовых сообщений в NATS, RabbitMQ и Kafka по описанным в AsyncAPI каналам, с заданной периодичностью или по триггеру |
 | Управление моками | Blazor-панель: список загруженных спецификаций, включение/выключение мок-эндпоинтов, редактирование примеров |
 | История вызовов | Лог входящих запросов к REST-мокам и отправленных async-сообщений — для отладки |
 | Contract testing | Разовая проверка «схема ⇄ реальный ответ» вручную из UI (без встраивания в пайплайн) |
@@ -59,7 +59,7 @@
 - Аутентификация, роли, мультитенантность
 - CI/CD-интеграция (CLI, Maven/Gradle/NuGet-плагины, webhook-триггеры)
 - Security testing спецификаций
-- Kafka, MQTT, WebSocket — можно добавить позже, если появится нужда
+- MQTT, WebSocket — можно добавить позже, если появится нужда (Kafka добавлена после MVP — см. «Фаза 05»)
 - Кластеризация / горизонтальное масштабирование
 - Сценарии ошибок (`X-Mock-Scenario` и подобное) — см. «Динамика ответов» выше
 - История версий спецификаций — см. «Версионирование» выше
@@ -70,13 +70,13 @@ Solution уже создан по Clean Architecture и оркестрирует
 
 | Компонент брифа | Проект в solution | Роль |
 |---|---|---|
-| Оркестрация (dev) | `VroksNet.AppHost` | Aspire AppHost: в разработке поднимает ApiService и Web как отдельные процессы с hot reload, плюс NATS, RabbitMQ как ресурсы — без ручного docker-compose |
+| Оркестрация (dev) | `VroksNet.AppHost` | Aspire AppHost: в разработке поднимает ApiService и Web как отдельные процессы с hot reload, плюс NATS, RabbitMQ, Kafka как ресурсы — без ручного docker-compose |
 | Сквозная инфраструктура | `VroksNet.ServiceDefaults` | Телеметрия, health checks, resilience — общие для ApiService и Web |
 | Mock API + хост Admin UI | `VroksNet.ApiService` | Composition root: динамический роутинг REST-запросов по OpenAPI-спекам, регистрирует Mediator. В Production дополнительно сервит собранные статические файлы `VroksNet.Web` (wwwroot + SPA-фолбэк на `index.html`) — единственный процесс в контейнере |
 | Admin UI | `VroksNet.Web` | Blazor **WebAssembly** (standalone, браузерный проект): загрузка спек, управление моками, просмотр истории вызовов. В Production не запускается как отдельный процесс — только собирается, а раздаёт его `VroksNet.ApiService` |
 | Spec Engine | `VroksNet.Application` | Парсинг/валидация OpenAPI и AsyncAPI, генерация примеров, матчинг запросов — как use cases через [martinothamar/Mediator](https://github.com/martinothamar/Mediator) |
 | Домен | `VroksNet.Domain` | Спецификации, мок-эндпоинты, каналы, записи истории вызовов как сущности/value objects — без ссылок на фреймворки |
-| Async Worker + Storage | `VroksNet.Infrastructure` | `BackgroundService` для публикации в NATS/RabbitMQ по каналам из AsyncAPI; EF Core-реализации репозиториев из Application |
+| Async Worker + Storage | `VroksNet.Infrastructure` | `BackgroundService` для публикации в NATS/RabbitMQ/Kafka по каналам из AsyncAPI; EF Core-реализации репозиториев из Application |
 
 Зависимости идут внутрь, как описано в `.claude/CLAUDE.md`: `Domain ← Application ← Infrastructure`, `Presentation → Application`.
 
@@ -111,13 +111,13 @@ Solution уже создан по Clean Architecture и оркестрирует
 | Слой | Технология | Зачем |
 |---|---|---|
 | Платформа | .NET 10 | Актуальный LTS-цикл, уже выбран в solution |
-| Оркестрация (dev) | .NET Aspire (`AppHost`, `ServiceDefaults`) | Запуск ApiService + Web + NATS + RabbitMQ в dev с hot reload; в Production не используется — деплоится один образ |
+| Оркестрация (dev) | .NET Aspire (`AppHost`, `ServiceDefaults`) | Запуск ApiService + Web + NATS + RabbitMQ + Kafka в dev с hot reload; в Production не используется — деплоится один образ |
 | Use-case dispatch | martinothamar/Mediator (source-generator, без рефлексии) | Уже принят как стандарт в `.claude/CLAUDE.md` — не MediatR |
 | Backend / Mock API | ASP.NET Core (`VroksNet.ApiService`) | Composition root; в Production также раздаёт статику Admin UI |
 | Admin UI | Blazor WebAssembly, standalone (`VroksNet.Web`) | Браузерный SPA-клиент; в Production собирается и раздаётся как статика из `ApiService`, отдельно не запускается |
 | OpenAPI-парсинг | Microsoft.OpenApi.Readers | Официальная .NET библиотека, поддержка 2.0/3.x |
 | AsyncAPI-парсинг | Кастомный парсер над YamlDotNet | Готовых зрелых .NET-библиотек для AsyncAPI 3.x пока нет — парсим JSON-схему спецификации сами |
-| Async-брокеры | NATS.Client, RabbitMQ.Client | Официальные .NET-клиенты под выбранные протоколы |
+| Async-брокеры | NATS.Client, RabbitMQ.Client, Confluent.Kafka | Официальные .NET-клиенты под выбранные протоколы |
 | Хранилище | SQLite + EF Core (WAL mode, сериализованная запись) | См. раздел 3 |
 | Деплой | Docker, multi-stage build (Web → статика → ApiService) | Один Dockerfile, один образ, один процесс в проде |
 
@@ -150,6 +150,10 @@ Solution с Clean Architecture и Aspire (`VroksNet.slnx`, все проекты
 
 Ручная проверка «схема ⇄ реальный ответ», история и логи, документация по эксплуатации. Детальный план реализации (4 вида тестов, обзор уже сделанного, порядок фаз) — `docs/contract-testing-plan.md`.
 **Результат:** инструмент, который можно передать команде и не сопровождать вручную
+
+
+### Фаза 05 — Kafka ✅ готово
+Третий тип брокерного `Connection` — `Kafka`: проверка подключения (запрос метаданных кластера), Send/Listen тест-сценарии и Publishers. Топик = адрес канала AsyncAPI. Значение подключения — список bootstrap-серверов (`host:9092,host2:9092`) или настройки librdkafka `key=value;…` (для SASL/TLS). Listen не использует consumer group: партиции подходящих топиков назначаются вручную с текущего конца, без коммитов, поэтому реальные консьюмеры ничего не замечают. В dev — Aspire-ресурс `kafka`.
 
 ## 6. Первые шаги
 

@@ -9,7 +9,7 @@ namespace VroksNet.Domain.TestScenarios;
 /// "channel/address:action" (no space) — that's the cheapest reliable way to tell them apart
 /// without loading the specification's own <c>Kind</c>. An HTTP-shaped key needs an
 /// <see cref="ConnectionServiceType.Http"/> connection; an AsyncAPI-shaped key needs a
-/// RabbitMq/Nats one.
+/// RabbitMq/Nats/Kafka one.
 /// </summary>
 public static class OperationCompatibility
 {
