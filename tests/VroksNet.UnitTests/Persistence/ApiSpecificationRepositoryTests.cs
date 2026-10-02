@@ -9,9 +9,10 @@ namespace VroksNet.UnitTests.Persistence;
 
 /// <summary>
 /// Runs against a real (temp-file) SQLite database through the actual write queue + background
-/// consumer — regression coverage for the replace-by-title upsert, which previously threw
-/// <see cref="DbUpdateConcurrencyException"/> when implemented as attach-and-patch instead of
-/// delete-and-insert (see .claude/CLAUDE.md).
+/// consumer — coverage for the by-title upsert. It's an idempotent in-place update
+/// (<see cref="ApiSpecification.ApplyReimport"/>), done on entities the write context loaded
+/// itself: an earlier attach-and-patch of the detached graph threw
+/// <see cref="DbUpdateConcurrencyException"/>.
 /// </summary>
 public sealed class ApiSpecificationRepositoryTests : IAsyncLifetime
 {
@@ -75,6 +76,102 @@ public sealed class ApiSpecificationRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UpsertAsync_SameImportAgain_KeepsIdsAndAdminStateAndWritesNothing()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var first = CreateSpecification("Orders API", "GET /orders", "POST /orders");
+        var storedId = await _repository.UpsertAsync(first, cancellationToken);
+        var original = await _repository.FindByTitleAsync("Orders API", cancellationToken);
+        Assert.NotNull(original);
+        var getOrders = original.Endpoints.Single(e => e.OperationKey == "GET /orders");
+        await _repository.SetEnabledAsync([getOrders.Id], enabled: false, cancellationToken);
+        await _repository.SetServeAtRealPathAsync([getOrders.Id], serveAtRealPath: true, cancellationToken);
+
+        // A fresh parse of the same file: new ids everywhere, as the import handlers build it.
+        var again = CreateSpecification("Orders API", "GET /orders", "POST /orders");
+        again.UpdatedAt = original.UpdatedAt.AddHours(1);
+        var returnedId = await _repository.UpsertAsync(again, cancellationToken);
+
+        var stored = await _repository.FindByTitleAsync("Orders API", cancellationToken);
+        Assert.NotNull(stored);
+        Assert.Equal(storedId, returnedId);
+        Assert.Equal(storedId, stored.Id);
+        Assert.Equal(original.UpdatedAt, stored.UpdatedAt);
+        Assert.Equal(
+            original.Endpoints.Select(e => e.Id).Order(),
+            stored.Endpoints.Select(e => e.Id).Order());
+        var kept = stored.Endpoints.Single(e => e.Id == getOrders.Id);
+        Assert.False(kept.IsEnabled);
+        Assert.True(kept.ServeAtRealPath);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_ChangedOperation_IsUpdatedInPlace()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var first = CreateSpecification("Orders API", "GET /orders");
+        first.Endpoints.Single().ExampleTemplate = "{\"v\":1}";
+        await _repository.UpsertAsync(first, cancellationToken);
+        var originalId = first.Endpoints.Single().Id;
+
+        var changed = CreateSpecification("Orders API", "GET /orders");
+        var incoming = changed.Endpoints.Single();
+        incoming.ExampleTemplate = "{\"v\":2}";
+        incoming.ExampleStatusCode = 201;
+        incoming.ResponseSchemasByStatus = new Dictionary<string, string?> { ["201"] = "{\"type\":\"object\"}" };
+        changed.RawContent = "raw v2";
+        await _repository.UpsertAsync(changed, cancellationToken);
+
+        var stored = Assert.Single((await _repository.FindByTitleAsync("Orders API", cancellationToken))!.Endpoints);
+        Assert.Equal(originalId, stored.Id);
+        Assert.Equal("{\"v\":2}", stored.ExampleTemplate);
+        Assert.Equal(201, stored.ExampleStatusCode);
+        Assert.Equal("{\"type\":\"object\"}", stored.ResponseSchemasByStatus["201"]);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_OperationsAddedAndRemoved_KeepsOnlyTheSurvivorsIds()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var first = CreateSpecification("Orders API", "GET /orders", "DELETE /orders/{id}");
+        await _repository.UpsertAsync(first, cancellationToken);
+        var keptId = first.Endpoints.Single(e => e.OperationKey == "GET /orders").Id;
+
+        var next = CreateSpecification("Orders API", "GET /orders", "POST /orders");
+        next.RawContent = "raw v2";
+        await _repository.UpsertAsync(next, cancellationToken);
+
+        var stored = (await _repository.FindByTitleAsync("Orders API", cancellationToken))!.Endpoints;
+        Assert.Equal(["GET /orders", "POST /orders"], stored.Select(e => e.OperationKey).Order());
+        Assert.Equal(keptId, stored.Single(e => e.OperationKey == "GET /orders").Id);
+        Assert.Equal(
+            next.Endpoints.Single(e => e.OperationKey == "POST /orders").Id,
+            stored.Single(e => e.OperationKey == "POST /orders").Id);
+    }
+
+    [Fact]
+    public async Task UpsertAsync_RepeatedOperationKeys_ArePairedByOrder()
+    {
+        // AsyncAPI allows two operations with the same channel and action, hence the same key.
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var first = CreateSpecification("Events", "orders.created:send", "orders.created:send");
+        first.Endpoints.ElementAt(0).ExampleTemplate = "first";
+        first.Endpoints.ElementAt(1).ExampleTemplate = "second";
+        await _repository.UpsertAsync(first, cancellationToken);
+        var ids = first.Endpoints.Select(e => e.Id).ToList();
+
+        var next = CreateSpecification("Events", "orders.created:send", "orders.created:send");
+        next.Endpoints.ElementAt(0).ExampleTemplate = "first";
+        next.Endpoints.ElementAt(1).ExampleTemplate = "second, changed";
+        await _repository.UpsertAsync(next, cancellationToken);
+
+        var stored = (await _repository.FindByTitleAsync("Events", cancellationToken))!.Endpoints.ToDictionary(e => e.Id);
+        Assert.Equal(2, stored.Count);
+        Assert.Equal("first", stored[ids[0]].ExampleTemplate);
+        Assert.Equal("second, changed", stored[ids[1]].ExampleTemplate);
+    }
+
+    [Fact]
     public async Task UpsertAsync_ResponseSchemasByStatus_RoundTripsIncludingNullSchemas()
     {
         var specification = CreateSpecification("Pets API", "GET /pets");
@@ -107,7 +204,7 @@ public sealed class ApiSpecificationRepositoryTests : IAsyncLifetime
         };
 
         specification.Endpoints = operationKeys
-            .Select(key => new MockEndpoint { Id = Guid.NewGuid(), SpecificationId = specification.Id, OperationKey = key })
+            .Select((key, position) => new MockEndpoint { Id = Guid.NewGuid(), SpecificationId = specification.Id, OperationKey = key, Position = position })
             .ToList();
 
         return specification;

@@ -72,19 +72,39 @@ public sealed class ApiSpecificationRepository(
         return updated;
     }
 
-    public Task UpsertAsync(ApiSpecification specification, CancellationToken cancellationToken)
+    public async Task<Guid> UpsertAsync(ApiSpecification imported, CancellationToken cancellationToken)
     {
-        return writeQueue.EnqueueAsync(async (context, ct) =>
+        var storedId = imported.Id;
+        await writeQueue.EnqueueAsync(async (context, ct) =>
         {
-            // "Replace" per docs/project-brief.md section 2 means exactly that — no merge, no
-            // version history. Deleting by title (cascades to its MockEndpoints) and inserting
-            // fresh avoids reattaching a partially-detached entity graph.
-            await context.ApiSpecifications
-                .Where(s => s.Title == specification.Title)
-                .ExecuteDeleteAsync(ct);
+            // Loaded and changed in this one context — never attach the detached `imported` graph
+            // onto it, which is what used to throw DbUpdateConcurrencyException.
+            var existing = await context.ApiSpecifications
+                .Include(specification => specification.Endpoints)
+                .FirstOrDefaultAsync(specification => specification.Title == imported.Title, ct);
 
-            context.ApiSpecifications.Add(specification);
+            if (existing is null)
+            {
+                context.ApiSpecifications.Add(imported);
+                await context.SaveChangesAsync(ct);
+                return;
+            }
+
+            storedId = existing.Id;
+            var changes = existing.ApplyReimport(imported);
+            if (!changes.AnyChange)
+            {
+                return;
+            }
+
+            // State the inserts and deletes explicitly instead of leaving them to DetectChanges:
+            // a new endpoint already has its (client-generated) id, which EF would otherwise take
+            // for an existing row.
+            context.MockEndpoints.AddRange(changes.Added);
+            context.MockEndpoints.RemoveRange(changes.Removed);
             await context.SaveChangesAsync(ct);
         }, cancellationToken);
+
+        return storedId;
     }
 }

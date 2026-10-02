@@ -53,10 +53,17 @@ internal sealed class FakeApiSpecificationRepository : IApiSpecificationReposito
         return Task.FromResult(endpoints.Count);
     }
 
-    public Task UpsertAsync(ApiSpecification specification, CancellationToken cancellationToken)
+    /// <summary>Same semantics as the real repository: an existing title is updated in place through <see cref="ApiSpecification.ApplyReimport"/>.</summary>
+    public Task<Guid> UpsertAsync(ApiSpecification imported, CancellationToken cancellationToken)
     {
-        _specifications.RemoveAll(s => s.Title == specification.Title);
-        _specifications.Add(specification);
-        return Task.CompletedTask;
+        var existing = _specifications.FirstOrDefault(s => s.Title == imported.Title);
+        if (existing is null)
+        {
+            _specifications.Add(imported);
+            return Task.FromResult(imported.Id);
+        }
+
+        existing.ApplyReimport(imported);
+        return Task.FromResult(existing.Id);
     }
 }

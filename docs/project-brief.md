@@ -52,9 +52,13 @@ Decided: re-importing a specification **always replaces** the previous version. 
 
 Whether an import "updates an existing spec rather than adding a new one" is decided by the **name/title inside the spec itself** (`info.title` in OpenAPI and AsyncAPI), not by the file name: a file can be renamed, while `info.title` is the service's meaningful identifier — the same approach Microcks takes.
 
-What survives a re-import: the specification's id, and — for OpenAPI operations whose key (`METHOD /path`) is still in the spec — the enabled/disabled state and "Serve at real path". Examples can't be edited in the UI, so there are no manual edits to lose.
+Re-importing is an **idempotent update in place** (✅ implemented): operations are matched by key (`METHOD /path`, or `channel:action` for AsyncAPI; repeated keys are paired by their order in the spec).
+- An operation still in the spec keeps its id, its enabled/disabled state and "Serve at real path"; only its example, status and schemas are refreshed. So Test Scenarios, Publishers and call records that reference it keep working.
+- A new operation is added; an operation no longer in the spec is removed, and anything referencing it fails with "…no longer exists".
+- Importing the same file again changes nothing.
+- A renamed operation (a changed path or channel) can't be told apart from a removed one plus a new one.
 
-**Known limitation:** every operation gets a **new id** on re-import, and Test Scenarios and Publishers reference operations by id. So after a spec is re-imported, its scenarios and Publishers fail with "The scenario's specification, operation, or connection no longer exists." and have to be recreated. Not yet decided how to fix it (keep the ids of operations whose key is unchanged, or reference operations by key).
+Examples can't be edited in the UI, so there are no manual edits to lose.
 
 ### Deliberately out of the MVP
 

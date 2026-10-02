@@ -150,6 +150,61 @@ public sealed class TestScenariosApiTests(AppHostFixture fixture)
         Assert.Equal(expectValid, afterRun!["lastRunSuccess"]!.GetValue<bool>());
     }
 
+    [Fact]
+    public async Task Run_StillWorksAfterItsSpecIsReimported()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = fixture.ApiServiceClient;
+        var suffix = Guid.NewGuid();
+
+        var (specificationId, endpointId) = await ImportSpecAsync(client, suffix, cancellationToken);
+        var connectionId = await CreateConnectionAsync(client, suffix, fixture.ApiServiceHttpAddress.ToString(), cancellationToken);
+        var createResponse = await client.PostAsJsonAsync(
+            "/api/test-scenarios",
+            new { Name = $"Reimport Scenario {suffix}", SpecificationId = specificationId, MockEndpointId = endpointId, ConnectionId = connectionId, PayloadOverride = (string?)null },
+            cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, createResponse.StatusCode);
+        var scenarioId = (await createResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!["id"]!.GetValue<Guid>();
+
+        // A new version of the same spec (same title): the scenario's operation changed, and
+        // another one was added. Re-importing used to give every operation a new id.
+        var v2 = $"""
+            openapi: 3.0.3
+            info:
+              title: "TestScenarios Fixture {suffix}"
+              version: "2.0.0"
+            paths:
+              /health:
+                get:
+                  operationId: checkHealth
+                  responses:
+                    "200":
+                      description: Healthy, now with a better description
+              /alive:
+                get:
+                  responses:
+                    "200":
+                      description: Alive
+            """;
+        using var reimport = new HttpRequestMessage(HttpMethod.Post, "/api/specifications/openapi")
+        {
+            Content = new StringContent(v2, Encoding.UTF8, "text/plain"),
+        };
+        var reimportResponse = await client.SendAsync(reimport, cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, reimportResponse.StatusCode);
+        Assert.Equal(specificationId, (await reimportResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!["id"]!.GetValue<Guid>());
+
+        var details = await client.GetFromJsonAsync<JsonNode>($"/api/specifications/{specificationId}", cancellationToken);
+        var endpoints = details!["endpoints"]!.AsArray();
+        Assert.Equal(2, endpoints.Count);
+        Assert.Equal(endpointId, endpoints.Single(e => e!["operationKey"]!.GetValue<string>() == "GET /health")!["id"]!.GetValue<Guid>());
+
+        var runResponse = await client.PostAsync($"/api/test-scenarios/{scenarioId}/run", null, cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, runResponse.StatusCode);
+        var run = (await runResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!;
+        Assert.True(run["success"]!.GetValue<bool>(), run["message"]!.GetValue<string>());
+    }
+
     private static async Task<(Guid SpecificationId, Guid EndpointId)> ImportSpecAsync(HttpClient client, Guid suffix, CancellationToken cancellationToken)
     {
         var yaml = $"""
