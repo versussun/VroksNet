@@ -181,7 +181,7 @@ A third broker `Connection` type, `Kafka`: connection testing (a cluster metadat
 
 None from the previous version — both are resolved (see "Response dynamics" and "Specification versioning" in section 2).
 
-Next steps are decided in two accepted ADRs. Their questions were answered on 2026-10-03; the only one still open is where the Aspire NuGet package is published (ADR 0001).
+Next steps are decided in two accepted ADRs. Their questions were answered on 2026-10-03; the only one still open is where the Aspire NuGet package is published (ADR 0001). The work is broken into steps in `docs/implementation-plan.md`.
 
 - **VroksNet as an Aspire resource, provisioned at startup** (specs, connections and Publishers from files; the Aspire package in a separate repository, built on `docs/container-contract.md`) — `docs/adr/0001-aspire-integration-and-provisioning.md`, accepted.
 - **Background, delayed and scheduled test runs** (run history, scheduling, CI suites) — `docs/adr/0002-background-and-scheduled-test-runs.md`, accepted.
