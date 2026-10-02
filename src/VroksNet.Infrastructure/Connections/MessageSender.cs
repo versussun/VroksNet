@@ -41,7 +41,11 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
         }
 
         var parts = operationKey.Split(' ', 2);
-        var uri = new Uri(baseUri, parts[1]);
+        // Appends the operation's path to the connection's own base path ("https://host/v1" +
+        // "/pets" → "https://host/v1/pets"), keeping the connection's query string (e.g. an
+        // "?api-key=…"). new Uri(baseUri, "/pets") would resolve the absolute path against the
+        // host and silently drop both.
+        var uri = new Uri(baseUri.GetLeftPart(UriPartial.Path).TrimEnd('/') + "/" + parts[1].TrimStart('/') + baseUri.Query);
 
         try
         {
