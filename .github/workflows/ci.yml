@@ -22,6 +22,9 @@ env:
 # Three parallel jobs, so the fast unit tests don't wait for the broker containers the
 # integration and E2E tests boot through the AppHost. Each job builds on its own; the build is
 # quick next to the container start-up.
+#
+# Tests run the built test assembly directly (xUnit v3 on Microsoft.Testing.Platform) rather than
+# through `dotnet test`, which only prints "Failed: N" here and hides which test failed and why.
 jobs:
   unit:
     name: Build & unit tests
@@ -38,7 +41,7 @@ jobs:
 
       - run: dotnet restore VroksNet.slnx
       - run: dotnet build VroksNet.slnx --no-restore
-      - run: dotnet test tests/VroksNet.UnitTests --no-build
+      - run: dotnet tests/VroksNet.UnitTests/bin/Debug/net10.0/VroksNet.UnitTests.dll
 
   integration:
     name: Integration tests
@@ -67,7 +70,7 @@ jobs:
       - run: dotnet restore VroksNet.slnx
       - run: dotnet build VroksNet.slnx --no-restore
       # Boots the real AppHost graph: RabbitMQ, NATS and Kafka run as Docker containers.
-      - run: dotnet test tests/VroksNet.IntegrationTests --no-build
+      - run: dotnet tests/VroksNet.IntegrationTests/bin/Debug/net10.0/VroksNet.IntegrationTests.dll
 
   e2e:
     name: E2E tests
@@ -98,4 +101,4 @@ jobs:
       - name: Install Playwright Chromium
         run: pwsh tests/VroksNet.E2ETests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
 
-      - run: dotnet test tests/VroksNet.E2ETests --no-build
+      - run: dotnet tests/VroksNet.E2ETests/bin/Debug/net10.0/VroksNet.E2ETests.dll
