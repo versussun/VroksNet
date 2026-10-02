@@ -1,0 +1,110 @@
+# Type 2: Producer test (publish a message)
+
+[← Contract testing guides](README.md)
+
+**Checks:** that a service which consumes messages handles the ones its AsyncAPI spec describes. VroksNet publishes the operation's example (or your own payload) to the broker; what the service then does with it is up to your own assertions (its logs, its database, a follow-up Type 1 or Type 4 test).
+**How:** fire-and-forget. A run passes when the broker accepts the message; nothing is validated.
+
+```
+VroksNet ── publish {"orderId":"ord_1",…} ──▶ RabbitMQ / NATS ──▶ your service
+```
+
+## 1. The spec
+
+An AsyncAPI 3.0 operation with an example payload. `action: receive` means "the service receives this", which is what you publish to:
+
+```yaml
+asyncapi: 3.0.0
+info:
+  title: Shipping Events
+  version: "1.0.0"
+channels:
+  orderShipped:
+    address: orders.shipped
+    messages:
+      orderShipped:
+        $ref: "#/components/messages/OrderShipped"
+operations:
+  consumeOrderShipped:
+    action: receive
+    channel:
+      $ref: "#/channels/orderShipped"
+    messages:
+      - $ref: "#/channels/orderShipped/messages/orderShipped"
+components:
+  messages:
+    OrderShipped:
+      payload:
+        type: object
+        required: [orderId, trackingNumber]
+        properties:
+          orderId: { type: string }
+          trackingNumber: { type: string }
+      examples:
+        - name: Shipped
+          payload:
+            orderId: "ord_1"
+            trackingNumber: "1Z999AA10123456784"
+```
+
+The operation key is `orders.shipped:receive`, so the channel address is `orders.shipped`.
+
+## 2. Where the message goes
+
+| Broker | Published to |
+|---|---|
+| RabbitMQ | the **default exchange** (`""`) with routing key = channel address, i.e. **straight into the queue named `orders.shipped`**. The queue must exist, otherwise RabbitMQ drops the message. |
+| NATS | subject = channel address (`orders.shipped`). Core NATS doesn't queue: the service must be subscribed when you run. |
+
+> Publishing to a named exchange (topic/direct) isn't supported yet. It's planned as Phase G in `docs/contract-testing-plan.md`.
+
+## 3. Create the scenario
+
+Import the spec as **AsyncAPI** and add a **RabbitMQ** or **NATS** connection ([Getting started](getting-started.md)).
+
+**UI:** **Test Scenarios** → **+ Add test scenario**:
+
+| Field | Value |
+|---|---|
+| Name | `Publish order shipped` |
+| Specification | `Shipping Events (AsyncApi)` |
+| Operation | `orders.shipped:receive` |
+| Connection | your RabbitMQ or NATS connection |
+| Mode | **Publish a message to the channel** (the default for `receive` operations) |
+| Payload (optional override) | blank = the spec's example; or your own JSON, e.g. an edge case |
+
+**API:**
+
+```bash
+SCENARIO=$(curl -s -X POST "$API/api/test-scenarios" -H "Content-Type: application/json" -d "{
+  \"name\": \"Publish order shipped\",
+  \"specificationId\": \"$SPEC\",
+  \"mockEndpointId\": \"$OP\",
+  \"connectionId\": \"$CONN\",
+  \"payloadOverride\": \"{\\\"orderId\\\":\\\"ord_42\\\",\\\"trackingNumber\\\":\\\"X1\\\"}\",
+  \"kind\": \"Send\"
+}" | jq -r .id)
+```
+
+## 4. Run it
+
+```bash
+curl -s -X POST "$API/api/test-scenarios/$SCENARIO/run"
+```
+
+```json
+{
+  "success": true,
+  "message": "Published to routing key \"orders.shipped\".",
+  "responseBody": null,
+  "statusCode": null,
+  "contractValidation": null
+}
+```
+
+`success: false` means the broker couldn't be reached or refused the publish; the message says why.
+
+## Good to know
+
+- To check what the service **sends back** after consuming the message, follow up with a [Type 4](type-4-provider-listen.md) scenario on the channel it publishes to.
+- Runs are logged in [Call History](call-history.md) as *Broker publish (out)*, with the payload that was sent.
