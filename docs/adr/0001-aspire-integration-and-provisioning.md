@@ -1,6 +1,6 @@
 # ADR 0001 — VroksNet as an Aspire resource, provisioned at startup
 
-**Status:** Proposed
+**Status:** Accepted (2026-10-02); questions resolved 2026-10-03, except where the NuGet package is published
 **Date:** 2026-10-02
 **Related:** `docs/container-contract.md` (the image contract), `docs/schemas/provisioning-manifest.v1.schema.json` (manifest schema), `docs/project-brief.md` (§3 "Deployment: one process, one image"), `docs/samples/README.md`
 
@@ -49,7 +49,7 @@ Three layers in this repository, plus the package in its own. Each layer is usef
 
 ### 0. Publish the image
 
-GitHub Actions on `master` and on tags: build, unit and integration tests, `docker build`, push to a registry (default `ghcr.io/versussun/vroksnet`, tags `latest` and `vX.Y.Z`). Without this the Aspire package has nothing to run.
+GitHub Actions on `master` and on tags: build, unit and integration tests, `docker build`, push to GHCR (`ghcr.io/versussun/vroksnet`, tags `latest` and `vX.Y.Z`). Without this the Aspire package has nothing to run.
 
 ### 1. Provisioning inside the app
 
@@ -202,9 +202,14 @@ Not an alternative but an **additional delivery method** for layer 1, for CI wit
 5. **A container-to-container prototype** for Kafka, RabbitMQ and NATS: the VroksNet container plus brokers in one AppHost, Send and Listen through `ValueFrom`. If it uncovers a problem on the image side, it's solved by changing the contract in this repository.
 6. **The package itself** and a sample consuming AppHost.
 
+## Resolved questions
+
+Answered on 2026-10-03:
+
+1. **Does the file win over the UI?** **Yes.** On every start, provisioned objects are brought back in line with the manifest, and UI edits to them are lost; the UI marks them "managed by provisioning". This is consistent with re-importing a spec updating it.
+2. **Image registry:** **GHCR**, `ghcr.io/versussun/vroksnet` — published from GitHub Actions, next to the repository. It's the default in `AddVroksNet`.
+3. **`POST /api/system/reset`:** **not now.** Every AppHost run starts with a clean database unless `WithDataVolume()` is used, and consumers' tests can isolate themselves with unique names, as this repository's own tests do. Revisit if a consumer has many tests sharing one run that can't do that.
+
 ## Open questions
 
-1. **Does the file win over the UI** (overwritten on restart), or **"create if missing"**? This ADR assumes the former, consistent with the rule that re-importing a spec replaces the previous one.
-2. **Image registry:** GHCR or the team's internal registry? It determines the default in `AddVroksNet`.
-3. **Where to publish the NuGet package:** nuget.org, GitHub Packages or an internal feed? Decided in the package repository, but it affects where people find the contract docs, so the package README should link to them.
-4. **Is `POST /api/system/reset` needed** to isolate a consumer's tests from each other within one AppHost run? Today only the call history can be cleared.
+1. **Where to publish the NuGet package:** nuget.org, GitHub Packages or an internal feed? Deferred — to be decided in the package repository before its first release. It affects where people find the contract docs, so the package README should link to them.

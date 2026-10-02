@@ -132,7 +132,7 @@ If concurrent writes still become a bottleneck, migrating to PostgreSQL remains 
 
 ## 5. Roadmap
 
-Six phases, each a working increment that can be shown to the team. All of them are done; what comes next is proposed in the ADRs (section 7).
+Six phases, each a working increment that can be shown to the team. All of them are done; what comes next is decided in the accepted ADRs (section 7).
 
 ### Phase 00 — Project skeleton ✅ done
 A Clean Architecture + Aspire solution (`VroksNet.slnx`, all projects under `src/`, `.claude/CLAUDE.md` with the rules); SQLite + EF Core with WAL, busy timeout and writes serialized through a single channel (`DbWriteQueue`/`DbWriteBackgroundService`); NATS and RabbitMQ as Aspire resources in `AppHost`.
@@ -181,5 +181,7 @@ A third broker `Connection` type, `Kafka`: connection testing (a cluster metadat
 
 None from the previous version — both are resolved (see "Response dynamics" and "Specification versioning" in section 2).
 
-- **VroksNet as an Aspire resource, provisioned at startup** (specs, connections and Publishers from files) — proposal and open questions in `docs/adr/0001-aspire-integration-and-provisioning.md`.
-- **Background, delayed and scheduled test runs** (run history, scheduling, CI suites) — proposal and open questions in `docs/adr/0002-background-and-scheduled-test-runs.md`.
+Next steps are decided in two accepted ADRs. Their questions were answered on 2026-10-03; the only one still open is where the Aspire NuGet package is published (ADR 0001).
+
+- **VroksNet as an Aspire resource, provisioned at startup** (specs, connections and Publishers from files; the Aspire package in a separate repository, built on `docs/container-contract.md`) — `docs/adr/0001-aspire-integration-and-provisioning.md`, accepted.
+- **Background, delayed and scheduled test runs** (run history, scheduling, CI suites) — `docs/adr/0002-background-and-scheduled-test-runs.md`, accepted.
