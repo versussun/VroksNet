@@ -11,10 +11,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="JsonPath.Net" />
     <PackageReference Include="JsonSchema.Net" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.OpenApi" />

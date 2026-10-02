@@ -4,7 +4,7 @@ namespace VroksNet.Application.CallRecords.ListCallRecords;
 
 /// <summary>
 /// A call-history row, denormalized for display: names instead of just ids, resolved from whatever
-/// the specification/operation/connection/scenario currently are — null if the call had none, or
+/// the specification/operation/connection/scenario/publisher currently are — null if the call had none, or
 /// "(deleted ...)" if it had one that no longer exists. The request/response bodies aren't
 /// included — they can be large; GetCallRecord fetches them for one record on demand.
 /// </summary>
@@ -20,6 +20,8 @@ public sealed record CallRecordSummary(
     string? ConnectionName,
     Guid? TestScenarioId,
     string? TestScenarioName,
+    Guid? PublisherId,
+    string? PublisherName,
     string? RequestLine,
     int? StatusCode,
     bool? ContractValid,

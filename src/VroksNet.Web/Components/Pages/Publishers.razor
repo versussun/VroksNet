@@ -1,0 +1,462 @@
+@page "/publishers"
+@inject PublisherApiClient PublisherApi
+@inject SpecificationApiClient SpecificationApi
+@inject ConnectionApiClient ConnectionApi
+@inject IJSRuntime JS
+
+<PageTitle>Publishers</PageTitle>
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h1>Publishers</h1>
+        <p class="text-muted mb-0">Async mocks: publish an AsyncAPI operation's message to a RabbitMQ/NATS/Kafka broker on a schedule, or on demand. <code>{{uuid}}</code> and <code>{{now}}</code> in the message are filled in each time.</p>
+    </div>
+    <button type="button" class="btn btn-primary text-nowrap ms-3" @onclick="OpenAddPanel">+ Add publisher</button>
+</div>
+
+@if (errorMessage is not null)
+{
+    <p class="text-danger" role="alert">@errorMessage</p>
+}
+
+@if (_publishers is null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (_publishers.Length == 0)
+{
+    <p><em>No publishers yet.</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Operation</th>
+                <th>Connection</th>
+                <th>Every</th>
+                <th>Running</th>
+                <th>Last publish</th>
+                <th><span class="visually-hidden">Actions</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var publisher in _publishers)
+            {
+                <tr>
+                    <td>@publisher.Name</td>
+                    <td>
+                        <code>@publisher.OperationKey</code>
+                        <br /><small class="text-muted">@publisher.SpecificationTitle</small>
+                    </td>
+                    <td>
+                        @publisher.ConnectionName (@publisher.ConnectionServiceType)
+                        @if (publisher.Exchange is not null)
+                        {
+                            <br /><small class="text-muted">exchange <code>@publisher.Exchange</code></small>
+                        }
+                    </td>
+                    <td>@FormatInterval(publisher.IntervalSeconds)</td>
+                    <td>
+                        <div class="form-check form-switch mb-0">
+                            @* Re-keyed on every reload: after a failed toggle the server's value equals the last
+                               render's, so a plain re-render wouldn't move the box the browser already flipped. *@
+                            <input @key="(publisher.Id, _loadVersion)" class="form-check-input" type="checkbox" role="switch" id="@($"publisher-enabled-{publisher.Id}")"
+                                   checked="@publisher.IsEnabled" disabled="@_toggling.Contains(publisher.Id)"
+                                   @onchange="e => ToggleEnabledAsync(publisher, e.Value is true)" />
+                            <label class="form-check-label visually-hidden" for="@($"publisher-enabled-{publisher.Id}")">Publish @publisher.Name on schedule</label>
+                        </div>
+                    </td>
+                    <td>
+                        @if (publisher.LastPublishedAt is null)
+                        {
+                            <span class="text-muted">Never</span>
+                        }
+                        else
+                        {
+                            <span class="badge @(publisher.LastPublishSuccess == true ? "bg-success" : "bg-danger")">@(publisher.LastPublishSuccess == true ? "OK" : "Failed")</span>
+                            <br />
+                            <small class="text-muted" title="@publisher.LastPublishMessage">@publisher.LastPublishedAt.Value.ToLocalTime().ToString("G")</small>
+                        }
+                    </td>
+                    <td class="text-nowrap">
+                        <button type="button" class="btn btn-outline-primary btn-sm" disabled="@_publishing.Contains(publisher.Id)" @onclick="() => PublishNowAsync(publisher)">
+                            @(_publishing.Contains(publisher.Id) ? "Publishing…" : "Publish now")
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm ms-1" @onclick="() => StartEditAsync(publisher)">Edit</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm ms-1" @onclick="() => DeleteAsync(publisher)">Delete</button>
+                        @if (_publishResults.TryGetValue(publisher.Id, out var result))
+                        {
+                            <div class="mt-1 text-wrap" role="status" aria-label="@($"Publish result for {publisher.Name}")">
+                                <span class="badge @(result.Success ? "bg-success" : "bg-danger")">@(result.Success ? "OK" : "Failed")</span>
+                                <small class="text-muted">@result.Message</small>
+                                @if (result.ContractValidation is { IsValid: false } contract)
+                                {
+                                    <ul class="small text-danger mb-0 mt-1">
+                                        @foreach (var error in contract.Errors ?? [])
+                                        {
+                                            <li>@error</li>
+                                        }
+                                    </ul>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(result.Payload))
+                                {
+                                    <pre class="mt-1 mb-0"><code>@result.Payload</code></pre>
+                                }
+                            </div>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <button type="button" class="btn btn-link btn-sm p-0" @onclick="LoadAsync">Refresh</button>
+}
+
+@if (_isPanelOpen)
+{
+    <div class="publisher-panel-backdrop" @onclick="ClosePanel"></div>
+}
+
+<aside class="publisher-panel @(_isPanelOpen ? "open" : "")">
+    <div class="publisher-panel-header">
+        <h3 class="h6 mb-0">@(_editingId is null ? "Add publisher" : "Edit publisher")</h3>
+        <button type="button" class="btn-close" aria-label="Close" @onclick="ClosePanel"></button>
+    </div>
+
+    <div class="publisher-panel-body">
+        <div class="mb-2">
+            <label class="form-label" for="publisher-name-input">Name</label>
+            <input id="publisher-name-input" class="form-control" @bind="_formName" @bind:event="oninput" placeholder="e.g. Order created every 5s" />
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label" for="publisher-spec-select">Specification</label>
+            <select id="publisher-spec-select" class="form-select" @bind="_formSpecificationId" @bind:after="OnSpecificationChangedAsync">
+                <option value="">Select an AsyncAPI specification…</option>
+                @foreach (var spec in AsyncApiSpecifications)
+                {
+                    <option value="@spec.Id">@spec.Title</option>
+                }
+            </select>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label" for="publisher-operation-select">Operation</label>
+            <select id="publisher-operation-select" class="form-select" @bind="_formMockEndpointId" disabled="@(_specificationEndpoints is null)">
+                <option value="">Select an operation…</option>
+                @if (_specificationEndpoints is not null)
+                {
+                    @foreach (var endpoint in _specificationEndpoints)
+                    {
+                        <option value="@endpoint.Id">@endpoint.OperationKey</option>
+                    }
+                }
+            </select>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label" for="publisher-connection-select">Connection</label>
+            <select id="publisher-connection-select" class="form-select" @bind="_formConnectionId">
+                <option value="">Select a broker connection…</option>
+                @foreach (var connection in BrokerConnections)
+                {
+                    <option value="@connection.Id">@connection.Name (@connection.ServiceType)</option>
+                }
+            </select>
+            @if (_connections is not null && !BrokerConnections.Any())
+            {
+                <div class="form-text text-danger">No RabbitMq/Nats/Kafka connections yet — add one on the Settings page first.</div>
+            }
+        </div>
+
+        @if (SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq)
+        {
+            <div class="mb-2">
+                <label class="form-label" for="publisher-exchange-input">Exchange</label>
+                <input id="publisher-exchange-input" class="form-control" @bind="_formExchange" @bind:event="oninput" placeholder="(default exchange)" aria-describedby="publisher-exchange-help" />
+                <div id="publisher-exchange-help" class="form-text">Published here with the channel address as routing key. Blank publishes straight into the queue named after the channel.</div>
+            </div>
+        }
+
+        <div class="mb-2">
+            <label class="form-label" for="publisher-interval-input">Every (seconds)</label>
+            <input id="publisher-interval-input" type="number" min="@MinIntervalSeconds" max="@MaxIntervalSeconds" class="form-control @(IsIntervalValid ? "" : "is-invalid")"
+                   @bind="_formIntervalText" @bind:event="oninput" aria-describedby="publisher-interval-help" />
+            <div id="publisher-interval-help" class="@(IsIntervalValid ? "form-text" : "invalid-feedback")">A whole number from @MinIntervalSeconds to @MaxIntervalSeconds.</div>
+        </div>
+
+        <div class="mb-2">
+            <label class="form-label" for="publisher-payload-textarea">Payload (optional override)</label>
+            <textarea id="publisher-payload-textarea" class="form-control" rows="4" @bind="_formPayloadOverride" @bind:event="oninput"
+                      placeholder="Leave blank to publish the operation's own example from the spec"></textarea>
+        </div>
+
+        @if (_editingId is null)
+        {
+            <div class="form-check mb-3">
+                <input id="publisher-start-checkbox" class="form-check-input" type="checkbox" @bind="_formStartNow" />
+                <label class="form-check-label" for="publisher-start-checkbox">Start publishing right away</label>
+            </div>
+        }
+
+        @if (_formError is not null)
+        {
+            <p class="text-danger small" role="alert">@_formError</p>
+        }
+
+        <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@(!CanSave || _isSaving)">
+            @(_isSaving ? "Saving…" : _editingId is null ? "Add" : "Save changes")
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm ms-2" @onclick="ClosePanel">Cancel</button>
+    </div>
+</aside>
+
+@code {
+    /// <summary>Mirror the server's PublisherSchedule bounds, only to give feedback before saving — the server still validates.</summary>
+    private const int MinIntervalSeconds = 1;
+    private const int MaxIntervalSeconds = 86400;
+    private const int DefaultIntervalSeconds = 10;
+
+    private PublisherSummary[]? _publishers;
+    private SpecificationSummary[]? _specifications;
+    private ConnectionSummary[]? _connections;
+    private MockEndpointDetail[]? _specificationEndpoints;
+    private readonly HashSet<Guid> _publishing = [];
+    private readonly HashSet<Guid> _toggling = [];
+    private readonly Dictionary<Guid, PublishResult> _publishResults = [];
+    private string? errorMessage;
+    private string? _formError;
+    private bool _isSaving;
+    private bool _isPanelOpen;
+    private int _loadVersion;
+
+    private Guid? _editingId;
+    private string _formName = string.Empty;
+    private string _formSpecificationId = string.Empty;
+    private string _formMockEndpointId = string.Empty;
+    private string _formConnectionId = string.Empty;
+    private string _formExchange = string.Empty;
+    private string _formIntervalText = DefaultIntervalSeconds.ToString();
+    private string _formPayloadOverride = string.Empty;
+    private bool _formStartNow = true;
+
+    private IEnumerable<SpecificationSummary> AsyncApiSpecifications => _specifications?.Where(s => s.Kind == SpecificationKind.AsyncApi) ?? [];
+
+    private IEnumerable<ConnectionSummary> BrokerConnections => _connections?.Where(c => c.ServiceType != ConnectionServiceType.Http) ?? [];
+
+    private ConnectionSummary? SelectedConnection => _connections?.FirstOrDefault(c => c.Id.ToString() == _formConnectionId);
+
+    private bool IsIntervalValid => int.TryParse(_formIntervalText, out var seconds) && seconds is >= MinIntervalSeconds and <= MaxIntervalSeconds;
+
+    private bool CanSave =>
+        !string.IsNullOrWhiteSpace(_formName)
+        && Guid.TryParse(_formSpecificationId, out _)
+        && Guid.TryParse(_formMockEndpointId, out _)
+        && Guid.TryParse(_formConnectionId, out _)
+        && IsIntervalValid;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _specifications = await SpecificationApi.GetAllAsync();
+        _connections = await ConnectionApi.GetAllAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _publishers = await PublisherApi.GetAllAsync();
+            _loadVersion++;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load publishers: {ex.Message}";
+        }
+    }
+
+    private static string FormatInterval(int seconds) => seconds switch
+    {
+        < 60 => $"{seconds}s",
+        _ when seconds % 3600 == 0 => $"{seconds / 3600}h",
+        _ when seconds % 60 == 0 => $"{seconds / 60}m",
+        _ => $"{seconds}s"
+    };
+
+    private async Task OnSpecificationChangedAsync()
+    {
+        _formMockEndpointId = string.Empty;
+        _specificationEndpoints = null;
+
+        if (Guid.TryParse(_formSpecificationId, out var specificationId))
+        {
+            var details = await SpecificationApi.GetByIdAsync(specificationId);
+            _specificationEndpoints = details?.Endpoints.Where(e => !e.RequiresHttpConnection).ToArray();
+        }
+    }
+
+    private void OpenAddPanel()
+    {
+        ResetForm();
+        _isPanelOpen = true;
+    }
+
+    private async Task StartEditAsync(PublisherSummary publisher)
+    {
+        ResetForm();
+        _editingId = publisher.Id;
+        _formName = publisher.Name;
+        _formSpecificationId = publisher.SpecificationId.ToString();
+        await OnSpecificationChangedAsync();
+        _formMockEndpointId = publisher.MockEndpointId.ToString();
+        _formConnectionId = publisher.ConnectionId.ToString();
+        _formExchange = publisher.Exchange ?? string.Empty;
+        _formIntervalText = publisher.IntervalSeconds.ToString();
+        _formPayloadOverride = publisher.PayloadOverride ?? string.Empty;
+        _isPanelOpen = true;
+    }
+
+    private void ClosePanel()
+    {
+        _isPanelOpen = false;
+        ResetForm();
+    }
+
+    private void ResetForm()
+    {
+        _editingId = null;
+        _formName = string.Empty;
+        _formSpecificationId = string.Empty;
+        _formMockEndpointId = string.Empty;
+        _formConnectionId = string.Empty;
+        _formExchange = string.Empty;
+        _formIntervalText = DefaultIntervalSeconds.ToString();
+        _formPayloadOverride = string.Empty;
+        _formStartNow = true;
+        _formError = null;
+        _specificationEndpoints = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!CanSave)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        _formError = null;
+
+        var form = new PublisherForm(
+            _formName,
+            Guid.Parse(_formSpecificationId),
+            Guid.Parse(_formMockEndpointId),
+            Guid.Parse(_formConnectionId),
+            string.IsNullOrWhiteSpace(_formPayloadOverride) ? null : _formPayloadOverride,
+            int.Parse(_formIntervalText),
+            SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq && !string.IsNullOrWhiteSpace(_formExchange) ? _formExchange : null,
+            _formStartNow);
+
+        try
+        {
+            if (_editingId is { } id)
+            {
+                if (!await PublisherApi.UpdateAsync(id, form))
+                {
+                    errorMessage = "That publisher no longer exists — it may have been deleted elsewhere.";
+                }
+            }
+            else
+            {
+                await PublisherApi.CreateAsync(form);
+            }
+
+            ClosePanel();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            // Stays in the panel, so the form can be fixed.
+            _formError = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task ToggleEnabledAsync(PublisherSummary publisher, bool enabled)
+    {
+        _toggling.Add(publisher.Id);
+        errorMessage = null;
+
+        try
+        {
+            if (!await PublisherApi.SetEnabledAsync(publisher.Id, enabled))
+            {
+                errorMessage = "That publisher no longer exists — it may have been deleted elsewhere.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to {(enabled ? "start" : "stop")} '{publisher.Name}': {ex.Message}";
+        }
+        finally
+        {
+            _toggling.Remove(publisher.Id);
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task PublishNowAsync(PublisherSummary publisher)
+    {
+        _publishing.Add(publisher.Id);
+        _publishResults.Remove(publisher.Id);
+
+        try
+        {
+            var result = await PublisherApi.PublishNowAsync(publisher.Id);
+            if (result is null)
+            {
+                errorMessage = "That publisher no longer exists — it may have been deleted elsewhere.";
+            }
+            else
+            {
+                _publishResults[publisher.Id] = result;
+            }
+
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _publishResults[publisher.Id] = new PublishResult(false, ex.Message, null, null);
+        }
+        finally
+        {
+            _publishing.Remove(publisher.Id);
+        }
+    }
+
+    private async Task DeleteAsync(PublisherSummary publisher)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Delete publisher '{publisher.Name}'?");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        try
+        {
+            await PublisherApi.DeleteAsync(publisher.Id);
+            _publishResults.Remove(publisher.Id);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to delete publisher: {ex.Message}";
+        }
+    }
+}

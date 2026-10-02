@@ -11,6 +11,7 @@ public sealed class CallRecordNameResolver(IDbContextFactory<VroksNetDbContext> 
         IReadOnlyCollection<Guid> mockEndpointIds,
         IReadOnlyCollection<Guid> connectionIds,
         IReadOnlyCollection<Guid> testScenarioIds,
+        IReadOnlyCollection<Guid> publisherIds,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -31,6 +32,10 @@ public sealed class CallRecordNameResolver(IDbContextFactory<VroksNetDbContext> 
             .Where(scenario => testScenarioIds.Contains(scenario.Id))
             .ToDictionaryAsync(scenario => scenario.Id, scenario => scenario.Name, cancellationToken);
 
-        return new CallRecordNames(specificationTitles, operationKeys, connectionNames, testScenarioNames);
+        var publisherNames = publisherIds.Count == 0 ? [] : await context.Publishers
+            .Where(publisher => publisherIds.Contains(publisher.Id))
+            .ToDictionaryAsync(publisher => publisher.Id, publisher => publisher.Name, cancellationToken);
+
+        return new CallRecordNames(specificationTitles, operationKeys, connectionNames, testScenarioNames, publisherNames);
     }
 }

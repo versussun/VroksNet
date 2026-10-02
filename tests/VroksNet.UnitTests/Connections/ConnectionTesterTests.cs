@@ -61,6 +61,29 @@ public class ConnectionTesterTests
         Assert.False(string.IsNullOrWhiteSpace(result.Message));
     }
 
+    [Theory]
+    [InlineData("security.protocol=SASL_SSL;sasl.username=u")]
+    [InlineData("bootstrap.servers=host:9092;not-a-pair")]
+    [InlineData("   ")]
+    public async Task TestAsync_Kafka_InvalidConnectionString_FailsWithoutAttemptingAnyRequest(string value)
+    {
+        var result = await Tester.TestAsync(Connection("Kafka", value), TestContext.Current.CancellationToken);
+
+        Assert.False(result.Success);
+        Assert.StartsWith("Not a valid Kafka connection string", result.Message);
+    }
+
+    [Theory]
+    [InlineData("127.0.0.1:1")]
+    [InlineData("bootstrap.servers=127.0.0.1:1;client.id=vroksnet-test")]
+    public async Task TestAsync_Kafka_ClosedPort_Fails(string value)
+    {
+        var result = await Tester.TestAsync(Connection("Kafka", value), TestContext.Current.CancellationToken);
+
+        Assert.False(result.Success);
+        Assert.False(string.IsNullOrWhiteSpace(result.Message));
+    }
+
     private static Connection Connection(string serviceType, string value) => new()
     {
         Id = Guid.NewGuid(),

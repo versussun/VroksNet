@@ -145,6 +145,7 @@ else
                 <option value="@ConnectionServiceType.Http">HTTP</option>
                 <option value="@ConnectionServiceType.RabbitMq">RabbitMQ</option>
                 <option value="@ConnectionServiceType.Nats">NATS</option>
+                <option value="@ConnectionServiceType.Kafka">Kafka</option>
             </select>
         </div>
 
@@ -206,6 +207,7 @@ else
         ConnectionServiceType.Http => "https://api.example.com",
         ConnectionServiceType.RabbitMq => "amqp://user:password@host:5672/vhost",
         ConnectionServiceType.Nats => "nats://user:password@host:4222",
+        ConnectionServiceType.Kafka => "host:9092,host2:9092 — or bootstrap.servers=host:9092;security.protocol=SASL_SSL;…",
         _ => string.Empty
     };
 

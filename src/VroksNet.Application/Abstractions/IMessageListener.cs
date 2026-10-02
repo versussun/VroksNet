@@ -4,7 +4,7 @@ namespace VroksNet.Application.Abstractions;
 
 /// <summary>
 /// The receiving counterpart of <see cref="IMessageSender"/>: waits for the next message on an
-/// AsyncAPI operation's channel ("channel/address:action") through a RabbitMq/Nats
+/// AsyncAPI operation's channel ("channel/address:action") through a RabbitMq/Nats/Kafka
 /// <see cref="Connection"/>. Short-lived — subscribes for one run and cleans up after itself,
 /// without taking messages away from the channel's real consumers.
 /// </summary>

@@ -36,6 +36,9 @@ public sealed class CallRecord
     /// <summary>The <see cref="TestScenarios.TestScenario"/> whose run produced this record, if any — null for an ordinary inbound mock call.</summary>
     public Guid? TestScenarioId { get; set; }
 
+    /// <summary>The <see cref="Publishers.Publisher"/> whose publish produced this record, if any.</summary>
+    public Guid? PublisherId { get; set; }
+
     /// <summary>Whether the call matched the spec's contract — null when nothing was validated (no schema to validate against, or a call kind that isn't validated).</summary>
     public bool? ContractValid { get; set; }
 

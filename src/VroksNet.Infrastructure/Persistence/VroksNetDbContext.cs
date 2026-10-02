@@ -5,6 +5,7 @@ using VroksNet.Domain.ApiSpecifications;
 using VroksNet.Domain.CallRecords;
 using VroksNet.Domain.Connections;
 using VroksNet.Domain.MockEndpoints;
+using VroksNet.Domain.Publishers;
 using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Infrastructure.Persistence;
@@ -20,6 +21,8 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
     public DbSet<Connection> Connections => Set<Connection>();
 
     public DbSet<TestScenario> TestScenarios => Set<TestScenario>();
+
+    public DbSet<Publisher> Publishers => Set<Publisher>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -73,5 +76,9 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
         });
 
         modelBuilder.Entity<TestScenario>(entity => entity.HasKey(scenario => scenario.Id));
+
+        // Read whole by the worker every second and filtered in memory (PublisherSchedule.IsDue) —
+        // there are only ever a handful, so LastPublishedAt never needs ordering in SQL.
+        modelBuilder.Entity<Publisher>(entity => entity.HasKey(publisher => publisher.Id));
     }
 }

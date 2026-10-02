@@ -32,6 +32,11 @@ public sealed class CallRecordRepository(
             query = query.Where(record => record.MockEndpointId == mockEndpointId);
         }
 
+        if (filter.PublisherId is { } publisherId)
+        {
+            query = query.Where(record => record.PublisherId == publisherId);
+        }
+
         if (filter.TestScenarioId is { } testScenarioId)
         {
             query = query.Where(record => record.TestScenarioId == testScenarioId);

@@ -1,4 +1,5 @@
 using System.Text;
+using Confluent.Kafka;
 using NATS.Client.Core;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
@@ -11,9 +12,9 @@ namespace VroksNet.Infrastructure.Connections;
 /// <summary>
 /// Actually sends a message to a <see cref="Connection"/>'s target: an HTTP request for
 /// <see cref="ConnectionServiceType.Http"/> (built from the operation key's "METHOD /path"), or a
-/// real broker publish for RabbitMq/Nats (routing key/subject = the operation key's channel
-/// address — see <see cref="OperationCompatibility"/>). Deliberately doesn't reuse the
-/// Aspire-wired dev "rabbitmq"/"nats" resources from AppHost.cs — same reasoning as
+/// real broker publish for RabbitMq/Nats/Kafka (routing key/subject/topic = the operation key's
+/// channel address — see <see cref="OperationCompatibility"/>). Deliberately doesn't reuse the
+/// Aspire-wired dev "rabbitmq"/"nats"/"kafka" resources from AppHost.cs — same reasoning as
 /// <see cref="ConnectionTester"/>, which this otherwise mirrors closely (see its doc comment and
 /// .claude/CLAUDE.md "Infrastructure notes").
 /// </summary>
@@ -26,6 +27,7 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
         ConnectionServiceType.Http => SendHttpAsync(connection.Value, operationKey, payload, cancellationToken),
         ConnectionServiceType.RabbitMq => PublishRabbitMqAsync(connection.Value, operationKey, payload, exchange ?? string.Empty, cancellationToken),
         ConnectionServiceType.Nats => PublishNatsAsync(connection.Value, operationKey, payload, cancellationToken),
+        ConnectionServiceType.Kafka => PublishKafkaAsync(connection.Value, operationKey, payload, cancellationToken),
         _ => Task.FromResult(new MessageSendResult(false, $"Unsupported service type '{connection.ServiceType}'."))
     };
 
@@ -142,6 +144,42 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return new MessageSendResult(false, ex.Message);
+        }
+    }
+
+    private static async Task<MessageSendResult> PublishKafkaAsync(string connectionString, string operationKey, string? payload, CancellationToken cancellationToken)
+    {
+        var topic = OperationCompatibility.ChannelAddressOf(operationKey);
+        if (topic is null)
+        {
+            return new MessageSendResult(false, "This operation isn't AsyncAPI-shaped (expected \"channel:action\") — it can't be published to a Kafka connection.");
+        }
+
+        var config = KafkaClients.ConfigFrom(connectionString);
+        if (config is null)
+        {
+            return new MessageSendResult(false, KafkaClients.InvalidConnectionStringMessage);
+        }
+
+        try
+        {
+            using var producer = KafkaClients.CreateProducer(config, Timeout);
+            // Completes once the broker acknowledges the write (or message.timeout.ms runs out),
+            // so success here means the message really is on the topic.
+            var delivery = await producer.ProduceAsync(topic, new Message<Null, string> { Value = payload ?? string.Empty }, cancellationToken);
+            return new MessageSendResult(true, $"Published to topic \"{topic}\" (partition {delivery.Partition.Value}, offset {delivery.Offset.Value}).");
+        }
+        catch (ProduceException<Null, string> ex) when (ex.Error.Code == ErrorCode.Local_MsgTimedOut)
+        {
+            return new MessageSendResult(false, $"Timed out after {Timeout.TotalSeconds:0}s — the broker didn't acknowledge the message.");
+        }
+        catch (ProduceException<Null, string> ex) when (ex.Error.Code is ErrorCode.UnknownTopicOrPart or ErrorCode.Local_UnknownTopic)
+        {
+            return new MessageSendResult(false, $"Topic \"{topic}\" doesn't exist on this broker (and the broker doesn't auto-create topics).");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new MessageSendResult(false, ex is KafkaException kafka ? kafka.Error.Reason : ex.Message);
         }
     }
 }

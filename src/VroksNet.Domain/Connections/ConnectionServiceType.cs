@@ -5,5 +5,6 @@ public enum ConnectionServiceType
 {
     Http,
     RabbitMq,
-    Nats
+    Nats,
+    Kafka
 }

@@ -23,11 +23,11 @@ public static class TestScenarioListening
         => OperationCompatibility.ChannelAddressOf(operationKey) is { } address && SubscriptionPatternOf(address) is not null;
 
     /// <summary>
-    /// The RabbitMQ topic binding key / NATS subject to subscribe with for a channel address: each
-    /// "."-separated segment that is a whole AsyncAPI parameter ("{region}") becomes the one-segment
-    /// wildcard "*", which means the same thing in both brokers ("orders.{region}.created" →
-    /// "orders.*.created"). Null if a parameter is only part of a segment, since neither broker can
-    /// match that. Addresses without parameters are used as-is.
+    /// The RabbitMQ topic binding key / NATS subject / Kafka topic pattern to subscribe with for a
+    /// channel address: each "."-separated segment that is a whole AsyncAPI parameter ("{region}")
+    /// becomes the one-segment wildcard "*", which means the same thing in RabbitMQ and NATS
+    /// ("orders.{region}.created" → "orders.*.created"; the Kafka listener turns it into a topic
+    /// regex). Null if a parameter is only part of a segment, since no broker can match that. Addresses without parameters are used as-is.
     /// </summary>
     public static string? SubscriptionPatternOf(string channelAddress)
     {

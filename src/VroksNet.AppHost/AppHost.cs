@@ -2,6 +2,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 var rabbitmq = builder.AddRabbitMQ("rabbitmq");
 var nats = builder.AddNats("nats");
+var kafka = builder.AddKafka("kafka");
 
 // Pinned to a fixed port: under AppHost orchestration, Aspire assigns each project resource a
 // random port every run rather than honoring its launchSettings.json applicationUrl — confirmed
@@ -23,8 +24,10 @@ var apiService = builder.AddProject<Projects.VroksNet_ApiService>("apiservice")
     .WithHttpHealthCheck("/health")
     .WithReference(rabbitmq)
     .WithReference(nats)
+    .WithReference(kafka)
     .WaitFor(rabbitmq)
-    .WaitFor(nats);
+    .WaitFor(nats)
+    .WaitFor(kafka);
 
 // VroksNet.Web is a standalone Blazor WebAssembly app (Microsoft.NET.Sdk.BlazorWebAssembly).
 // `dotnet run` on it launches its built-in dev server for local hot reload; in Production it

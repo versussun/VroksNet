@@ -12,5 +12,6 @@ public interface ICallRecordNameResolver
         IReadOnlyCollection<Guid> mockEndpointIds,
         IReadOnlyCollection<Guid> connectionIds,
         IReadOnlyCollection<Guid> testScenarioIds,
+        IReadOnlyCollection<Guid> publisherIds,
         CancellationToken cancellationToken);
 }

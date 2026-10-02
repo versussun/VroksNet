@@ -10,14 +10,14 @@
 dotnet run --project src/VroksNet.AppHost
 ```
 
-This starts the API, the Admin UI, and RabbitMQ and NATS containers (Docker must be running). Open the Aspire dashboard link printed in the console. The `webfrontend` resource's URL there is the Admin UI.
+This starts the API, the Admin UI, and RabbitMQ, NATS and Kafka containers (Docker must be running). Open the Aspire dashboard link printed in the console. The `webfrontend` resource's URL there is the Admin UI.
 
 | What | Address |
 |---|---|
 | API | `https://localhost:7352` |
 | Admin UI | the `webfrontend` URL in the Aspire dashboard |
 | Provider port (Type 3 mock) | `http://localhost:7353` |
-| RabbitMQ / NATS | connection strings in the Aspire dashboard (`rabbitmq` / `nats` resources) |
+| RabbitMQ / NATS / Kafka | connection strings in the Aspire dashboard (`rabbitmq` / `nats` / `kafka` resources) |
 
 ### In Docker
 
@@ -34,7 +34,7 @@ docker run -d --name vroksnet \
 | API and Admin UI | `http://localhost:8080` |
 | Provider port (Type 3 mock) | `http://localhost:7353` |
 
-Data is kept in the `vroksnet-data` volume. Brokers are not part of the image; use your own RabbitMQ / NATS.
+Data is kept in the `vroksnet-data` volume. Brokers are not part of the image; use your own RabbitMQ / NATS / Kafka.
 
 ### API examples in these guides
 
@@ -61,6 +61,7 @@ For each operation VroksNet keeps the example (used as the message to send or th
 | HTTP | base URL (may include a path and query) | `https://orders.internal/api/v1` |
 | RabbitMQ | AMQP connection string | `amqp://user:password@rabbit:5672/vhost` |
 | NATS | NATS URL | `nats://user:password@nats:4222` |
+| Kafka | bootstrap servers, or librdkafka `key=value;…` settings with `bootstrap.servers` (for SASL/TLS) | `kafka1:9092,kafka2:9092` or `bootstrap.servers=kafka:9093;security.protocol=SASL_SSL;sasl.mechanism=PLAIN;sasl.username=u;sasl.password=p` |
 
 Use **Test connection** in the form (or the **Test** button in the list) to check it's reachable.
 

@@ -12,6 +12,7 @@ public sealed record ListCallRecords(
     Guid? SpecificationId = null,
     Guid? MockEndpointId = null,
     Guid? TestScenarioId = null,
+    Guid? PublisherId = null,
     CallDirection? Direction = null,
     bool? ContractValid = null,
     string? Cursor = null,
