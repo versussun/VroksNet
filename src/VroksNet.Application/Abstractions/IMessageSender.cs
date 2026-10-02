@@ -15,6 +15,8 @@ public interface IMessageSender
 /// <summary>
 /// <see cref="Message"/> is safe to show verbatim in the UI. <see cref="ResponseBody"/> is only
 /// ever populated for an HTTP send (the real response body) — a broker publish has no synchronous
-/// response to show.
+/// response to show; likewise <see cref="StatusCode"/>, the HTTP response's status code.
+/// <see cref="Success"/> only means the send itself went through (any HTTP response counts) —
+/// whether the response matches the spec is checked separately by the caller.
 /// </summary>
-public sealed record MessageSendResult(bool Success, string Message, string? ResponseBody = null);
+public sealed record MessageSendResult(bool Success, string Message, string? ResponseBody = null, int? StatusCode = null);

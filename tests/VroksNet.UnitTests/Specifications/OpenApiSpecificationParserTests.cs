@@ -1,3 +1,4 @@
+using VroksNet.Infrastructure.SchemaValidation;
 using VroksNet.Infrastructure.Specifications;
 
 namespace VroksNet.UnitTests.Specifications;
@@ -51,6 +52,45 @@ public class OpenApiSpecificationParserTests
         var listPets = result.Operations.Single(operation => operation.OperationKey == "GET /pets");
         Assert.Null(listPets.RequestSchemaJson);
         Assert.NotNull(listPets.ResponseSchemaJson);
+    }
+
+    [Fact]
+    public async Task ParseAsync_ExtractsEveryDeclaredResponseSchemaKeyedByStatus()
+    {
+        var yaml = await File.ReadAllTextAsync(FixturePath("response-statuses-openapi.yaml"), TestContext.Current.CancellationToken);
+
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+
+        var schemas = Assert.Single(result.Operations).ResponseSchemasByStatus;
+        Assert.NotNull(schemas);
+        Assert.Equal(new[] { "200", "404", "5XX", "default" }, schemas.Keys.Order(StringComparer.Ordinal));
+
+        Assert.NotNull(schemas["200"]);
+        Assert.DoesNotContain("$ref", schemas["200"]);
+        Assert.Contains("\"id\"", schemas["200"]);
+        Assert.Contains("\"message\"", schemas["404"]);
+
+        // Declared, but with no JSON body — the key is kept so the status counts as declared.
+        Assert.Null(schemas["5XX"]);
+        Assert.Null(schemas["default"]);
+    }
+
+    [Fact]
+    public async Task ParseAsync_RecursiveSchema_CarriesComponentsAsDefsSoItValidatesStandalone()
+    {
+        var yaml = await File.ReadAllTextAsync(FixturePath("recursive-openapi.yaml"), TestContext.Current.CancellationToken);
+
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+
+        var schema = Assert.Single(result.Operations).ResponseSchemasByStatus!["200"];
+        Assert.NotNull(schema);
+        Assert.DoesNotContain("#/components/", schema);
+        Assert.Contains("\"$defs\"", schema);
+
+        var validator = new SchemaValidator();
+        Assert.True(validator.Validate(schema, """{"name":"root","children":[{"name":"leaf","children":[]}]}""").IsValid);
+        // The violation is two levels deep — past the one level Microsoft.OpenApi inlines.
+        Assert.False(validator.Validate(schema, """{"name":"root","children":[{"name":"a","children":[{"children":[]}]}]}""").IsValid);
     }
 
     [Fact]

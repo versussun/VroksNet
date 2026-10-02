@@ -74,6 +74,26 @@ public sealed class ApiSpecificationRepositoryTests : IAsyncLifetime
         Assert.Equal(3, stored.Endpoints.Count);
     }
 
+    [Fact]
+    public async Task UpsertAsync_ResponseSchemasByStatus_RoundTripsIncludingNullSchemas()
+    {
+        var specification = CreateSpecification("Pets API", "GET /pets");
+        specification.Endpoints.Single().ResponseSchemasByStatus = new Dictionary<string, string?>
+        {
+            ["200"] = """{"type":"array"}""",
+            ["404"] = null
+        };
+
+        await _repository.UpsertAsync(specification, TestContext.Current.CancellationToken);
+
+        var stored = await _repository.FindByTitleAsync("Pets API", TestContext.Current.CancellationToken);
+        var schemas = Assert.Single(stored!.Endpoints).ResponseSchemasByStatus;
+        Assert.Equal(2, schemas.Count);
+        Assert.Equal("""{"type":"array"}""", schemas["200"]);
+        Assert.True(schemas.ContainsKey("404"));
+        Assert.Null(schemas["404"]);
+    }
+
     private static ApiSpecification CreateSpecification(string title, params string[] operationKeys)
     {
         var specification = new ApiSpecification

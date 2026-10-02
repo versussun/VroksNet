@@ -18,6 +18,14 @@ public sealed class AppHostFixture : IAsyncLifetime
     /// <summary>HttpClient pointed at apiservice's pinned "https" endpoint (see AppHost.cs).</summary>
     public HttpClient ApiServiceClient { get; private set; } = null!;
 
+    /// <summary>
+    /// apiservice's plain-http address. Use it as an Http connection's URL whenever ApiService
+    /// has to call <em>itself</em> (e.g. a TestScenario run): that send happens server-side
+    /// through MessageSender's ordinary HttpClient, which only trusts the https dev certificate
+    /// on machines where it's been trusted (`dotnet dev-certs https --trust`) — not on a CI box.
+    /// </summary>
+    public Uri ApiServiceHttpAddress { get; private set; } = null!;
+
     public async ValueTask InitializeAsync()
     {
         // No TestContext exists yet during fixture construction — CancellationToken.None is the
@@ -36,6 +44,7 @@ public sealed class AppHostFixture : IAsyncLifetime
         await App.ResourceNotifications.WaitForResourceHealthyAsync("apiservice", cancellationToken).WaitAsync(StartupTimeout, cancellationToken);
 
         ApiServiceClient = App.CreateHttpClient("apiservice", "https");
+        ApiServiceHttpAddress = App.GetEndpoint("apiservice", "http");
     }
 
     public async ValueTask DisposeAsync()

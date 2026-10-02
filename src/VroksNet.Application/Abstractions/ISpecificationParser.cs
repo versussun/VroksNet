@@ -22,7 +22,17 @@ public interface ISpecificationParser
 /// message payload schema (there's no request/response split for pub/sub; "the schema of what
 /// you receive" is close enough in spirit to reuse this field rather than add a third one).
 /// </param>
-public sealed record ParsedOperation(string OperationKey, string? ExampleJson, string? RequestSchemaJson = null, string? ResponseSchemaJson = null);
+/// <param name="ResponseSchemasByStatus">
+/// OpenAPI only: every declared response keyed by its status key ("200", "4XX" — range keys
+/// upper-cased — or "default"), mapped to that response's JSON body schema (self-contained the
+/// same way), or null if it declares no JSON body. Null for AsyncAPI.
+/// </param>
+public sealed record ParsedOperation(
+    string OperationKey,
+    string? ExampleJson,
+    string? RequestSchemaJson = null,
+    string? ResponseSchemaJson = null,
+    IReadOnlyDictionary<string, string?>? ResponseSchemasByStatus = null);
 
 /// <summary>Title (the version-matching key) plus its flat list of operations.</summary>
 public sealed record ParsedSpecification(string Title, IReadOnlyList<ParsedOperation> Operations);

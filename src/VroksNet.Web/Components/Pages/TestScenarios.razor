@@ -79,6 +79,21 @@ else
                             <div class="mt-1">
                                 <span class="badge @(runResult.Success ? "bg-success" : "bg-danger")">@(runResult.Success ? "OK" : "Failed")</span>
                                 <small class="text-muted">@runResult.Message</small>
+                                @if (runResult.ContractValidation is { } contract)
+                                {
+                                    <div class="mt-1" role="status" aria-label="Contract check">
+                                        <span class="badge @(contract.IsValid ? "bg-success" : "bg-warning text-dark")">@(contract.IsValid ? "Matches spec" : "Contract violated")</span>
+                                        @if (!contract.IsValid)
+                                        {
+                                            <ul class="small text-danger mb-0 mt-1">
+                                                @foreach (var error in contract.Errors ?? [])
+                                                {
+                                                    <li>@error</li>
+                                                }
+                                            </ul>
+                                        }
+                                    </div>
+                                }
                                 @if (!string.IsNullOrWhiteSpace(runResult.ResponseBody))
                                 {
                                     <pre class="mt-1 mb-0"><code>@runResult.ResponseBody</code></pre>

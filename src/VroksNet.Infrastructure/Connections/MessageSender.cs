@@ -54,7 +54,7 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
             var client = httpClientFactory.CreateClient(nameof(MessageSender));
             using var response = await client.SendAsync(request, cancellationToken).WaitAsync(Timeout, cancellationToken);
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            return new MessageSendResult(true, $"{(int)response.StatusCode} {response.StatusCode}", body);
+            return new MessageSendResult(true, $"{(int)response.StatusCode} {response.StatusCode}", body, (int)response.StatusCode);
         }
         catch (TimeoutException)
         {

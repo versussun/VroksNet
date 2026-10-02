@@ -61,4 +61,15 @@ public class SchemaValidatorTests
         Assert.False(result.IsValid);
         Assert.NotEmpty(result.Errors);
     }
+
+    [Fact]
+    public void Validate_UnresolvableRef_ReturnsErrorInsteadOfThrowing()
+    {
+        const string schema = """{ "type": "object", "properties": { "child": { "$ref": "#/components/schemas/Missing" } } }""";
+
+        var result = _validator.Validate(schema, """{"child":{}}""");
+
+        Assert.False(result.IsValid);
+        Assert.Contains("couldn't be evaluated", Assert.Single(result.Errors));
+    }
 }

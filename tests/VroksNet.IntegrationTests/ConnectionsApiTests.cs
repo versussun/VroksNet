@@ -72,7 +72,7 @@ public sealed class ConnectionsApiTests(AppHostFixture fixture)
         var client = fixture.ApiServiceClient;
 
         // Reachable: point it back at the booted ApiService's own health endpoint.
-        var reachableId = await CreateConnectionAsync(client, "Http", new Uri(client.BaseAddress!, "/health").ToString(), cancellationToken);
+        var reachableId = await CreateConnectionAsync(client, "Http", new Uri(fixture.ApiServiceHttpAddress, "/health").ToString(), cancellationToken);
         var reachableResult = await TestConnectionAsync(client, reachableId, cancellationToken);
         Assert.True(reachableResult!["success"]!.GetValue<bool>());
 

@@ -1,0 +1,41 @@
+# One operation declaring several responses — exercises OpenApiSpecificationParser's
+# ResponseSchemasByStatus extraction: an exact code with a $ref'd schema, one with an inline
+# schema, a lower-case range key with no body, and "default" with a non-JSON body.
+openapi: 3.0.3
+info:
+  title: Response Statuses Sample API
+  version: "1.0.0"
+paths:
+  /pets/{id}:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pet"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "5xx":
+          description: Server error, no body
+        default:
+          description: Anything else
+          content:
+            text/plain:
+              schema:
+                type: string
+components:
+  schemas:
+    Pet:
+      type: object
+      properties:
+        id:
+          type: integer

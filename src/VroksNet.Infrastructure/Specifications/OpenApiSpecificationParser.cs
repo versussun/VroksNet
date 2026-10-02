@@ -24,6 +24,14 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
     // around as context once RequestSchemaJson/ResponseSchemaJson are stored on MockEndpoint.
     private static readonly OpenApiWriterSettings SchemaWriterSettings = new() { InlineLocalReferences = true };
 
+    // A recursive schema can't be fully inlined: Microsoft.OpenApi inlines one level and leaves
+    // "$ref": "#/components/schemas/X" at the cycle. Those components are copied into the
+    // extracted schema's own "$defs" (serialized with their refs as-is) and every such ref is
+    // rewritten to "#/$defs/X", so the schema still resolves standalone.
+    private static readonly OpenApiWriterSettings ComponentWriterSettings = new();
+
+    private const string ComponentSchemaRefPrefix = "#/components/schemas/";
+
     public async Task<ParsedSpecification> ParseAsync(string rawContent, CancellationToken cancellationToken)
     {
         var settings = new OpenApiReaderSettings();
@@ -49,7 +57,7 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
                 foreach (var operation in pathItem.Value.Operations ?? [])
                 {
                     var operationKey = $"{operation.Key.ToString().ToUpperInvariant()} {pathItem.Key}";
-                    operations.Add(await ParseOperationAsync(operationKey, operation.Value, cancellationToken));
+                    operations.Add(await ParseOperationAsync(operationKey, operation.Value, document.Components?.Schemas, cancellationToken));
                 }
             }
         }
@@ -57,7 +65,11 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
         return new ParsedSpecification(title, operations);
     }
 
-    private static async Task<ParsedOperation> ParseOperationAsync(string operationKey, OpenApiOperation operation, CancellationToken cancellationToken)
+    private static async Task<ParsedOperation> ParseOperationAsync(
+        string operationKey,
+        OpenApiOperation operation,
+        IDictionary<string, IOpenApiSchema>? componentSchemas,
+        CancellationToken cancellationToken)
     {
         var requestMediaType = JsonMediaTypeOf(operation.RequestBody?.Content);
         var firstJsonResponse = operation.Responses?
@@ -69,30 +81,112 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
         // body's; null if the spec has neither.
         var example = firstJsonResponse?.Example ?? requestMediaType?.Example;
 
+        // Every declared response, not just the first — a contract check has to validate whatever
+        // status the real service actually returns against that status's own schema.
+        var responseSchemasByStatus = new Dictionary<string, string?>();
+        foreach (var response in operation.Responses ?? [])
+        {
+            var statusKey = response.Key.Equals("default", StringComparison.OrdinalIgnoreCase) ? "default" : response.Key.ToUpperInvariant();
+            responseSchemasByStatus[statusKey] = await ExtractSchemaJsonAsync(JsonMediaTypeOf(response.Value.Content)?.Schema, componentSchemas, cancellationToken);
+        }
+
         return new ParsedOperation(
             operationKey,
             example?.ToJsonString(ExampleJsonOptions),
-            await ExtractSchemaJsonAsync(requestMediaType?.Schema, cancellationToken),
-            await ExtractSchemaJsonAsync(firstJsonResponse?.Schema, cancellationToken));
+            await ExtractSchemaJsonAsync(requestMediaType?.Schema, componentSchemas, cancellationToken),
+            await ExtractSchemaJsonAsync(firstJsonResponse?.Schema, componentSchemas, cancellationToken),
+            responseSchemasByStatus);
     }
 
     private static IOpenApiMediaType? JsonMediaTypeOf(IDictionary<string, IOpenApiMediaType>? content)
         => content is not null && content.TryGetValue("application/json", out var mediaType) ? mediaType : null;
 
-    private static async Task<string?> ExtractSchemaJsonAsync(IOpenApiSchema? schema, CancellationToken cancellationToken)
+    private static async Task<string?> ExtractSchemaJsonAsync(
+        IOpenApiSchema? schema,
+        IDictionary<string, IOpenApiSchema>? componentSchemas,
+        CancellationToken cancellationToken)
     {
         if (schema is null)
         {
             return null;
         }
 
+        var root = await SerializeSchemaAsync(schema, SchemaWriterSettings, cancellationToken);
+
+        var pending = new Queue<string>(RewriteComponentRefs(root));
+        if (pending.Count > 0 && root is JsonObject rootObject)
+        {
+            var defs = new JsonObject();
+            while (pending.TryDequeue(out var name))
+            {
+                // A ref to a component that doesn't exist stays unresolved — SchemaValidator
+                // reports that as a violation instead of throwing.
+                if (defs.ContainsKey(name) || componentSchemas is null || !componentSchemas.TryGetValue(name, out var component))
+                {
+                    continue;
+                }
+
+                var definition = await SerializeSchemaAsync(component, ComponentWriterSettings, cancellationToken);
+                defs[name] = definition;
+                foreach (var referenced in RewriteComponentRefs(definition))
+                {
+                    pending.Enqueue(referenced);
+                }
+            }
+
+            rootObject["$defs"] = defs;
+        }
+
+        // Re-serialized indented, purely for readability when inspected/debugged — the same
+        // treatment ExampleJsonOptions already gives the example JSON above.
+        return root?.ToJsonString(ExampleJsonOptions);
+    }
+
+    private static async Task<JsonNode?> SerializeSchemaAsync(IOpenApiSchema schema, OpenApiWriterSettings settings, CancellationToken cancellationToken)
+    {
         using var stringWriter = new StringWriter();
-        var writer = new OpenApiJsonWriter(stringWriter, SchemaWriterSettings);
+        var writer = new OpenApiJsonWriter(stringWriter, settings);
         schema.SerializeAsV31(writer);
         await writer.FlushAsync(cancellationToken);
+        return JsonNode.Parse(stringWriter.ToString());
+    }
 
-        // Re-parse + re-serialize indented, purely for readability when inspected/debugged —
-        // the same treatment ExampleJsonOptions already gives the example JSON above.
-        return JsonNode.Parse(stringWriter.ToString())?.ToJsonString(ExampleJsonOptions);
+    /// <summary>Rewrites every "#/components/schemas/X" ref under <paramref name="node"/> to "#/$defs/X", returning the component names it pointed at.</summary>
+    private static List<string> RewriteComponentRefs(JsonNode? node)
+    {
+        var names = new List<string>();
+        Visit(node);
+        return names;
+
+        void Visit(JsonNode? current)
+        {
+            switch (current)
+            {
+                case JsonObject obj:
+                    if (obj["$ref"] is JsonValue refValue
+                        && refValue.TryGetValue<string>(out var reference)
+                        && reference.StartsWith(ComponentSchemaRefPrefix, StringComparison.Ordinal))
+                    {
+                        var name = reference[ComponentSchemaRefPrefix.Length..];
+                        names.Add(name);
+                        obj["$ref"] = $"#/$defs/{name}";
+                    }
+
+                    foreach (var property in obj.ToList())
+                    {
+                        Visit(property.Value);
+                    }
+
+                    break;
+
+                case JsonArray array:
+                    foreach (var item in array)
+                    {
+                        Visit(item);
+                    }
+
+                    break;
+            }
+        }
     }
 }

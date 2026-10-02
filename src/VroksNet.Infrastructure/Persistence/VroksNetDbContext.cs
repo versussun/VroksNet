@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using VroksNet.Domain.ApiSpecifications;
 using VroksNet.Domain.CallRecords;
 using VroksNet.Domain.Connections;
@@ -33,7 +35,22 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<MockEndpoint>(entity => entity.HasKey(endpoint => endpoint.Id));
+        modelBuilder.Entity<MockEndpoint>(entity =>
+        {
+            entity.HasKey(endpoint => endpoint.Id);
+            // Stored as one JSON object column — it's only ever read/written whole, together with
+            // its endpoint, so a child table would add joins for nothing.
+            entity.Property(endpoint => endpoint.ResponseSchemasByStatus)
+                .HasConversion(
+                    schemas => JsonSerializer.Serialize(schemas, (JsonSerializerOptions?)null),
+                    json => JsonSerializer.Deserialize<Dictionary<string, string?>>(json, (JsonSerializerOptions?)null) ?? new Dictionary<string, string?>(),
+                    new ValueComparer<Dictionary<string, string?>>(
+                        (left, right) => left == null ? right == null : right != null && left.Count == right.Count && !left.Except(right).Any(),
+                        // XOR, so the hash doesn't depend on enumeration order — equal dictionaries filled in
+                        // a different order must hash the same.
+                        schemas => schemas.Aggregate(0, (hash, pair) => hash ^ HashCode.Combine(pair.Key, pair.Value)),
+                        schemas => new Dictionary<string, string?>(schemas)));
+        });
 
         modelBuilder.Entity<CallRecord>(entity => entity.HasKey(record => record.Id));
 

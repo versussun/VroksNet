@@ -36,6 +36,7 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
 
         // Add a connection to send it through.
         await Page.GotoAsync("/settings");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add connection" }).ClickAsync();
         await Page.GetByLabel("Name").FillAsync(connectionName);
         await Page.GetByLabel("URL").FillAsync("https://api.example.com");
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
@@ -43,6 +44,7 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
 
         // Create the scenario.
         await Page.GotoAsync("/test-scenarios");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add test scenario" }).ClickAsync();
         await Page.GetByLabel("Name").FillAsync(scenarioName);
         await Page.GetByLabel("Specification").SelectOptionAsync(new SelectOptionValue { Label = $"{specTitle} (OpenApi)" });
 
@@ -72,6 +74,68 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
         var rowAfterReload = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = scenarioName });
         await Expect(rowAfterReload).Not.ToContainTextAsync("Never run");
         await Expect(rowAfterReload.Locator("span.badge")).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task Run_ResponseNotMatchingSpec_ShowsContractViolation()
+    {
+        var suffix = Guid.NewGuid();
+        var specTitle = $"E2E Contract Spec {suffix}";
+        var connectionName = $"E2E Contract Connection {suffix}";
+        var scenarioName = $"E2E Contract Scenario {suffix}";
+
+        // ApiService's own GET /api/connections always answers 200 with a JSON array, so
+        // declaring it as an object is a guaranteed, network-independent contract violation.
+        await Page.GotoAsync("/specifications");
+        await Page.Locator("input[type=file]").SetInputFilesAsync(new FilePayload
+        {
+            Name = "contract.yaml",
+            MimeType = "application/yaml",
+            Buffer = Encoding.UTF8.GetBytes($"""
+                openapi: 3.0.3
+                info:
+                  title: "{specTitle}"
+                  version: "1.0.0"
+                paths:
+                  /api/connections:
+                    get:
+                      responses:
+                        "200":
+                          description: OK
+                          content:
+                            application/json:
+                              schema:
+                                type: object
+                """),
+        });
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = specTitle })).ToBeVisibleAsync();
+
+        await Page.GotoAsync("/settings");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add connection" }).ClickAsync();
+        await Page.GetByLabel("Name").FillAsync(connectionName);
+        await Page.GetByLabel("URL").FillAsync(Fixture.ApiServiceHttpAddress.ToString());
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = connectionName })).ToBeVisibleAsync();
+
+        await Page.GotoAsync("/test-scenarios");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add test scenario" }).ClickAsync();
+        await Page.GetByLabel("Name").FillAsync(scenarioName);
+        await Page.GetByLabel("Specification").SelectOptionAsync(new SelectOptionValue { Label = $"{specTitle} (OpenApi)" });
+        await Expect(Page.Locator("#scenario-operation-select option")).ToHaveCountAsync(2);
+        await Page.GetByLabel("Operation").SelectOptionAsync(new SelectOptionValue { Label = "GET /api/connections" });
+        await Page.GetByLabel("Connection").SelectOptionAsync(new SelectOptionValue { Label = $"{connectionName} (Http)" });
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
+
+        var row = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = scenarioName });
+        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run" }).ClickAsync();
+
+        // Checked first so a failed send (which skips validation, so no contract badge renders)
+        // fails here with the actual error text rather than as a missing-element timeout below.
+        await Expect(row).ToContainTextAsync("doesn't match the spec");
+
+        var contract = row.GetByRole(AriaRole.Status, new LocatorGetByRoleOptions { Name = "Contract check" });
+        await Expect(contract).ToContainTextAsync("Contract violated");
+        await Expect(contract.Locator("li")).Not.ToHaveCountAsync(0);
     }
 
     private static string BuildPetstoreYaml(string title) => $"""
