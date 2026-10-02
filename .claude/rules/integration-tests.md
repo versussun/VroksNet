@@ -13,7 +13,7 @@ Aspire integration tests. They boot the *real* distributed-application graph (`A
 - **Boot once per run, not per test.** `Fixtures/AppHostFixture.cs` (`IAsyncLifetime`) builds and starts the graph once. `Fixtures/AppHostCollection.cs` (`[CollectionDefinition("AppHost")]` + `ICollectionFixture<AppHostFixture>`) shares it across every `[Collection("AppHost")]` test class.
 - **Don't assume isolated state between tests.** The collection runs sequentially against one `apiservice` process and its single-writer SQLite queue (see `.claude/rules/infrastructure.md`).
 - **Use GUID-suffixed values for anything with a unique constraint** (e.g. `Connection.Name`), even though the DB is fresh each run. That keeps tests safe against a *persisted* DB if `ConnectionStrings__VroksNetDb` is set for debugging. Specification imports are safe to repeat either way (`UpsertAsync` replaces by `Title`).
-- **Cover the success path of outbound sends here** (the `Connection` test, and `TestScenario` runs over `Http`) by pointing an `Http` connection back at the booted ApiService's own `/health`. Failure paths belong in `VroksNet.UnitTests`.
+- **Cover the success path of outbound sends here** (the `Connection` test, and `TestScenario` runs over `Http`) by pointing an `Http` connection back at the booted ApiService's own `/health`. Use `AppHostFixture.ApiServiceHttpAddress` (plain http), not `ApiServiceClient.BaseAddress` (https): the send happens server-side through `MessageSender`, which trusts the https dev certificate only where it has been trusted locally, never on CI. The E2E fixture exposes the same property. Failure paths belong in `VroksNet.UnitTests`.
 
 ## Requirements
 

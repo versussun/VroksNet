@@ -24,7 +24,7 @@ public sealed class TestScenariosApiTests(AppHostFixture fixture)
         var suffix = Guid.NewGuid();
 
         var (specificationId, endpointId) = await ImportSpecAsync(client, suffix, cancellationToken);
-        var connectionId = await CreateConnectionAsync(client, suffix, client.BaseAddress!.ToString(), cancellationToken);
+        var connectionId = await CreateConnectionAsync(client, suffix, fixture.ApiServiceHttpAddress.ToString(), cancellationToken);
 
         // Create
         var name = $"Integration Test Scenario {suffix}";
@@ -127,7 +127,7 @@ public sealed class TestScenariosApiTests(AppHostFixture fixture)
                             type: {declaredType}
             """;
         var (specificationId, endpointId) = await ImportYamlAsync(client, yaml, cancellationToken);
-        var connectionId = await CreateConnectionAsync(client, suffix, client.BaseAddress!.ToString(), cancellationToken);
+        var connectionId = await CreateConnectionAsync(client, suffix, fixture.ApiServiceHttpAddress.ToString(), cancellationToken);
 
         var createResponse = await client.PostAsJsonAsync(
             "/api/test-scenarios",

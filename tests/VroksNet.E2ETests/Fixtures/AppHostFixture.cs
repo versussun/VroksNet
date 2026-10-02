@@ -23,8 +23,13 @@ public sealed class AppHostFixture : IAsyncLifetime
     /// <summary>webfrontend's base address under the AppHost testing proxy — feed this to Playwright as each test's <c>BaseURL</c>.</summary>
     public Uri WebBaseAddress { get; private set; } = null!;
 
-    /// <summary>apiservice's real (random-port) https address — usable as an Http connection's URL when a test needs a target that's guaranteed to answer.</summary>
-    public Uri ApiServiceBaseAddress { get; private set; } = null!;
+    /// <summary>
+    /// apiservice's plain-http address. Use it as an Http connection's URL whenever ApiService
+    /// has to call <em>itself</em> (e.g. a TestScenario run): that send happens server-side
+    /// through MessageSender's ordinary HttpClient, which only trusts the https dev certificate
+    /// on machines where it's been trusted (`dotnet dev-certs https --trust`) — not on a CI box.
+    /// </summary>
+    public Uri ApiServiceHttpAddress { get; private set; } = null!;
 
     public async ValueTask InitializeAsync()
     {
@@ -62,7 +67,7 @@ public sealed class AppHostFixture : IAsyncLifetime
         // DisposeAsync. Every test in the collection shares this one instance/one file, so this
         // only needs to happen once, here.
         var apiServiceEndpoint = App.GetEndpoint("apiservice", "https");
-        ApiServiceBaseAddress = apiServiceEndpoint;
+        ApiServiceHttpAddress = App.GetEndpoint("apiservice", "http");
         _webDevAppSettingsPath = Path.Combine(appHost.AppHostDirectory, "..", "VroksNet.Web", "wwwroot", "appsettings.Development.json");
         _originalWebDevAppSettings = await File.ReadAllTextAsync(_webDevAppSettingsPath, cancellationToken);
         var patchedAppSettings = _originalWebDevAppSettings.Replace("https://localhost:7352", apiServiceEndpoint.ToString().TrimEnd('/'));

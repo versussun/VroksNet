@@ -10,6 +10,7 @@ Everything that isn't a full-graph test: handler tests, parser tests, repository
 ## Rules
 
 - **Handler tests use hand-written fakes** in `TestDoubles/` (e.g. for `IApiSpecificationRepository`/`ISpecificationParser`). Don't add a mocking library; the interfaces are small enough for plain stand-ins.
+  - **Exception: `ISchemaValidator`.** Handler tests use the real `SchemaValidator`. It is pure, in-process and deterministic, and contract-validation tests are only meaningful against real JSON Schema evaluation.
 - **Parser tests read fixture YAML from `Fixtures/`.** Mark files `CopyToOutputDirectory` and read them via `Path.Combine(AppContext.BaseDirectory, "Fixtures", ...)`.
 - **Repository tests use a real temp-file SQLite database** through the actual `DbWriteQueue`/`DbWriteBackgroundService`. **Don't downgrade them to an in-memory fake or a fake queue**; that setup is what caught the replace-by-title bug.
 - **A SQLite-backed test's `DisposeAsync` must call `SqliteConnection.ClearAllPools()` before deleting its temp `.db` file.** `Microsoft.Data.Sqlite` pools native connections, so the file can stay locked after every `DbContext` is disposed.

@@ -113,7 +113,7 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
         await Page.GotoAsync("/settings");
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add connection" }).ClickAsync();
         await Page.GetByLabel("Name").FillAsync(connectionName);
-        await Page.GetByLabel("URL").FillAsync(Fixture.ApiServiceBaseAddress.ToString());
+        await Page.GetByLabel("URL").FillAsync(Fixture.ApiServiceHttpAddress.ToString());
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
         await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = connectionName })).ToBeVisibleAsync();
 
@@ -128,6 +128,10 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
 
         var row = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = scenarioName });
         await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run" }).ClickAsync();
+
+        // Checked first so a failed send (which skips validation, so no contract badge renders)
+        // fails here with the actual error text rather than as a missing-element timeout below.
+        await Expect(row).ToContainTextAsync("doesn't match the spec");
 
         var contract = row.GetByRole(AriaRole.Status, new LocatorGetByRoleOptions { Name = "Contract check" });
         await Expect(contract).ToContainTextAsync("Contract violated");
