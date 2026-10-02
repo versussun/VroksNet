@@ -68,6 +68,6 @@ Create/update body:
 
 | Method & path | Query / body | Returns |
 |---|---|---|
-| `GET /api/call-records` | `specificationId`, `mockEndpointId`, `testScenarioId`, `direction`, `contractValid`, `cursor`, `limit` | `{ "items": [], "nextCursor" }` |
+| `GET /api/call-records` | `specificationId`, `mockEndpointId`, `testScenarioId`, `direction`, `contractValid`, `cursor`, `limit` | `{ "items": [], "nextCursor" }` — each item carries `statusCode`, `contractValid`, `validationErrors[]` and `warnings[]` (e.g. response placeholders that couldn't be filled in) |
 | `GET /api/call-records/{id}` | | `{ "id", "requestSnapshot", "responseSnapshot" }` / `404` |
 | `DELETE /api/call-records` | | `{ "deleted" }` |

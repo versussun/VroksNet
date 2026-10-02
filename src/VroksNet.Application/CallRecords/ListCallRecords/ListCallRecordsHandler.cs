@@ -49,7 +49,8 @@ public sealed class ListCallRecordsHandler(
                 record.RequestLine,
                 record.StatusCode,
                 record.ContractValid,
-                ParseErrors(record.ValidationErrors)))
+                ParseMessages(record.ValidationErrors),
+                ParseMessages(record.Warnings)))
             .ToList();
 
         var last = page[^1];
@@ -63,8 +64,8 @@ public sealed class ListCallRecordsHandler(
     private static string? NameOf(Guid? id, IReadOnlyDictionary<Guid, string> names, string deletedPlaceholder)
         => id is { } value ? names.GetValueOrDefault(value, deletedPlaceholder) : null;
 
-    /// <summary><see cref="CallRecord.ValidationErrors"/> is a JSON string array written by the run/mock handlers; anything else is shown as-is rather than dropped.</summary>
-    private static IReadOnlyList<string> ParseErrors(string? json)
+    /// <summary><see cref="CallRecord.ValidationErrors"/>/<see cref="CallRecord.Warnings"/> are JSON string arrays written by the run/mock handlers; anything else is shown as-is rather than dropped.</summary>
+    private static IReadOnlyList<string> ParseMessages(string? json)
     {
         if (json is null)
         {

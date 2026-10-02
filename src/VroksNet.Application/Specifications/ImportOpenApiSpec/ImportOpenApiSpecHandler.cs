@@ -43,6 +43,7 @@ public sealed class ImportOpenApiSpecHandler(
                 SpecificationId = specification.Id,
                 OperationKey = operation.OperationKey,
                 ExampleTemplate = operation.ExampleJson,
+                ExampleStatusCode = operation.ExampleStatusCode,
                 RequestSchema = operation.RequestSchemaJson,
                 ResponseSchema = operation.ResponseSchemaJson,
                 ResponseSchemasByStatus = operation.ResponseSchemasByStatus?.ToDictionary() ?? [],

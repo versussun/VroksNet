@@ -165,6 +165,16 @@ else
                                             }
                                         </ul>
                                     }
+                                    @if (record.Warnings is { Length: > 0 } warnings)
+                                    {
+                                        <p class="fw-semibold mb-1">Warnings</p>
+                                        <ul class="small text-warning-emphasis">
+                                            @foreach (var warning in warnings)
+                                            {
+                                                <li>@warning</li>
+                                            }
+                                        </ul>
+                                    }
                                     @if (!_details.TryGetValue(record.Id, out var details))
                                     {
                                         <p class="text-muted mb-0" role="status"><em>Loading bodies…</em></p>

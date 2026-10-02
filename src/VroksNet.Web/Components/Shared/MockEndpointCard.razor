@@ -17,7 +17,15 @@
         @if (Endpoint.ExampleTemplate is not null)
         {
             <p class="fw-semibold mb-1">Example from spec</p>
-            <pre class="mb-3"><code>@Endpoint.ExampleTemplate</code></pre>
+            <pre class="@(IsHttpOperation ? "mb-1" : "mb-3")"><code>@Endpoint.ExampleTemplate</code></pre>
+            @if (IsHttpOperation)
+            {
+                <p class="form-text mb-3">
+                    The example is a template: <code>{{request.path.&lt;name&gt;}}</code>, <code>{{request.query.&lt;name&gt;}}</code>,
+                    <code>{{request.header.&lt;name&gt;}}</code>, <code>{{request.body.&lt;jsonpath&gt;}}</code>, <code>{{uuid}}</code> and
+                    <code>{{now}}</code> are filled in from each request. Placeholders that can't be filled in show up as warnings in Call History.
+                </p>
+            }
         }
         else
         {

@@ -4,9 +4,8 @@ namespace VroksNet.Domain.MockEndpoints;
 
 /// <summary>
 /// One mockable operation parsed out of an <see cref="ApiSpecifications.ApiSpecification"/> —
-/// an OpenAPI method+path, or an AsyncAPI channel+action. The full request-matching/response
-/// generation engine is Phase 01 work (see docs/project-brief.md); for now this just tracks
-/// what was found in the spec and whether it's turned on.
+/// an OpenAPI method+path, or an AsyncAPI channel+action: what was found in the spec (its example
+/// template, status and schemas) and how the mock serves it.
 /// </summary>
 public sealed class MockEndpoint
 {
@@ -27,8 +26,19 @@ public sealed class MockEndpoint
     /// </summary>
     public bool ServeAtRealPath { get; set; }
 
-    /// <summary>The example (from the spec, or a generated placeholder) used as the response/payload template.</summary>
+    /// <summary>
+    /// The example (from the spec, or a generated placeholder) used as the response/payload template —
+    /// its <c>{{request.*}}</c>/<c>{{uuid}}</c>/<c>{{now}}</c> placeholders are filled in per call.
+    /// </summary>
     public string? ExampleTemplate { get; set; }
+
+    /// <summary>
+    /// The status the mock answers with (OpenAPI only): the status of the response the example was
+    /// taken from, or the lowest declared 2xx when there's none. Null for AsyncAPI operations, for
+    /// operations that declare no 2xx and no example, and for operations imported before this was
+    /// tracked — the mock answers those with 200.
+    /// </summary>
+    public int? ExampleStatusCode { get; set; }
 
     /// <summary>The operation's request-body JSON Schema (OpenAPI only), self-contained (local $refs already inlined). Null if there's no request body, or for AsyncAPI operations.</summary>
     public string? RequestSchema { get; set; }

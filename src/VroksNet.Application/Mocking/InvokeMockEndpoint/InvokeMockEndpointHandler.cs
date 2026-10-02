@@ -8,37 +8,70 @@ using VroksNet.Domain.CallRecords;
 namespace VroksNet.Application.Mocking.InvokeMockEndpoint;
 
 /// <summary>
-/// Answers a mock call from the matching enabled endpoint's example and logs it to the call
-/// history (<see cref="CallDirection.InboundHttpRequest"/>) — unmatched calls too, since "why did
+/// Answers a mock call from the matching enabled endpoint's example — rendered as a template with
+/// the request's values (docs/contract-testing-plan.md 4.6), at the status the spec gives it — and
+/// logs it to the call history (<see cref="CallDirection.InboundHttpRequest"/>) — unmatched calls too, since "why did
 /// my service get a 404?" is exactly what the history is for. Logging is best-effort: a failed
 /// history write is logged as a warning and the mock still answers. A request body is checked
 /// against the operation's request schema ("Тип 3" in docs/contract-testing-plan.md) and the
 /// outcome logged; the response doesn't change either way — the mock still answers the caller.
+/// Placeholders that can't be filled in don't fail the call either: they're logged as warnings.
 /// </summary>
 public sealed class InvokeMockEndpointHandler(
     IApiSpecificationRepository repository,
     ICallRecordRepository callRecords,
     ISchemaValidator schemaValidator,
+    IResponseTemplateEngine templateEngine,
     ILogger<InvokeMockEndpointHandler> logger)
     : IRequestHandler<InvokeMockEndpoint, MockInvocationResult>
 {
     /// <summary>Stands in for an operation the spec gave no example for, until schema-based generation exists.</summary>
     private const string EmptyExampleBody = "{}";
 
+    /// <summary>For an operation imported before its status was tracked, or one that declares no 2xx and gave no example.</summary>
+    private const int DefaultStatusCode = 200;
+
+    private const int StatusCodeNotFound = 404;
+
     public async ValueTask<MockInvocationResult> Handle(InvokeMockEndpoint request, CancellationToken cancellationToken)
     {
         var specifications = await repository.ListAsync(cancellationToken);
 
+        IReadOnlyDictionary<string, string> pathParameters = new Dictionary<string, string>();
         var match = specifications
             .SelectMany(specification => specification.Endpoints)
             .Where(endpoint => endpoint.IsEnabled && (!request.ProviderMode || endpoint.ServeAtRealPath))
-            .FirstOrDefault(endpoint => OperationKeyMatcher.Matches(endpoint.OperationKey, MatchMethod(request.Method), request.Path));
+            .FirstOrDefault(endpoint => OperationKeyMatcher.TryMatch(endpoint.OperationKey, MatchMethod(request.Method), request.Path, out pathParameters));
 
-        var result = match is null
-            ? new MockInvocationResult(false, null, null, request.ProviderMode
+        IReadOnlyList<string> warnings = [];
+        MockInvocationResult result;
+        if (match is null)
+        {
+            result = new MockInvocationResult(false, null, null, request.ProviderMode
                 ? $"No operation is served at {request.Method} {request.Path} — turn on \"Serve at real path\" for it."
-                : $"No enabled mock endpoint matches {request.Method} {request.Path}.")
-            : new MockInvocationResult(true, match.OperationKey, match.ExampleTemplate, match.ExampleTemplate ?? EmptyExampleBody);
+                : $"No enabled mock endpoint matches {request.Method} {request.Path}.", StatusCodeNotFound);
+        }
+        else
+        {
+            var statusCode = match.ExampleStatusCode ?? DefaultStatusCode;
+            var body = EmptyExampleBody;
+            if (!AllowsBody(statusCode))
+            {
+                body = string.Empty;
+            }
+            else if (match.ExampleTemplate is not null)
+            {
+                var rendered = templateEngine.Render(match.ExampleTemplate, new TemplateContext(
+                    pathParameters,
+                    request.QueryParameters ?? new Dictionary<string, string>(),
+                    request.Headers ?? new Dictionary<string, string>(),
+                    request.Body));
+                body = rendered.Text;
+                warnings = rendered.Warnings;
+            }
+
+            result = new MockInvocationResult(true, match.OperationKey, match.ExampleTemplate, body, statusCode);
+        }
 
         var validation = match?.RequestSchema is { } schema ? ValidateRequestBody(schema, request.Body, request.ContentType) : null;
 
@@ -55,9 +88,10 @@ public sealed class InvokeMockEndpointHandler(
                 RequestLine = $"{request.Method} {(request.ProviderMode ? string.Empty : "/mock")}{request.Path}{request.QueryString}",
                 RequestSnapshot = CallRecordSnapshot.Truncate(request.Body),
                 ResponseSnapshot = CallRecordSnapshot.Truncate(result.ResponseBody),
-                StatusCode = result.Matched ? 200 : 404,
+                StatusCode = result.StatusCode,
                 ContractValid = validation?.IsValid,
-                ValidationErrors = validation is { IsValid: false } ? JsonSerializer.Serialize(validation.Errors) : null
+                ValidationErrors = validation is { IsValid: false } ? JsonSerializer.Serialize(validation.Errors) : null,
+                Warnings = warnings.Count > 0 ? JsonSerializer.Serialize(warnings) : null
             }, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -67,6 +101,9 @@ public sealed class InvokeMockEndpointHandler(
 
         return result;
     }
+
+    /// <summary>1xx, 204 and 304 responses can't carry a body — the server would refuse to write one.</summary>
+    private static bool AllowsBody(int statusCode) => statusCode is >= 200 and not 204 and not 304;
 
     /// <summary>HEAD is answered like GET (the server drops the body), so probes like "curl -I" work.</summary>
     private static string MatchMethod(string method) => string.Equals(method, "HEAD", StringComparison.OrdinalIgnoreCase) ? "GET" : method;

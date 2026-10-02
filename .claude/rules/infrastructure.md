@@ -61,6 +61,12 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
   - Everything lives only for one run. Connect/setup (10s) is separate from the listen timeout. Each stage reports its own message, and a missing exchange reports a readable one.
   - Time the listen wait out by cancelling the read, not via `WaitAsync`: an abandoned NATS read faults unobserved when the subscription is disposed.
 
+### Response templating
+
+- **`IResponseTemplateEngine` → `VroksNet.Infrastructure.Templating.ResponseTemplateEngine`**, a singleton built with `TimeProvider.System` (for `{{now}}`). The rules (3.9–3.10 in `docs/contract-testing-plan.md`) live in its doc comment: string-literal tracking decides escaping, an unfillable placeholder becomes `null`/empty plus a warning, and `{{…}}` that isn't `uuid`/`now`/`request.…` is left alone.
+- **`{{request.body.<jsonpath>}}` uses `JsonPath.Net`**, pinned in `Directory.Packages.props` to the version that shares `Json.More.Net` with `JsonSchema.Net` (2.1.1 ↔ 7.3.4). Bump them together, and reference it only from the engine.
+- **`OpenApiSpecificationParser` sets `ParsedOperation.ExampleStatusCode`:** the status of the response the example came from (`"2XX"` → 200), otherwise the lowest declared 2xx, otherwise null. Endpoints imported before it was tracked keep a null `MockEndpoint.ExampleStatusCode` and answer 200 until the spec is re-imported.
+
 ### Contract-testing schema foundation
 
 - **The full plan is in `docs/contract-testing-plan.md`.** Don't wire up validation against these schemas without updating that plan too. Phases A (foundation) and B (Test Scenario HTTP response validation) are done.

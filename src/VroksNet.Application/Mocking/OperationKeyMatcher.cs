@@ -7,8 +7,13 @@ namespace VroksNet.Application.Mocking;
 /// </summary>
 public static class OperationKeyMatcher
 {
-    public static bool Matches(string operationKey, string method, string path)
+    public static bool Matches(string operationKey, string method, string path) => TryMatch(operationKey, method, path, out _);
+
+    /// <summary>Like <see cref="Matches"/>, also returning the values the request gave each <c>{name}</c> segment (e.g. petId → "1").</summary>
+    public static bool TryMatch(string operationKey, string method, string path, out IReadOnlyDictionary<string, string> pathParameters)
     {
+        pathParameters = new Dictionary<string, string>();
+
         var separatorIndex = operationKey.IndexOf(' ');
         if (separatorIndex < 0)
         {
@@ -31,15 +36,21 @@ public static class OperationKeyMatcher
             return false;
         }
 
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
         for (var i = 0; i < keySegments.Length; i++)
         {
             var isPlaceholder = keySegments[i].StartsWith('{') && keySegments[i].EndsWith('}');
-            if (!isPlaceholder && !string.Equals(keySegments[i], pathSegments[i], StringComparison.Ordinal))
+            if (isPlaceholder)
+            {
+                values[keySegments[i][1..^1]] = pathSegments[i];
+            }
+            else if (!string.Equals(keySegments[i], pathSegments[i], StringComparison.Ordinal))
             {
                 return false;
             }
         }
 
+        pathParameters = values;
         return true;
     }
 }

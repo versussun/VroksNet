@@ -16,4 +16,5 @@ public sealed record CallRecordSummary(
     string? RequestLine,
     int? StatusCode,
     bool? ContractValid,
-    string[]? ValidationErrors);
+    string[]? ValidationErrors,
+    string[]? Warnings);

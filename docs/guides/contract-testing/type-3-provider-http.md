@@ -3,11 +3,11 @@
 [← Contract testing guides](README.md)
 
 **Checks:** that a service sends correct HTTP requests to a dependency it calls.
-**How:** you point the service at VroksNet instead of the real dependency. VroksNet answers at the dependency's **real paths** with the spec's example and checks each incoming request body against the spec. Unlike the other types, this isn't a scenario you run: it's a mode you switch on, and every call the service makes is checked as it happens.
+**How:** you point the service at VroksNet instead of the real dependency. VroksNet answers at the dependency's **real paths** with the spec's example (placeholders filled in from the request) at the spec's status, and checks each incoming request body against the spec. Unlike the other types, this isn't a scenario you run: it's a mode you switch on, and every call the service makes is checked as it happens.
 
 ```
 your service ──── POST /orders {…} ────▶ VroksNet provider port (7353)
-             ◀─── 200 (spec's example) ─  request body checked against the spec, logged
+             ◀─── spec's status + example ─  request body checked against the spec, logged
 ```
 
 ## 1. The spec (of the dependency)
@@ -101,7 +101,7 @@ Every call shows up in [Call History](call-history.md) as *Mock call (in)*, with
 - **Contract violated:** it didn't. **Details** lists why, e.g. `-5 should be at least 0` for the `amount` above.
 - **—:** not checked (see below).
 
-The mock's answer doesn't depend on the result: your service always gets the example, so its own flow keeps going.
+The mock's answer doesn't depend on the result: your service always gets the (templated) example, so its own flow keeps going.
 
 ```bash
 curl -s "$API/api/call-records?specificationId=$SPEC&direction=InboundHttpRequest&contractValid=false" \
@@ -121,7 +121,7 @@ curl -s "$API/api/call-records?specificationId=$SPEC&direction=InboundHttpReques
 ## Rules and limits
 
 - **No overlapping operations.** Two served operations must never be able to match the same request: `GET /pets/{id}` and `GET /pets/mine` overlap, and so does the same path in two specs. Turning on an overlapping one is refused, and the switch shows which operation and spec it collides with. **Serve all** serves what it can and lists the rest as *skipped*.
-- **Answers are static:** the spec's example with status `200`. Dynamic responses (`{{request.path.id}}`, the spec's status codes) are planned as Phase F.
+- **Answers are templated:** the spec's example, with `{{request.path.<name>}}`, `{{request.query.<name>}}`, `{{request.header.<name>}}`, `{{request.body.<jsonpath>}}`, `{{uuid}}` and `{{now}}` filled in from the request, at the status of the response the example came from (otherwise the lowest declared 2xx, otherwise `200`). A placeholder that can't be filled in becomes `null` (or an empty string inside a quoted value) and shows up as a warning in Call History. Specs imported before this need re-importing to get their status codes.
 - `HEAD` is answered like `GET`.
 - **No CORS** on the provider port: a browser front end pointed at it fails its preflight. A configurable CORS policy is planned as Phase H.
 - Re-importing the spec keeps the switch on for operations whose method and path didn't change.

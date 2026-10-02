@@ -1,7 +1,7 @@
 # VroksNet — Project Brief
 
-**Status:** Draft v0.6
-**Stack:** .NET 10, .NET Aspire, Clean Architecture, Blazor Server, Docker
+**Status:** Draft v0.7
+**Stack:** .NET 10, .NET Aspire, Clean Architecture, Blazor WebAssembly, Docker
 **Users:** single internal team, no auth on MVP
 
 Внутренний сервер для мокинга API и contract testing по спецификациям OpenAPI и AsyncAPI — аналог Microcks на стеке .NET.
@@ -82,13 +82,13 @@ Solution уже создан по Clean Architecture и оркестрирует
 
 ### Деплой: один процесс, один образ
 
-**Что сейчас в коде (по факту, проверено):** стандартный Aspire Starter-шаблон. `VroksNet.Web` — Blazor **Server** (`AddInteractiveServerComponents` / `AddInteractiveServerRenderMode`), собственный Kestrel-процесс, ходит в `VroksNet.ApiService` по HTTP через типизированный `HttpClient` с Aspire service discovery. `AppHost.cs` регистрирует `apiservice` и `webfrontend` как два независимых `AddProject(...)` — в терминах Aspire это два разных контейнера/образа при публикации. Автоматического «слияния в один образ по `ASPNETCORE_ENVIRONMENT=Production`» тут нет и не может быть — это не то, как работает Aspire или Blazor.
+**Исходная точка (историческая справка):** проект начинался со стандартного Aspire Starter-шаблона, где `VroksNet.Web` был Blazor **Server** — собственный Kestrel-процесс и отдельный образ при публикации. Автоматического «слияния в один образ по `ASPNETCORE_ENVIRONMENT=Production`» в такой схеме нет.
 
-**Решение:** перевести `VroksNet.Web` на Blazor **WebAssembly** (standalone) и раздавать его как статику из `VroksNet.ApiService` в Production — классический паттерн «backend отдаёт SPA».
+**Решение (✅ реализовано):** перевести `VroksNet.Web` на Blazor **WebAssembly** (standalone) и раздавать его как статику из `VroksNet.ApiService` в Production — классический паттерн «backend отдаёт SPA».
 
 Что это значит технически:
 - `VroksNet.Web.csproj` меняет SDK на `Microsoft.NET.Sdk.BlazorWebAssembly` (standalone-клиент, без собственного Kestrel/server-side рендеринга).
-- `VroksNet.ApiService` в Production раздаёт собранные wasm-файлы как статику и делает SPA-фолбэк на `index.html` для незнакомых маршрутов (стандартные `app.UseBlazorFrameworkFiles()` / `app.UseStaticFiles()` / `app.MapFallbackToFile("index.html")`).
+- `VroksNet.ApiService` в Production раздаёт собранные wasm-файлы как статику и делает SPA-фолбэк на `index.html` для незнакомых маршрутов (`app.UseStaticFiles()` / `app.MapFallbackToFile("index.html")`; `UseBlazorFrameworkFiles()` в .NET 8+ не нужен).
 - Сборка: multi-stage Dockerfile — сначала `dotnet publish` для `VroksNet.Web`, его `wwwroot`/wasm-выход копируется в `wwwroot` `VroksNet.ApiService`, затем публикуется сам `VroksNet.ApiService`. Один Dockerfile, один финальный образ, один процесс в контейнере.
 - В разработке `VroksNet.Web` и `VroksNet.ApiService` по-прежнему можно гонять как два процесса через `AppHost` (это даёт hot reload и удобный dev-опыт) — потребуется настроить CORS на `ApiService`, чтобы WASM-клиент на своём dev-порту мог обращаться к API. Это нормально: расхождение dev/prod-топологии тут ожидаемо и не противоречит цели «один образ» — она про то, что деплоится и запускается в проде.
 - `.claude/CLAUDE.md` нужно поправить под эту схему: `VroksNet.Web` — WASM-клиент, не отдельный host; `VroksNet.ApiService` — единственный сервер, отдающий и API, и статику UI.
@@ -125,39 +125,45 @@ Solution уже создан по Clean Architecture и оркестрирует
 
 Пять фаз, каждая — рабочий инкремент, который можно показать команде.
 
-### Фаза 00 — Каркас проекта ✅ в основном готово
-Solution с Clean Architecture и Aspire уже создан (`VroksNet.slnx`, все проекты в `src/`, `.claude/CLAUDE.md` с правилами). Осталось: подключить SQLite + EF Core (WAL, busy timeout, сериализованная запись — см. раздел 3), NATS и RabbitMQ как Aspire-ресурсы в `AppHost`.
+### Фаза 00 — Каркас проекта ✅ готово
+Solution с Clean Architecture и Aspire (`VroksNet.slnx`, все проекты в `src/`, `.claude/CLAUDE.md` с правилами); SQLite + EF Core с WAL, busy timeout и сериализованной записью через один канал (`DbWriteQueue`/`DbWriteBackgroundService`); NATS и RabbitMQ — Aspire-ресурсы в `AppHost`.
 **Результат:** `dotnet run --project VroksNet.AppHost` поднимает весь стек, включая инфраструктуру
 
-### Фаза 01 — OpenAPI → REST-моки
+### Фаза 01 — OpenAPI → REST-моки ✅ готово
+Импорт OpenAPI с replace-по-title, динамический роутинг в `/mock`, шаблонизированные ответы со статусом из спеки (сделано как Фаза F `docs/contract-testing-plan.md`, 4.6). Генерации ответа по схеме для операций без example нет — отдаётся `{}`.
+
 Загрузка и парсинг OpenAPI в `VroksNet.Application` (сопоставление по `info.title`, замена при повторной загрузке), генерация ответов по examples/схеме с подстановкой плейсхолдеров (`{{request...}}`, `{{uuid}}`, `{{now}}`), динамический роутинг запросов в `VroksNet.ApiService`.
 **Результат:** загрузили спеку — получили рабочий REST-мок по её эндпоинтам, с шаблонизированными ответами
 
-### Фаза 02 — Admin UI на Blazor WebAssembly
+### Фаза 02 — Admin UI на Blazor WebAssembly ✅ готово
 Список спецификаций, карточка мока, включение/выключение эндпоинтов, простой просмотр истории вызовов в `VroksNet.Web` (WASM); публикация как статики из `VroksNet.ApiService`, multi-stage Dockerfile для единого образа.
 **Результат:** моками можно управлять без прямых обращений к API, приложение деплоится одним образом
 
-### Фаза 03 — AsyncAPI → NATS / RabbitMQ
+### Фаза 03 — AsyncAPI → NATS / RabbitMQ 🟡 частично
+**Сделано:** импорт AsyncAPI, публикация и прослушивание сообщений в NATS/RabbitMQ через тест-сценарии (запуск вручную). **Не сделано:** `BackgroundService`-воркер, публикующий мок-события по расписанию/триггеру, и его настройка в UI — в плане contract testing этого нет, нужна отдельная фаза.
+
 Парсинг AsyncAPI, `BackgroundService`-воркер публикации сообщений в `VroksNet.Infrastructure`, настройка периодичности/триггеров из UI.
 **Результат:** загрузили AsyncAPI-спеку — сервис публикует мок-события в брокер
 
-### Фаза 04 — Contract testing + полировка
+### Фаза 04 — Contract testing + полировка 🟡 частично
+**Сделано:** все четыре вида contract-тестов, история вызовов и динамика ответов (Фазы A–F плана), руководства в `docs/guides/contract-testing/`. **Не сделано:** отложенные Фазы G–H плана и документация по эксплуатации (runbook).
+
 Ручная проверка «схема ⇄ реальный ответ», история и логи, документация по эксплуатации. Детальный план реализации (4 вида тестов, обзор уже сделанного, порядок фаз) — `docs/contract-testing-plan.md`.
 **Результат:** инструмент, который можно передать команде и не сопровождать вручную
 
 ## 6. Первые шаги
 
 - [x] Завести git-репозиторий и структуру solution — уже сделано (`VroksNet`, .NET 10 / Aspire, Clean Architecture)
-- [ ] Перевести `VroksNet.Web` на `Microsoft.NET.Sdk.BlazorWebAssembly` (standalone), настроить CORS на `VroksNet.ApiService` для dev-режима
-- [ ] Настроить `VroksNet.ApiService` на раздачу статики WASM-сборки (`UseBlazorFrameworkFiles`, `UseStaticFiles`, `MapFallbackToFile("index.html")`) для Production
-- [ ] Написать multi-stage Dockerfile: publish `VroksNet.Web` → копия wwwroot в `VroksNet.ApiService` → publish `VroksNet.ApiService`
-- [ ] Обновить `.claude/CLAUDE.md` под новую схему (Web — WASM-клиент, не отдельный host)
-- [ ] Подключить SQLite + EF Core: включить WAL mode и busy timeout, спроектировать сериализованную запись через один канал/воркер
-- [ ] Добавить NATS и RabbitMQ как ресурсы в `VroksNet.AppHost` (`builder.AddContainer(...)`)
-- [ ] Собрать 2–3 реальных OpenAPI-спеки и 1–2 AsyncAPI-спеки из ваших сервисов как тестовые данные
-- [ ] В `VroksNet.Domain` завести сущности `ApiSpecification` (с `Title` как ключом сопоставления версий), `MockEndpoint`, `CallRecord`; в `VroksNet.Application` — первый use case `ImportOpenApiSpec` через Mediator, реализующий replace-по-title
-- [ ] Прототип парсинга OpenAPI через Microsoft.OpenApi в `ImportOpenApiSpecHandler` — загрузить файл и вывести список эндпоинтов в консоль/лог
-- [ ] Спроектировать движок подстановки плейсхолдеров (`{{request.path.*}}`, `{{request.query.*}}`, `{{request.header.*}}`, `{{request.body.*}}`, `{{uuid}}`, `{{now}}`) поверх examples из спеки
+- [x] Перевести `VroksNet.Web` на `Microsoft.NET.Sdk.BlazorWebAssembly` (standalone), настроить CORS на `VroksNet.ApiService` для dev-режима
+- [x] Настроить `VroksNet.ApiService` на раздачу статики WASM-сборки (`UseStaticFiles`, `MapFallbackToFile("index.html")`) для Production
+- [x] Написать multi-stage Dockerfile: publish `VroksNet.Web` → копия wwwroot в `VroksNet.ApiService` → publish `VroksNet.ApiService`
+- [x] Обновить `.claude/CLAUDE.md` под новую схему (Web — WASM-клиент, не отдельный host)
+- [x] Подключить SQLite + EF Core: включить WAL mode и busy timeout, спроектировать сериализованную запись через один канал/воркер
+- [x] Добавить NATS и RabbitMQ как ресурсы в `VroksNet.AppHost` (через `AddNats`/`AddRabbitMQ`)
+- [ ] Собрать 2–3 реальных OpenAPI-спеки и 1–2 AsyncAPI-спеки из ваших сервисов как тестовые данные — пока есть только учебные `docs/samples/petstore-openapi.yaml` и `orders-asyncapi.yaml`
+- [x] В `VroksNet.Domain` завести сущности `ApiSpecification` (с `Title` как ключом сопоставления версий), `MockEndpoint`, `CallRecord`; в `VroksNet.Application` — первый use case `ImportOpenApiSpec` через Mediator, реализующий replace-по-title
+- [x] Прототип парсинга OpenAPI через Microsoft.OpenApi в `ImportOpenApiSpecHandler` — загрузить файл и вывести список эндпоинтов в консоль/лог
+- [x] Спроектировать движок подстановки плейсхолдеров (`{{request.path.*}}`, `{{request.query.*}}`, `{{request.header.*}}`, `{{request.body.*}}`, `{{uuid}}`, `{{now}}`) поверх examples из спеки — `ResponseTemplateEngine`, Фаза F (`docs/contract-testing-plan.md`, 4.6)
 
 ## 7. Открытые вопросы
 

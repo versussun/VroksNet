@@ -75,3 +75,7 @@ public sealed class CreateOrderHandler(IOrderRepository repository) : IRequestHa
   - The incoming body is validated against `RequestSchema` in both modes, and the outcome only goes to the history. The response never depends on it. Only JSON content types (`application/json`, `*+json`) are validated. HEAD matches the GET operation.
   - `SetServeAtRealPathAsync` returns the rows it updated. Fewer than asked (a concurrent re-import replaced the endpoints) must be a refusal (409), never a reported success.
   - Re-importing a spec must keep `ServeAtRealPath` for operations whose key is unchanged (`ImportOpenApiSpecHandler`).
+- **Response templating** (`IResponseTemplateEngine`, contract-testing "Фаза F", see `docs/contract-testing-plan.md` 4.6).
+  - `InvokeMockEndpointHandler` renders `ExampleTemplate` with a `TemplateContext` built from the match (`OperationKeyMatcher.TryMatch` gives the path parameters) and the request (`QueryParameters`, `Headers`, `Body`), and answers with `MockEndpoint.ExampleStatusCode ?? 200`. Keep that choice in the handler; the endpoint only maps `MockInvocationResult.StatusCode`/`ResponseBody` to HTTP.
+  - A status that can't carry a body (204, 304) answers with an empty `ResponseBody`, and the endpoint writes no body for it. Don't render or send `"{}"` there: Kestrel refuses to write it.
+  - An unfillable placeholder never fails the call. Its warning goes to `CallRecord.Warnings` (a JSON string array, null when there are none), next to `ValidationErrors`.
