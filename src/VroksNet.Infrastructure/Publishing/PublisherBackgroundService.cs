@@ -8,7 +8,7 @@ using VroksNet.Application.Publishers.PublishNow;
 namespace VroksNet.Infrastructure.Publishing;
 
 /// <summary>
-/// The async-mock worker (docs/project-brief.md, Фаза 03): once a second, asks Application which
+/// The async-mock worker (docs/project-brief.md, Phase 03): once a second, asks Application which
 /// enabled publishers are due and publishes each through <see cref="PublishNow"/> — the same use
 /// case as the on-demand button, so scheduling is the only thing that lives here. Due publishers
 /// run concurrently, and the next tick waits for all of them, so one publisher is never published

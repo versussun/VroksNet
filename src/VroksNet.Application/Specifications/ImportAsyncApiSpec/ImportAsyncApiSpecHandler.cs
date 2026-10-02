@@ -8,7 +8,7 @@ namespace VroksNet.Application.Specifications.ImportAsyncApiSpec;
 
 /// <summary>
 /// Parses an AsyncAPI YAML document and stores it, replacing any existing specification with the
-/// same <c>info.title</c> — see docs/project-brief.md section 2 "Версионирование спецификаций".
+/// same <c>info.title</c> — see docs/project-brief.md section 2 "Specification versioning".
 /// Mirrors <c>ImportOpenApiSpecHandler</c>; kept as its own vertical (own request, own handler,
 /// own parser interface) rather than branching on kind in one shared handler, matching how the
 /// two kinds are already split at the endpoint level (<c>/api/specifications/openapi</c> vs.

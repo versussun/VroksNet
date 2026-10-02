@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/versussun/VroksNet/docs/schemas/provisioning-manifest.v1.schema.json",
+  "title": "VroksNet provisioning manifest, version 1",
+  "description": "/app/provisioning/vroksnet.yaml — what to configure at startup beyond the specs in /app/provisioning/specs. Everything is referenced by name, never by id. See docs/container-contract.md.",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "description": "Manifest format version. An image with contract N accepts versions 1..N.",
+      "const": 1
+    },
+    "connections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/connection" }
+    },
+    "specifications": {
+      "description": "Settings for specs imported from specs/. Each entry must match an imported spec's info.title.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/specification" }
+    },
+    "publishers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/publisher" }
+    },
+    "testScenarios": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/testScenario" }
+    }
+  },
+  "$defs": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "operationKey": {
+      "description": "\"METHOD /path\" for OpenAPI, \"{channel address}:{action}\" for AsyncAPI — as shown in the Admin UI.",
+      "type": "string",
+      "minLength": 1
+    },
+    "connection": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "type": { "enum": ["Http", "RabbitMq", "Nats", "Kafka"] },
+        "value": {
+          "description": "The connection value as-is. Avoid secrets here; prefer valueFrom.",
+          "type": "string",
+          "minLength": 1
+        },
+        "valueFrom": {
+          "description": "Configuration key to read the value from, e.g. \"ConnectionStrings:kafka\" (set by Aspire's WithReference).",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "oneOf": [
+        { "required": ["value"] },
+        { "required": ["valueFrom"] }
+      ]
+    },
+    "specification": {
+      "type": "object",
+      "required": ["title"],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "description": "The spec's info.title.",
+          "type": "string",
+          "minLength": 1
+        },
+        "providerMode": {
+          "description": "Serve every HTTP operation at its real path on the provider port. Overlapping operations are skipped, as in the Admin UI.",
+          "type": "boolean",
+          "default": false
+        },
+        "disabledOperations": {
+          "description": "HTTP operations to switch off; every other one stays enabled.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/operationKey" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "publisher": {
+      "type": "object",
+      "required": ["name", "specification", "operation", "connection", "intervalSeconds"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "specification": { "description": "info.title of an imported AsyncAPI spec.", "type": "string", "minLength": 1 },
+        "operation": { "$ref": "#/$defs/operationKey" },
+        "connection": { "description": "Name of a RabbitMq/Nats/Kafka connection.", "type": "string", "minLength": 1 },
+        "intervalSeconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
+        "exchange": { "description": "RabbitMQ only; omitted = the default exchange.", "type": "string" },
+        "payloadOverride": { "description": "Message to publish instead of the spec's example; {{uuid}}/{{now}} are filled in.", "type": "string" },
+        "enabled": { "type": "boolean", "default": true }
+      }
+    },
+    "testScenario": {
+      "type": "object",
+      "required": ["name", "specification", "operation", "connection"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "specification": { "description": "info.title of an imported spec.", "type": "string", "minLength": 1 },
+        "operation": { "$ref": "#/$defs/operationKey" },
+        "connection": { "type": "string", "minLength": 1 },
+        "kind": {
+          "description": "Defaults as in the Admin UI: Listen for an AsyncAPI \"send\" operation, Send otherwise.",
+          "enum": ["Send", "Listen"]
+        },
+        "listenTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 80 },
+        "exchange": { "description": "RabbitMQ only.", "type": "string" },
+        "payloadOverride": { "type": "string" }
+      }
+    }
+  }
+}

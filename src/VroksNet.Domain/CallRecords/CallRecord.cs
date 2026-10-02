@@ -2,7 +2,7 @@ namespace VroksNet.Domain.CallRecords;
 
 /// <summary>
 /// A logged inbound REST call or outbound broker publish, for the call-history/debugging view
-/// (see docs/project-brief.md section 2 "История вызовов").
+/// (see docs/project-brief.md section 2 "Call history").
 /// </summary>
 public sealed class CallRecord
 {

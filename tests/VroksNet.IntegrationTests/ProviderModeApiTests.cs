@@ -4,7 +4,7 @@ using VroksNet.IntegrationTests.Fixtures;
 
 namespace VroksNet.IntegrationTests;
 
-/// <summary>Provider mode ("Тип 3"): the separate provider port answers at real spec paths, and nothing else is reachable on it.</summary>
+/// <summary>Provider mode ("Type 3"): the separate provider port answers at real spec paths, and nothing else is reachable on it.</summary>
 [Collection("AppHost")]
 public sealed class ProviderModeApiTests(AppHostFixture fixture)
 {

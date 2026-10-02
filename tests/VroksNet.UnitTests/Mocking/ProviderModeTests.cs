@@ -13,7 +13,7 @@ using VroksNet.UnitTests.TestDoubles;
 
 namespace VroksNet.UnitTests.Mocking;
 
-/// <summary>Provider mode ("Тип 3"): the overlap rule, turning it on/off, what the provider surface answers, and request validation.</summary>
+/// <summary>Provider mode ("Type 3"): the overlap rule, turning it on/off, what the provider surface answers, and request validation.</summary>
 public sealed class ProviderModeTests
 {
     private const string NewPetSchema = """{ "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } } }""";

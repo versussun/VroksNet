@@ -1,5 +1,5 @@
 # Placeholder sample spec for local testing — NOT a real service spec.
-# Swap in specs from your own services (see docs/project-brief.md section 6 "Первые шаги").
+# Swap in specs from your own services (see docs/project-brief.md section 6 "First steps").
 #
 # AsyncAPI 3.0 counterpart to petstore-openapi.yaml. There is no AsyncApiSpecificationParser
 # (ISpecificationParser) or /api/specifications/asyncapi import endpoint yet — the async-mock

@@ -28,4 +28,4 @@ Types 1, 2 and 4 are **test scenarios** you save once and run on demand (from th
 
 - [Call History](call-history.md): finding a run or mock call, reading contract violations, clearing the history.
 - [API quick reference](api-reference.md): every endpoint used in these guides.
-- `docs/contract-testing-plan.md` (Russian): design notes and decisions behind each feature.
+- `docs/contract-testing-plan.md`: design notes and decisions behind each feature.

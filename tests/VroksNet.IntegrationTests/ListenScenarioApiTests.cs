@@ -8,7 +8,7 @@ using VroksNet.IntegrationTests.Fixtures;
 namespace VroksNet.IntegrationTests;
 
 /// <summary>
-/// Listen-mode Test Scenarios ("Фаза C") against the real RabbitMQ/NATS containers AppHost boots:
+/// Listen-mode Test Scenarios ("Phase C") against the real RabbitMQ/NATS containers AppHost boots:
 /// a run waits for a message on the operation's channel and validates it against the AsyncAPI
 /// payload schema. The test can't know exactly when the run's subscription is live, so it keeps
 /// publishing until the run returns — the listener takes the first message it sees.

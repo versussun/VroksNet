@@ -15,10 +15,10 @@ namespace VroksNet.Application.TestScenarios.RunTestScenario;
 /// on a bad reference), a dangling specification/operation/connection here is an expected runtime
 /// condition — one of them may have been deleted since the scenario was saved — so it's reported
 /// back as an unsuccessful result rather than thrown. An HTTP response is also checked against the
-/// operation's declared responses (see docs/contract-testing-plan.md, "Фаза B"); a response that
+/// operation's declared responses (see docs/contract-testing-plan.md, "Phase B"); a response that
 /// doesn't match fails the run even though the send itself went through. A
 /// <see cref="TestScenarioKind.Listen"/> scenario instead waits for a message on the operation's
-/// broker channel and validates that ("Фаза C").
+/// broker channel and validates that ("Phase C").
 /// </summary>
 public sealed class RunTestScenarioHandler(
     ITestScenarioRepository scenarios,

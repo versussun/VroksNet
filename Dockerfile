@@ -45,7 +45,7 @@ COPY --from=api-build /app/api .
 COPY --from=web-build /app/web/wwwroot ./wwwroot
 
 # SQLite file lives on a mounted volume so data survives container recreation (see
-# docs/project-brief.md section 3 "Хранилище: решение").
+# docs/project-brief.md section 3 "Storage: decision").
 VOLUME /app/data
 ENV ConnectionStrings__VroksNetDb="Data Source=/app/data/vroksnet.db"
 

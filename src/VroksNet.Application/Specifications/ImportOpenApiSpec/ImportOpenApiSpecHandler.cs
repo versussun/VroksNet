@@ -8,7 +8,7 @@ namespace VroksNet.Application.Specifications.ImportOpenApiSpec;
 
 /// <summary>
 /// Parses an OpenAPI YAML document and stores it, replacing any existing specification with the
-/// same <c>info.title</c> — see docs/project-brief.md section 2 "Версионирование спецификаций".
+/// same <c>info.title</c> — see docs/project-brief.md section 2 "Specification versioning".
 /// </summary>
 public sealed class ImportOpenApiSpecHandler(
     ISpecificationParser parser,
