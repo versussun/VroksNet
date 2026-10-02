@@ -17,4 +17,16 @@ public static class OperationCompatibility
 
     public static bool IsCompatible(string operationKey, ConnectionServiceType serviceType) =>
         IsHttpOperation(operationKey) == (serviceType == ConnectionServiceType.Http);
+
+    /// <summary>AsyncAPI operation keys are "channel/address:action" — the channel address is everything before the last ':'; null if the key isn't AsyncAPI-shaped at all.</summary>
+    public static string? ChannelAddressOf(string operationKey)
+    {
+        if (IsHttpOperation(operationKey))
+        {
+            return null;
+        }
+
+        var separatorIndex = operationKey.LastIndexOf(':');
+        return separatorIndex > 0 ? operationKey[..separatorIndex] : null;
+    }
 }
