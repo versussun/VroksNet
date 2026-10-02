@@ -11,7 +11,7 @@ namespace VroksNet.UnitTests.Specifications;
 /// a mock built from a sample starts out green. Placeholders like "{{uuid}}" sit in plain string
 /// fields, which is why the raw example can be validated without rendering it.
 /// </summary>
-public class SampleSpecificationsTests
+public sealed class SampleSpecificationsTests
 {
     private readonly SchemaValidator _validator = new();
 
@@ -29,7 +29,6 @@ public class SampleSpecificationsTests
         foreach (var operation in spec.Operations.Where(operation => operation.ExampleJson is not null))
         {
             var schema = operation.ResponseSchemasByStatus?.GetValueOrDefault(operation.ExampleStatusCode?.ToString() ?? string.Empty);
-            Assert.True(schema is not null, $"{operation.OperationKey}: no response schema for its example's status {operation.ExampleStatusCode}.");
             AssertValid(operation, schema);
         }
     }
@@ -47,8 +46,6 @@ public class SampleSpecificationsTests
         Assert.Equal(operationCount, spec.Operations.Count);
         foreach (var operation in spec.Operations)
         {
-            Assert.True(operation.ExampleJson is not null, $"{operation.OperationKey}: no example to publish.");
-            Assert.True(operation.ResponseSchemaJson is not null, $"{operation.OperationKey}: no payload schema.");
             Assert.True(TestScenarioListening.CanListen(operation.OperationKey), $"{operation.OperationKey}: can't be listened to.");
             AssertValid(operation, operation.ResponseSchemaJson);
         }
@@ -74,9 +71,16 @@ public class SampleSpecificationsTests
         Assert.NotNull(spec.Operations.Single(operation => operation.OperationKey == "POST /reservations").RequestSchemaJson);
     }
 
+    /// <summary>Fails if the operation has no example, <paramref name="schemaJson"/> is missing, or the example doesn't match it.</summary>
     private void AssertValid(ParsedOperation operation, string? schemaJson)
     {
-        var result = _validator.Validate(schemaJson!, operation.ExampleJson!);
+        var example = operation.ExampleJson;
+        if (example is null || schemaJson is null)
+        {
+            Assert.Fail($"{operation.OperationKey}: {(example is null ? "no example" : $"no schema for its example (status {operation.ExampleStatusCode})")}.");
+        }
+
+        var result = _validator.Validate(schemaJson, example);
         Assert.True(result.IsValid, $"{operation.OperationKey}: example doesn't match its schema — {string.Join("; ", result.Errors)}");
     }
 
