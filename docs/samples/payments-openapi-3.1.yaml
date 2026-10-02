@@ -1,0 +1,339 @@
+# Sample spec for local testing — NOT a real service spec. See docs/samples/README.md.
+#
+# OpenAPI 3.1 features on a payments API: JSON Schema 2020-12 types ("type: [string, 'null']",
+# const), oneOf with a discriminator, reusable headers, security schemes and webhooks.
+# What VroksNet does with them:
+# - security schemes are documentation only — the mock never checks an Authorization header;
+# - webhooks aren't paths, so they don't become mock endpoints;
+# - oneOf/discriminator schemas are kept as-is for contract tests, so a real response is checked
+#   against whichever variant it claims to be.
+openapi: 3.1.0
+info:
+  title: Payments Sample API
+  version: "1.4.0"
+  summary: Card and bank-transfer payments with refunds.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: https://payments.example.com/v1
+security:
+  - bearerAuth: []
+paths:
+  /payments:
+    post:
+      operationId: createPayment
+      summary: Create a payment
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRequest"
+            example:
+              amount: 1999
+              currency: EUR
+              description: Order ord_1
+              method:
+                type: card
+                token: tok_visa_4242
+                saveForLater: false
+      responses:
+        "201":
+          description: Payment created
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+              example:
+                id: "{{uuid}}"
+                status: authorized
+                amount: 1999
+                currency: EUR
+                description: "{{request.body.description}}"
+                method:
+                  type: card
+                  brand: visa
+                  last4: "4242"
+                failureReason: null
+                idempotencyKey: "{{request.header.Idempotency-Key}}"
+                createdAt: "{{now}}"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "402":
+          description: The payment was declined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+    get:
+      operationId: listPayments
+      summary: List payments, cursor-paged
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/PaymentStatus"
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: A page of payments
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, nextCursor]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Payment"
+                  nextCursor:
+                    type: [string, "null"]
+              example:
+                data:
+                  - id: "pay_01"
+                    status: captured
+                    amount: 1999
+                    currency: EUR
+                    description: Order ord_1
+                    method: { type: card, brand: visa, last4: "4242" }
+                    failureReason: null
+                    createdAt: "2026-09-30T09:00:00Z"
+                  - id: "pay_02"
+                    status: failed
+                    amount: 5000
+                    currency: EUR
+                    description: null
+                    method: { type: bank_transfer, iban: UA213223130000026007233566001, reference: INV-2026-0042 }
+                    failureReason: insufficient_funds
+                    createdAt: "2026-09-29T16:30:00Z"
+                nextCursor: "cur_{{uuid}}"
+  /payments/{paymentId}:
+    parameters:
+      - name: paymentId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getPayment
+      summary: One payment
+      responses:
+        "200":
+          description: The payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+              example:
+                id: "{{request.path.paymentId}}"
+                status: captured
+                amount: 1999
+                currency: EUR
+                description: Order ord_1
+                method: { type: card, brand: mastercard, last4: "4444" }
+                failureReason: null
+                createdAt: "2026-09-30T09:00:00Z"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /payments/{paymentId}/refunds:
+    parameters:
+      - name: paymentId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: refundPayment
+      summary: Refund all or part of a payment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: integer
+                  minimum: 1
+                  description: Minor units; omit to refund everything.
+                reason:
+                  type: string
+                  enum: [duplicate, fraudulent, requested_by_customer]
+      responses:
+        "201":
+          description: Refund created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refund"
+              example:
+                id: "{{uuid}}"
+                paymentId: "{{request.path.paymentId}}"
+                amount: 500
+                reason: "{{request.body.reason}}"
+                status: pending
+                createdAt: "{{now}}"
+        "409":
+          $ref: "#/components/responses/Problem"
+webhooks:
+  paymentUpdated:
+    post:
+      summary: Sent to your endpoint whenever a payment changes status
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Payment"
+      responses:
+        "200":
+          description: Acknowledged
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  headers:
+    Location:
+      description: URL of the created resource
+      schema:
+        type: string
+        format: uri
+  responses:
+    Problem:
+      description: RFC 9457 problem details
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    PaymentStatus:
+      type: string
+      enum: [pending, authorized, captured, failed, refunded]
+    CardMethod:
+      type: object
+      required: [type]
+      properties:
+        type:
+          const: card
+        token:
+          type: string
+          writeOnly: true
+        saveForLater:
+          type: boolean
+        brand:
+          type: string
+          enum: [visa, mastercard, amex]
+        last4:
+          type: string
+          pattern: "^[0-9]{4}$"
+    BankTransferMethod:
+      type: object
+      required: [type, iban]
+      properties:
+        type:
+          const: bank_transfer
+        iban:
+          type: string
+        reference:
+          type: string
+    PaymentMethod:
+      oneOf:
+        - $ref: "#/components/schemas/CardMethod"
+        - $ref: "#/components/schemas/BankTransferMethod"
+      discriminator:
+        propertyName: type
+        mapping:
+          card: "#/components/schemas/CardMethod"
+          bank_transfer: "#/components/schemas/BankTransferMethod"
+    PaymentRequest:
+      type: object
+      required: [amount, currency, method]
+      properties:
+        amount:
+          type: integer
+          minimum: 1
+          description: Minor units (cents).
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        description:
+          type: [string, "null"]
+          maxLength: 255
+        method:
+          $ref: "#/components/schemas/PaymentMethod"
+    Payment:
+      type: object
+      required: [id, status, amount, currency, method, createdAt]
+      properties:
+        id:
+          type: string
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        amount:
+          type: integer
+        currency:
+          type: string
+        description:
+          type: [string, "null"]
+        method:
+          $ref: "#/components/schemas/PaymentMethod"
+        failureReason:
+          type: [string, "null"]
+          description: insufficient_funds, card_declined or expired_card; null unless status is failed.
+        idempotencyKey:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Refund:
+      type: object
+      required: [id, paymentId, amount, status, createdAt]
+      properties:
+        id:
+          type: string
+        paymentId:
+          type: string
+        amount:
+          type: integer
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [pending, succeeded, failed]
+        createdAt:
+          type: string
+          format: date-time
+    Problem:
+      type: object
+      required: [title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string

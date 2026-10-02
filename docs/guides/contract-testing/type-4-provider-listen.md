@@ -6,7 +6,7 @@
 **How:** a run subscribes to the operation's channel, waits for the next message, and validates its payload against the spec's payload schema. It uses its own temporary subscription, so the channel's real consumers keep getting every message.
 
 ```
-your service ── publish ──▶ RabbitMQ / NATS ──▶ VroksNet (temporary subscription)
+your service ── publish ──▶ RabbitMQ / NATS / Kafka ──▶ VroksNet (temporary subscription)
                                               payload checked against the spec
 ```
 
@@ -52,12 +52,13 @@ components:
 |---|---|
 | RabbitMQ | a temporary exclusive queue bound to an **exchange** (default `amq.topic`) with binding key = channel address. The service must publish **to that exchange** with routing key `orders.created`. A message sent straight to a queue through the default exchange can't be observed. |
 | NATS | a core subscription on subject `orders.created`. |
+| Kafka | every partition of topic `orders.created`, read from its current end without a consumer group, so the service's own consumer groups aren't affected. The topic must already exist; a channel parameter (`orders.{region}`) matches every existing topic with any value in that segment. |
 
 **Channel parameters.** An address segment that is a whole AsyncAPI parameter becomes a wildcard: `orders.{region}.created` listens on `orders.*.created`, which matches `orders.eu.created`, `orders.us.created`, and so on. A parameter that is only part of a segment, or an address separated by `/` (`user/{id}/signedup`), can't be subscribed to, and such a scenario can't be saved.
 
 ## 3. Create the scenario
 
-Import the spec as **AsyncAPI** and add a **RabbitMQ** or **NATS** connection ([Getting started](getting-started.md)).
+Import the spec as **AsyncAPI** and add a **RabbitMQ**, **NATS** or **Kafka** connection ([Getting started](getting-started.md)).
 
 **UI:** **Test Scenarios** → **+ Add test scenario**:
 
@@ -66,7 +67,7 @@ Import the spec as **AsyncAPI** and add a **RabbitMQ** or **NATS** connection ([
 | Name | `Order created is valid` |
 | Specification | `Orders Events (AsyncApi)` |
 | Operation | `orders.created:send` |
-| Connection | your RabbitMQ or NATS connection |
+| Connection | your RabbitMQ, NATS or Kafka connection |
 | Mode | **Listen for a message and validate it** (pre-selected for `send` operations) |
 | Wait up to (seconds) | 1–80; blank = 30 |
 | Exchange | RabbitMQ only; blank = `amq.topic` |

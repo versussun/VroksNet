@@ -5,7 +5,7 @@ namespace VroksNet.Application.Abstractions;
 /// <summary>
 /// Actually sends a message to a <see cref="Connection"/>'s target: an HTTP request built from an
 /// operation key ("METHOD /path") for <see cref="ConnectionServiceType.Http"/>, or a broker
-/// publish built from one ("channel/address:action") for RabbitMq/Nats. <c>exchange</c> is the
+/// publish built from one ("channel/address:action") for RabbitMq/Nats/Kafka. <c>exchange</c> is the
 /// RabbitMQ exchange to publish to (null or "" — the default exchange, i.e. straight into the
 /// queue named after the channel); ignored for the other service types.
 /// </summary>

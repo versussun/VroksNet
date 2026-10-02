@@ -5,7 +5,7 @@ paths:
 
 # VroksNet.IntegrationTests
 
-Aspire integration tests. They boot the *real* distributed-application graph (`AppHost.cs` as-is: `apiservice`, `webfrontend`, and the RabbitMQ/NATS containers `apiservice` waits on) via `Aspire.Hosting.Testing`, then drive it over the wire. Shared rules: `.claude/rules/tests.md`.
+Aspire integration tests. They boot the *real* distributed-application graph (`AppHost.cs` as-is: `apiservice`, `webfrontend`, and the RabbitMQ/NATS/Kafka containers `apiservice` waits on) via `Aspire.Hosting.Testing`, then drive it over the wire. Shared rules: `.claude/rules/tests.md`.
 
 ## Rules
 
@@ -17,5 +17,5 @@ Aspire integration tests. They boot the *real* distributed-application graph (`A
 
 ## Requirements
 
-- **A running container runtime** (Docker Desktop or compatible). `apiservice` does `.WaitFor(rabbitmq).WaitFor(nats)`, so the graph can't boot without one. Skip this project where no container runtime is available.
+- **A running container runtime** (Docker Desktop or compatible). `apiservice` does `.WaitFor(rabbitmq).WaitFor(nats).WaitFor(kafka)`, so the graph can't boot without one. Skip this project where no container runtime is available.
 - **The database is fresh every run.** `AppHost.cs` doesn't set `ConnectionStrings:VroksNetDb`, so `apiservice` gets the in-memory default.

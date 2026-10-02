@@ -27,18 +27,28 @@ public class MessageListenerTests
         var result = await Listener.ListenAsync(Connection(ConnectionServiceType.Http, "https://api.example.com"), "orders.created:send", TimeSpan.FromSeconds(1), "amq.topic", TestContext.Current.CancellationToken);
 
         Assert.False(result.Received);
-        Assert.Contains("only RabbitMq/Nats", result.Message);
+        Assert.Contains("only RabbitMq/Nats/Kafka", result.Message);
     }
 
     [Theory]
     [InlineData(ConnectionServiceType.RabbitMq, "amqp://guest:guest@127.0.0.1:1")]
     [InlineData(ConnectionServiceType.Nats, "nats://127.0.0.1:1")]
+    [InlineData(ConnectionServiceType.Kafka, "127.0.0.1:1")]
     public async Task ListenAsync_UnreachableBroker_FailsWithoutThrowing(ConnectionServiceType serviceType, string value)
     {
         var result = await Listener.ListenAsync(Connection(serviceType, value), "orders.created:send", TimeSpan.FromSeconds(1), "amq.topic", TestContext.Current.CancellationToken);
 
         Assert.False(result.Received);
         Assert.False(string.IsNullOrWhiteSpace(result.Message));
+    }
+
+    [Fact]
+    public async Task ListenAsync_Kafka_InvalidConnectionString_FailsWithoutConnecting()
+    {
+        var result = await Listener.ListenAsync(Connection(ConnectionServiceType.Kafka, "client.id=no-servers"), "orders.created:send", TimeSpan.FromSeconds(1), "amq.topic", TestContext.Current.CancellationToken);
+
+        Assert.False(result.Received);
+        Assert.StartsWith("Not a valid Kafka connection string", result.Message);
     }
 
     private static Connection Connection(ConnectionServiceType serviceType, string value)

@@ -9,7 +9,7 @@
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
         <h1>Test Scenarios</h1>
-        <p class="text-muted mb-0">Pick a message from an imported specification and send it to a connection — an HTTP service, or a RabbitMQ/NATS broker.</p>
+        <p class="text-muted mb-0">Pick a message from an imported specification and send it to a connection — an HTTP service, or a RabbitMQ/NATS/Kafka broker.</p>
     </div>
     <button type="button" class="btn btn-primary text-nowrap ms-3" @onclick="OpenAddPanel">+ Add test scenario</button>
 </div>
@@ -169,7 +169,7 @@ else
             </select>
             @if (SelectedEndpoint is not null && _connections is { Length: > 0 } && !CompatibleConnections.Any())
             {
-                <div class="form-text text-danger">No @(SelectedEndpoint.RequiresHttpConnection ? "Http" : "RabbitMq/Nats") connections yet — add one on the Settings page first.</div>
+                <div class="form-text text-danger">No @(SelectedEndpoint.RequiresHttpConnection ? "Http" : "RabbitMq/Nats/Kafka") connections yet — add one on the Settings page first.</div>
             }
         </div>
 

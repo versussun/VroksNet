@@ -4,7 +4,7 @@ namespace VroksNet.Domain.TestScenarios;
 /// A saved "send this message somewhere" scenario: one operation (<see cref="MockEndpointId"/>)
 /// from one imported specification (<see cref="SpecificationId"/>), sent through one
 /// <see cref="Connections.Connection"/> (<see cref="ConnectionId"/>) — an HTTP service, or a
-/// RabbitMQ/NATS broker. No foreign-key constraints to the specification/endpoint/connection it
+/// RabbitMQ/NATS/Kafka broker. No foreign-key constraints to the specification/endpoint/connection it
 /// references (same loose-coupling as <see cref="CallRecords.CallRecord"/>) — deleting any of
 /// those leaves a scenario that fails gracefully at run time rather than cascading.
 /// </summary>

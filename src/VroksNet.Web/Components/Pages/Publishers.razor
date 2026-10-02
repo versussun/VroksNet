@@ -9,7 +9,7 @@
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
         <h1>Publishers</h1>
-        <p class="text-muted mb-0">Async mocks: publish an AsyncAPI operation's message to a RabbitMQ/NATS broker on a schedule, or on demand. <code>{{uuid}}</code> and <code>{{now}}</code> in the message are filled in each time.</p>
+        <p class="text-muted mb-0">Async mocks: publish an AsyncAPI operation's message to a RabbitMQ/NATS/Kafka broker on a schedule, or on demand. <code>{{uuid}}</code> and <code>{{now}}</code> in the message are filled in each time.</p>
     </div>
     <button type="button" class="btn btn-primary text-nowrap ms-3" @onclick="OpenAddPanel">+ Add publisher</button>
 </div>
@@ -167,7 +167,7 @@ else
             </select>
             @if (_connections is not null && !BrokerConnections.Any())
             {
-                <div class="form-text text-danger">No RabbitMq/Nats connections yet — add one on the Settings page first.</div>
+                <div class="form-text text-danger">No RabbitMq/Nats/Kafka connections yet — add one on the Settings page first.</div>
             }
         </div>
 

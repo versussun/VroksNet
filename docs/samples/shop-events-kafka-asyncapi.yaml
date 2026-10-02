@@ -1,0 +1,364 @@
+# Sample spec for local testing — NOT a real service spec. See docs/samples/README.md.
+#
+# An extended AsyncAPI 3.0 spec for Kafka. How VroksNet uses it:
+# - each operation becomes "{channel address}:{action}", and the address is the Kafka topic
+#   ("shop.orders.created:send" → topic shop.orders.created);
+# - Publishers and Send scenarios publish the operation's message example, with {{uuid}} and
+#   {{now}} filled in on every publish;
+# - Listen scenarios check what arrives against the message payload schema;
+# - "{region}" is a whole "."-separated segment, so a Listen scenario on
+#   shop.payments.{region}.settled hears every existing shop.payments.<anything>.settled topic.
+#   A Publisher/Send can't fill a parameter in — it would publish to the literal topic name,
+#   which Kafka rejects — so give those a concrete-address operation like the others here.
+# Kafka bindings (message key, partitions, consumer group) are documentation for the reader:
+# VroksNet publishes without a key and listens without a consumer group.
+asyncapi: 3.0.0
+info:
+  title: Shop Events Kafka Sample
+  version: "3.2.0"
+  description: |
+    Domain events of an online shop on Kafka. The shop publishes order and payment events and
+    consumes stock updates from the warehouse.
+  tags:
+    - name: orders
+    - name: payments
+    - name: inventory
+defaultContentType: application/json
+servers:
+  local:
+    host: localhost:9092
+    protocol: kafka
+    description: The Aspire "kafka" resource (its real port is in the dashboard).
+  production:
+    host: kafka-1.example.com:9093
+    protocol: kafka-secure
+    description: SASL_SSL — use a "bootstrap.servers=…;security.protocol=SASL_SSL;…" connection.
+    security:
+      - $ref: "#/components/securitySchemes/saslScram"
+channels:
+  orderCreated:
+    address: shop.orders.created
+    description: One event per placed order.
+    messages:
+      orderCreated:
+        $ref: "#/components/messages/OrderCreated"
+    bindings:
+      kafka:
+        partitions: 6
+        replicas: 3
+        topicConfiguration:
+          cleanup.policy: [delete]
+          retention.ms: 604800000
+  orderCancelled:
+    address: shop.orders.cancelled
+    messages:
+      orderCancelled:
+        $ref: "#/components/messages/OrderCancelled"
+  paymentSettled:
+    address: shop.payments.eu.settled
+    description: Settlements of the EU acquirer.
+    messages:
+      paymentSettled:
+        $ref: "#/components/messages/PaymentSettled"
+  paymentSettledAnyRegion:
+    address: shop.payments.{region}.settled
+    description: Settlements from every regional acquirer — one topic per region.
+    parameters:
+      region:
+        description: Acquirer region.
+        enum: [eu, us, apac]
+    messages:
+      paymentSettled:
+        $ref: "#/components/messages/PaymentSettled"
+  stockChanged:
+    address: warehouse.stock.changed
+    messages:
+      stockChanged:
+        $ref: "#/components/messages/StockChanged"
+operations:
+  publishOrderCreated:
+    action: send
+    channel:
+      $ref: "#/channels/orderCreated"
+    summary: The shop publishes this when an order is placed.
+    messages:
+      - $ref: "#/channels/orderCreated/messages/orderCreated"
+    bindings:
+      kafka:
+        clientId:
+          type: string
+          enum: [shop-api]
+  publishOrderCancelled:
+    action: send
+    channel:
+      $ref: "#/channels/orderCancelled"
+    messages:
+      - $ref: "#/channels/orderCancelled/messages/orderCancelled"
+  publishPaymentSettled:
+    action: send
+    channel:
+      $ref: "#/channels/paymentSettled"
+    summary: Publishes a settlement on the EU topic (a concrete address, so it can be published).
+    messages:
+      - $ref: "#/channels/paymentSettled/messages/paymentSettled"
+  publishPaymentSettledAnyRegion:
+    action: send
+    channel:
+      $ref: "#/channels/paymentSettledAnyRegion"
+    summary: Listen-only in VroksNet — hears settlements on any region's topic.
+    messages:
+      - $ref: "#/channels/paymentSettledAnyRegion/messages/paymentSettled"
+  consumeStockChanged:
+    action: receive
+    channel:
+      $ref: "#/channels/stockChanged"
+    summary: The shop consumes warehouse stock changes to update availability.
+    messages:
+      - $ref: "#/channels/stockChanged/messages/stockChanged"
+    bindings:
+      kafka:
+        groupId:
+          type: string
+          enum: [shop-availability]
+components:
+  securitySchemes:
+    saslScram:
+      type: scramSha512
+  messageTraits:
+    commonHeaders:
+      headers:
+        type: object
+        properties:
+          traceparent:
+            type: string
+  messages:
+    OrderCreated:
+      name: OrderCreated
+      title: Order created
+      contentType: application/json
+      traits:
+        - $ref: "#/components/messageTraits/commonHeaders"
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: The order id — keeps one order's events on one partition.
+      payload:
+        $ref: "#/components/schemas/OrderCreatedPayload"
+      examples:
+        - name: twoBooks
+          summary: The example VroksNet publishes (the first one).
+          payload:
+            eventId: "{{uuid}}"
+            occurredAt: "{{now}}"
+            orderId: "{{uuid}}"
+            customer:
+              id: cus_42
+              email: ada@example.com
+              tier: gold
+            lines:
+              - sku: bk_1001
+                title: The Pragmatic Programmer
+                quantity: 1
+                unitPrice: 39.99
+              - sku: bk_1002
+                title: Domain-Driven Design
+                quantity: 2
+                unitPrice: 54.5
+            total: { amount: 148.99, currency: EUR }
+            shipping: { method: courier, country: UA }
+            couponCode: null
+        - name: minimal
+          summary: Ignored by VroksNet (only the first example is used), kept for readers.
+          payload:
+            eventId: 4d7c2a8e-0000-4000-8000-000000000001
+            occurredAt: "2026-10-01T12:00:00Z"
+            orderId: ord_1
+            customer: { id: cus_1, email: bob@example.com, tier: standard }
+            lines: [{ sku: bk_1001, title: The Pragmatic Programmer, quantity: 1, unitPrice: 39.99 }]
+            total: { amount: 39.99, currency: EUR }
+            shipping: { method: pickup, country: UA }
+    OrderCancelled:
+      name: OrderCancelled
+      title: Order cancelled
+      payload:
+        $ref: "#/components/schemas/OrderCancelledPayload"
+      examples:
+        - name: customerRequest
+          payload:
+            eventId: "{{uuid}}"
+            occurredAt: "{{now}}"
+            orderId: ord_1
+            reason: customer_request
+            refund: { amount: 39.99, currency: EUR }
+    PaymentSettled:
+      name: PaymentSettled
+      title: Payment settled
+      payload:
+        $ref: "#/components/schemas/PaymentSettledPayload"
+      examples:
+        - name: card
+          payload:
+            eventId: "{{uuid}}"
+            occurredAt: "{{now}}"
+            paymentId: "{{uuid}}"
+            orderId: ord_1
+            region: eu
+            amount: { amount: 148.99, currency: EUR }
+            fee: { amount: 2.24, currency: EUR }
+            method: card
+    StockChanged:
+      name: StockChanged
+      title: Stock level changed
+      payload:
+        $ref: "#/components/schemas/StockChangedPayload"
+      examples:
+        - name: restock
+          payload:
+            eventId: "{{uuid}}"
+            occurredAt: "{{now}}"
+            warehouse: KBP-1
+            sku: bk_1002
+            onHand: 25
+            delta: 25
+            cause: restock
+  # Each payload schema is self-contained (no $ref inside it): VroksNet follows only the one
+  # payload → components.schemas hop when it stores a schema for contract checks.
+  schemas:
+    OrderCreatedPayload:
+      type: object
+      required: [eventId, occurredAt, orderId, customer, lines, total]
+      additionalProperties: false
+      properties:
+        eventId:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        orderId:
+          type: string
+        customer:
+          type: object
+          required: [id, email]
+          properties:
+            id:
+              type: string
+            email:
+              type: string
+              format: email
+            tier:
+              type: string
+              enum: [standard, silver, gold]
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [sku, quantity, unitPrice]
+            properties:
+              sku:
+                type: string
+              title:
+                type: string
+              quantity:
+                type: integer
+                minimum: 1
+              unitPrice:
+                type: number
+                minimum: 0
+        total:
+          type: object
+          required: [amount, currency]
+          properties:
+            amount:
+              type: number
+            currency:
+              type: string
+              pattern: "^[A-Z]{3}$"
+        shipping:
+          type: object
+          properties:
+            method:
+              type: string
+              enum: [courier, post, pickup]
+            country:
+              type: string
+        couponCode:
+          type: [string, "null"]
+    OrderCancelledPayload:
+      type: object
+      required: [eventId, occurredAt, orderId, reason]
+      properties:
+        eventId:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        orderId:
+          type: string
+        reason:
+          type: string
+          enum: [customer_request, payment_failed, out_of_stock, fraud_suspected]
+        refund:
+          type: object
+          required: [amount, currency]
+          properties:
+            amount:
+              type: number
+            currency:
+              type: string
+    PaymentSettledPayload:
+      type: object
+      required: [eventId, occurredAt, paymentId, orderId, region, amount]
+      properties:
+        eventId:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        paymentId:
+          type: string
+        orderId:
+          type: string
+        region:
+          type: string
+          enum: [eu, us, apac]
+        amount:
+          type: object
+          required: [amount, currency]
+          properties:
+            amount:
+              type: number
+            currency:
+              type: string
+        fee:
+          type: object
+          properties:
+            amount:
+              type: number
+            currency:
+              type: string
+        method:
+          type: string
+          enum: [card, bank_transfer, wallet]
+    StockChangedPayload:
+      type: object
+      required: [eventId, occurredAt, warehouse, sku, onHand, delta, cause]
+      properties:
+        eventId:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        warehouse:
+          type: string
+        sku:
+          type: string
+        onHand:
+          type: integer
+          minimum: 0
+        delta:
+          type: integer
+        cause:
+          type: string
+          enum: [sale, restock, return, correction]

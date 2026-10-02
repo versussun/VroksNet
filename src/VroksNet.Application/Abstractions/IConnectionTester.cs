@@ -5,7 +5,7 @@ namespace VroksNet.Application.Abstractions;
 /// <summary>
 /// Actually attempts to reach a <see cref="Connection"/>'s target — a lightweight HTTP request
 /// for <see cref="ConnectionServiceType.Http"/>, or opening (then closing) a real client
-/// connection for <see cref="ConnectionServiceType.RabbitMq"/>/<see cref="ConnectionServiceType.Nats"/>.
+/// connection for <see cref="ConnectionServiceType.RabbitMq"/>/<see cref="ConnectionServiceType.Nats"/>/<see cref="ConnectionServiceType.Kafka"/>.
 /// </summary>
 public interface IConnectionTester
 {

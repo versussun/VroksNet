@@ -18,7 +18,7 @@ All admin endpoints live on the main address (`$API`, see [Getting started](gett
 
 | Method & path | Body | Returns |
 |---|---|---|
-| `POST /api/connections` | `{ "name", "serviceType": "Http" \| "RabbitMq" \| "Nats", "value" }` | `{ "id" }` |
+| `POST /api/connections` | `{ "name", "serviceType": "Http" \| "RabbitMq" \| "Nats" \| "Kafka", "value" }` | `{ "id" }` |
 | `GET /api/connections` | | list |
 | `PUT /api/connections/{id}` | same as create | `204` / `404` |
 | `DELETE /api/connections/{id}` | | `204` / `404` |
@@ -91,7 +91,7 @@ Not a contract test: a publisher publishes an AsyncAPI operation's message to a 
 }
 ```
 
-- The operation must be an AsyncAPI one and the connection a RabbitMQ/NATS one. `intervalSeconds` is 1–86400.
+- The operation must be an AsyncAPI one and the connection a RabbitMQ/NATS/Kafka one. `intervalSeconds` is 1–86400.
 - `payloadOverride`: `null` publishes the operation's own example. Either way it's a template: `{{uuid}}` and `{{now}}` are filled in per message. `{{request.*}}` has no request behind it, so it becomes `null`/empty and shows up as a warning.
 - `exchange`: RabbitMQ only, `null` = the default exchange (straight into the queue named after the channel).
 - Each publish is checked against the operation's payload schema. A mismatch is reported in `message`/`contractValidation` and in Call History, but the message is still sent.
