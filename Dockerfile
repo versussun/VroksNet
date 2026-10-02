@@ -30,6 +30,16 @@ RUN dotnet publish src/VroksNet.ApiService/VroksNet.ApiService.csproj -c Release
 
 # ---- Stage 3: runtime ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+
+# tini as PID 1, with dotnet as its child. As PID 1 itself, dotnet can't die from the SIGABRT its
+# own abort() raises on an unhandled exception (the kernel drops default-action signals to PID 1),
+# so a startup crash spun at 100% CPU forever instead of exiting — invisible to restart policies.
+# Under tini it exits with 134 (128 + SIGABRT) as it should, and SIGTERM on `docker stop` is
+# forwarded to it.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tini \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY --from=api-build /app/api .
 COPY --from=web-build /app/web/wwwroot ./wwwroot
@@ -45,4 +55,4 @@ ENV ConnectionStrings__VroksNetDb="Data Source=/app/data/vroksnet.db"
 ENV Provider__Port=7353
 EXPOSE 8080 7353
 
-ENTRYPOINT ["dotnet", "VroksNet.ApiService.dll"]
+ENTRYPOINT ["/usr/bin/tini", "--", "dotnet", "VroksNet.ApiService.dll"]

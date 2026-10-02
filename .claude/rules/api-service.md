@@ -13,6 +13,10 @@ The only server process and the **only composition root**, in both dev and prod.
 - **Keep it the single composition root.** No other project wires DI for the app.
 - **Serve Web's WASM output with `UseStaticFiles` + `MapFallbackToFile("index.html")` in Production.** Do **not** use `MapStaticAssets()`/`UseBlazorFrameworkFiles()`. See the root `Dockerfile`.
 - **One process, one Docker image.** The root `Dockerfile` is multi-stage: it publishes `VroksNet.Web` first, then copies its `wwwroot` into the final image next to ApiService's own publish output. Keep it that way.
+- **Keep `tini` as the container's PID 1** (`ENTRYPOINT ["/usr/bin/tini", "--", "dotnet", …]` in the `Dockerfile`).
+  - Without it, `dotnet` is PID 1, and the kernel drops the SIGABRT its own `abort()` raises on an unhandled exception.
+  - A startup crash then spins at 100% CPU instead of exiting, and looks alive to restart policies.
+  - With `tini`, it exits with 134, and `docker stop` stops it promptly.
 - **Never reference `Microsoft.AspNetCore.OpenApi`.** Don't re-add it. It brings back a `NU1107` version conflict.
 - **Keep the Development CORS predicate as `IsLoopback || Host.EndsWith(".localhost")`.** Don't narrow it to `IsLoopback` alone.
 - **Provider mode lives on its own port, never on the main one** (`ProviderPortSetup`, enabled by `Provider:Port`).
