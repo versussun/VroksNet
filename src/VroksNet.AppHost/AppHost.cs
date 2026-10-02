@@ -3,6 +3,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 var rabbitmq = builder.AddRabbitMQ("rabbitmq");
 var nats = builder.AddNats("nats");
 var kafka = builder.AddKafka("kafka");
+kafka.WithEnvironment("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true");
 
 // Pinned to a fixed port: under AppHost orchestration, Aspire assigns each project resource a
 // random port every run rather than honoring its launchSettings.json applicationUrl — confirmed
