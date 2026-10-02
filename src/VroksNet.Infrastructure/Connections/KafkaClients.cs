@@ -56,6 +56,10 @@ internal static class KafkaClients
         var settings = WithTimeouts(config, timeout);
         // Bounds the whole delivery, so ProduceAsync to an unreachable broker fails instead of retrying forever.
         settings["message.timeout.ms"] = Milliseconds(timeout);
+        // librdkafka treats a missing topic as "maybe still being created" for this long (30s by
+        // default) before failing with UnknownTopic. Kept under the delivery timeout, so a missing
+        // topic is reported as missing rather than as a broker that never acknowledged.
+        settings["topic.metadata.propagation.max.ms"] = Milliseconds(timeout / 2);
         return new ProducerBuilder<Null, string>(settings)
             .SetLogHandler((_, _) => { })
             .SetErrorHandler((_, _) => { })

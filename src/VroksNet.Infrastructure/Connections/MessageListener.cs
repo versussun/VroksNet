@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Confluent.Kafka;
 using NATS.Client.Core;
@@ -167,15 +168,13 @@ public sealed class MessageListener : IMessageListener
                 return new MessageListenResult(false, $"No topic matching \"{pattern}\" exists on this broker.");
             }
 
-            using var setupCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            setupCts.CancelAfter(ConnectTimeout);
             using var consumer = KafkaClients.CreateConsumer(config, ConnectTimeout);
 
             // Start each partition at its concrete high watermark rather than Offset.End: "end" is
             // only resolved once fetching starts, so a message written in between would be skipped.
-            var start = await Task.Run(
-                () => partitions.Select(partition => new TopicPartitionOffset(partition, consumer.QueryWatermarkOffsets(partition, ConnectTimeout).High)).ToList(),
-                setupCts.Token);
+            // The queries block one after another, so they share one setup deadline (each gets
+            // what's left of it) instead of ConnectTimeout apiece.
+            var start = await Task.Run(() => HighWatermarksOf(consumer, partitions, cancellationToken), cancellationToken);
             consumer.Assign(start);
             stage = ListenStage.Listening;
 
@@ -186,7 +185,7 @@ public sealed class MessageListener : IMessageListener
             var result = await Task.Run(() => consumer.Consume(listenCts.Token), CancellationToken.None);
             return new MessageListenResult(true, $"Received on topic \"{result.Topic}\" (partition {result.Partition.Value}, offset {result.Offset.Value}).", result.Message.Value);
         }
-        catch (KafkaException ex) when (stage == ListenStage.Connecting && ex.Error.Code is ErrorCode.Local_TimedOut or ErrorCode.Local_Transport or ErrorCode.Local_AllBrokersDown)
+        catch (KafkaException ex) when (ex.Error.Code is ErrorCode.Local_TimedOut or ErrorCode.Local_Transport or ErrorCode.Local_AllBrokersDown)
         {
             return new MessageListenResult(false, TimeoutMessage(stage, $"topics matching \"{pattern}\"", timeout));
         }
@@ -198,6 +197,26 @@ public sealed class MessageListener : IMessageListener
         {
             return new MessageListenResult(false, ex is KafkaException kafka ? kafka.Error.Reason : ex.Message);
         }
+    }
+
+    /// <exception cref="TimeoutException">The partitions' offsets weren't all known within <see cref="ConnectTimeout"/>.</exception>
+    private static List<TopicPartitionOffset> HighWatermarksOf(IConsumer<Ignore, string> consumer, List<TopicPartition> partitions, CancellationToken cancellationToken)
+    {
+        var setupClock = Stopwatch.StartNew();
+        var offsets = new List<TopicPartitionOffset>(partitions.Count);
+        foreach (var partition in partitions)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var remaining = ConnectTimeout - setupClock.Elapsed;
+            if (remaining <= TimeSpan.Zero)
+            {
+                throw new TimeoutException();
+            }
+
+            offsets.Add(new TopicPartitionOffset(partition, consumer.QueryWatermarkOffsets(partition, remaining).High));
+        }
+
+        return offsets;
     }
 
     private static string TimeoutMessage(ListenStage stage, string target, TimeSpan timeout) => stage switch
