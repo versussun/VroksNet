@@ -44,6 +44,49 @@ public sealed class ListenScenarioApiTests(AppHostFixture fixture)
     }
 
     [Fact]
+    public async Task Listen_RabbitMq_HearsASendScenarioOnTheSameExchange()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = fixture.ApiServiceClient;
+        var suffix = Guid.NewGuid().ToString("N");
+
+        var connectionString = await fixture.App.GetConnectionStringAsync("rabbitmq", cancellationToken);
+        Assert.NotNull(connectionString);
+        var listen = await CreateListenScenarioWithTargetAsync(client, suffix, $"orders.created.{suffix}", "RabbitMq", connectionString, exchange: "amq.topic", timeoutSeconds: 20, cancellationToken);
+        var sendId = await CreateSendScenarioAsync(client, suffix, listen.SpecificationId, listen.MockEndpointId, listen.ConnectionId, exchange: "amq.topic", cancellationToken);
+
+        var run = await RunWhilePublishingAsync(listen.ScenarioId, async () =>
+        {
+            var send = await client.PostAsync($"/api/test-scenarios/{sendId}/run", null, cancellationToken);
+            var result = (await send.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!;
+            Assert.True(result["success"]!.GetValue<bool>(), result["message"]?.GetValue<string>());
+        }, cancellationToken);
+
+        Assert.True(run["success"]!.GetValue<bool>());
+        Assert.True(run["contractValidation"]!["isValid"]!.GetValue<bool>());
+        Assert.Equal("""{"orderId":"ord_1"}""", run["responseBody"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Send_RabbitMq_ToAMissingExchange_FailsReadably()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = fixture.ApiServiceClient;
+        var suffix = Guid.NewGuid().ToString("N");
+
+        var connectionString = await fixture.App.GetConnectionStringAsync("rabbitmq", cancellationToken);
+        Assert.NotNull(connectionString);
+        var listen = await CreateListenScenarioWithTargetAsync(client, suffix, $"orders.created.{suffix}", "RabbitMq", connectionString, exchange: null, timeoutSeconds: 1, cancellationToken);
+        var sendId = await CreateSendScenarioAsync(client, suffix, listen.SpecificationId, listen.MockEndpointId, listen.ConnectionId, exchange: $"missing-{suffix}", cancellationToken);
+
+        var response = await client.PostAsync($"/api/test-scenarios/{sendId}/run", null, cancellationToken);
+        var run = (await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!;
+
+        Assert.False(run["success"]!.GetValue<bool>());
+        Assert.Contains($"Exchange \"missing-{suffix}\" doesn't exist", run["message"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task Listen_Nats_ReceivesOnSubject()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -139,6 +182,11 @@ public sealed class ListenScenarioApiTests(AppHostFixture fixture)
 
     private static async Task<Guid> CreateListenScenarioAsync(
         HttpClient client, string suffix, string channelAddress, string serviceType, string connectionValue, string? exchange, int timeoutSeconds, CancellationToken cancellationToken)
+        => (await CreateListenScenarioWithTargetAsync(client, suffix, channelAddress, serviceType, connectionValue, exchange, timeoutSeconds, cancellationToken)).ScenarioId;
+
+    /// <summary>Also returns what the scenario targets, so a test can add a second scenario on the same operation and connection.</summary>
+    private static async Task<(Guid ScenarioId, Guid SpecificationId, Guid MockEndpointId, Guid ConnectionId)> CreateListenScenarioWithTargetAsync(
+        HttpClient client, string suffix, string channelAddress, string serviceType, string connectionValue, string? exchange, int timeoutSeconds, CancellationToken cancellationToken)
     {
         var yaml = $"""
             asyncapi: 3.0.0
@@ -202,10 +250,30 @@ public sealed class ListenScenarioApiTests(AppHostFixture fixture)
                 PayloadOverride = (string?)null,
                 Kind = "Listen",
                 ListenTimeoutSeconds = timeoutSeconds,
-                ListenExchange = exchange
+                Exchange = exchange
             },
             cancellationToken);
         Assert.Equal(HttpStatusCode.OK, scenarioResponse.StatusCode);
-        return (await scenarioResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!["id"]!.GetValue<Guid>();
+        var scenarioId = (await scenarioResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!["id"]!.GetValue<Guid>();
+        return (scenarioId, specificationId, endpoint["id"]!.GetValue<Guid>(), connectionId);
+    }
+
+    private static async Task<Guid> CreateSendScenarioAsync(HttpClient client, string suffix, Guid specificationId, Guid mockEndpointId, Guid connectionId, string? exchange, CancellationToken cancellationToken)
+    {
+        var response = await client.PostAsJsonAsync(
+            "/api/test-scenarios",
+            new
+            {
+                Name = $"Send Scenario {suffix}",
+                SpecificationId = specificationId,
+                MockEndpointId = mockEndpointId,
+                ConnectionId = connectionId,
+                PayloadOverride = """{"orderId":"ord_1"}""",
+                Kind = "Send",
+                Exchange = exchange
+            },
+            cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!["id"]!.GetValue<Guid>();
     }
 }

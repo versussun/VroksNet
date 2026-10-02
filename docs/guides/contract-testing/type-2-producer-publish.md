@@ -53,10 +53,10 @@ The operation key is `orders.shipped:receive`, so the channel address is `orders
 
 | Broker | Published to |
 |---|---|
-| RabbitMQ | the **default exchange** (`""`) with routing key = channel address, i.e. **straight into the queue named `orders.shipped`**. The queue must exist, otherwise RabbitMQ drops the message. |
+| RabbitMQ | the scenario's **Exchange** with routing key = channel address (`orders.shipped`). A new scenario starts with `amq.topic`, so the service's queue must be bound to it with a matching key, and a Type 4 Listen scenario on the same exchange hears the message. Clear the field (`exchange: null`) to publish through the **default exchange** `""`, i.e. **straight into the queue named `orders.shipped`**, which must exist. If the exchange doesn't exist, the run fails with a readable message. |
 | NATS | subject = channel address (`orders.shipped`). Core NATS doesn't queue: the service must be subscribed when you run. |
 
-> Publishing to a named exchange (topic/direct) isn't supported yet. It's planned as Phase G in `docs/contract-testing-plan.md`.
+> If nothing is bound to the exchange with a matching key, RabbitMQ drops the message and the run still succeeds — publishing doesn't confirm delivery.
 
 ## 3. Create the scenario
 
@@ -72,6 +72,7 @@ Import the spec as **AsyncAPI** and add a **RabbitMQ** or **NATS** connection ([
 | Connection | your RabbitMQ or NATS connection |
 | Mode | **Publish a message to the channel** (the default for `receive` operations) |
 | Payload (optional override) | blank = the spec's example; or your own JSON, e.g. an edge case |
+| Exchange | RabbitMQ only; starts as `amq.topic`, blank = straight into the queue named after the channel |
 
 **API:**
 
@@ -82,9 +83,12 @@ SCENARIO=$(curl -s -X POST "$API/api/test-scenarios" -H "Content-Type: applicati
   \"mockEndpointId\": \"$OP\",
   \"connectionId\": \"$CONN\",
   \"payloadOverride\": \"{\\\"orderId\\\":\\\"ord_42\\\",\\\"trackingNumber\\\":\\\"X1\\\"}\",
-  \"kind\": \"Send\"
+  \"kind\": \"Send\",
+  \"exchange\": \"amq.topic\"
 }" | jq -r .id)
 ```
+
+`exchange` is RabbitMQ only; leave it out (`null`) to publish straight into the queue through the default exchange.
 
 ## 4. Run it
 

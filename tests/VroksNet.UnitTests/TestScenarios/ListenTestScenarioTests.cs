@@ -71,7 +71,7 @@ public class ListenTestScenarioTests
             TestContext.Current.CancellationToken);
 
         var stored = await _scenarios.FindByIdAsync(id, TestContext.Current.CancellationToken);
-        Assert.Null(stored!.ListenExchange);
+        Assert.Null(stored!.Exchange);
         Assert.Equal(5, stored.ListenTimeoutSeconds);
     }
 
@@ -98,7 +98,7 @@ public class ListenTestScenarioTests
     }
 
     [Fact]
-    public async Task Create_SendScenario_DropsListenSettings()
+    public async Task Create_SendScenario_DropsTheTimeoutButKeepsTheRabbitMqExchange()
     {
         await ArrangeAsync();
 
@@ -109,7 +109,35 @@ public class ListenTestScenarioTests
         var stored = await _scenarios.FindByIdAsync(id, TestContext.Current.CancellationToken);
         Assert.Equal(TestScenarioKind.Send, stored!.Kind);
         Assert.Null(stored.ListenTimeoutSeconds);
-        Assert.Null(stored.ListenExchange);
+        Assert.Equal("my.exchange", stored.Exchange);
+    }
+
+    [Fact]
+    public async Task Create_SendThroughHttp_DropsTheExchange()
+    {
+        await ArrangeAsync();
+
+        var id = await CreateHandler.Handle(
+            new CreateTestScenario("Http", _specificationId, _httpEndpointId, _httpConnectionId, null, TestScenarioKind.Send, Exchange: "my.exchange"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Null((await _scenarios.FindByIdAsync(id, TestContext.Current.CancellationToken))!.Exchange);
+    }
+
+    [Fact]
+    public async Task Run_Send_PublishesToTheScenariosExchange()
+    {
+        await ArrangeAsync();
+        var id = await CreateHandler.Handle(
+            new CreateTestScenario("Publish", _specificationId, _brokerEndpointId, _rabbitConnectionId, """{"orderId":"ord_1"}""", TestScenarioKind.Send, Exchange: " amq.topic "),
+            TestContext.Current.CancellationToken);
+        var sender = new FakeMessageSender(new MessageSendResult(true, "Published."));
+
+        var result = await new RunTestScenarioHandler(_scenarios, _specifications, _connections, sender, new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), _callRecords)
+            .Handle(new RunTestScenario(id), TestContext.Current.CancellationToken);
+
+        Assert.True(result!.Success);
+        Assert.Equal("amq.topic", sender.LastSend!.Value.Exchange);
     }
 
     [Fact]

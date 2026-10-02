@@ -17,6 +17,9 @@ var apiService = builder.AddProject<Projects.VroksNet_ApiService>("apiservice")
     // What the Admin UI tells users to point a service at (Provider__Port is the process-side
     // target port behind Aspire's proxy, not this one).
     .WithEnvironment("Provider__PublicUrl", "http://localhost:7353")
+    // CORS on the provider port is off by default; to let a browser front end call the mock, list
+    // its origins (or "*"):
+    // .WithEnvironment("Provider__CorsOrigins", "http://localhost:5173")
     .WithHttpHealthCheck("/health")
     .WithReference(rabbitmq)
     .WithReference(nats)

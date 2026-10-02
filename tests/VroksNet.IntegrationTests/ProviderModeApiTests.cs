@@ -27,6 +27,39 @@ public sealed class ProviderModeApiTests(AppHostFixture fixture)
         var info = await fixture.ApiServiceClient.GetFromJsonAsync<JsonNode>("/api/system/provider", cancellationToken);
         Assert.True(info!["enabled"]!.GetValue<bool>());
         Assert.Equal("http://localhost:7353", info["publicUrl"]!.GetValue<string>());
+        Assert.Equal(AppHostFixture.AllowedProviderOrigin, Assert.Single(info["corsOrigins"]!.AsArray())!.GetValue<string>());
+    }
+
+    [Theory]
+    [InlineData(AppHostFixture.AllowedProviderOrigin, true)]
+    [InlineData("http://other.example", false)]
+    public async Task ProviderPort_AnswersPreflightItself_AllowingOnlyConfiguredOrigins(string origin, bool allowed)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var provider = new HttpClient { BaseAddress = fixture.ProviderAddress };
+        var path = $"/cors-{Guid.NewGuid():N}/pets";
+
+        using var preflight = new HttpRequestMessage(HttpMethod.Options, path);
+        preflight.Headers.Add("Origin", origin);
+        preflight.Headers.Add("Access-Control-Request-Method", "POST");
+        preflight.Headers.Add("Access-Control-Request-Headers", "content-type");
+        var response = await provider.SendAsync(preflight, cancellationToken);
+
+        // Answered by the CORS middleware, not the mock (which would 404 an unserved path).
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(allowed, response.Headers.Contains("Access-Control-Allow-Origin"));
+        if (allowed)
+        {
+            Assert.Equal(origin, response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+            Assert.Contains("POST", response.Headers.GetValues("Access-Control-Allow-Methods").Single());
+        }
+
+        // An ordinary call is still the mock's answer, with the allow header added for an allowed origin.
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Add("Origin", origin);
+        var actual = await provider.SendAsync(request, cancellationToken);
+        Assert.Equal(HttpStatusCode.NotFound, actual.StatusCode);
+        Assert.Equal(allowed, actual.Headers.Contains("Access-Control-Allow-Origin"));
     }
 
     [Fact]

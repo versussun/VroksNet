@@ -194,17 +194,28 @@ else
                     A whole number from 1 to @MaxListenTimeoutSeconds. Leave blank for 30.
                 </div>
             </div>
-
-            @if (SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq)
-            {
-                <div class="mb-3">
-                    <label class="form-label" for="scenario-exchange-input">Exchange</label>
-                    <input id="scenario-exchange-input" class="form-control" @bind="_formListenExchange" @bind:event="oninput" placeholder="amq.topic" aria-describedby="scenario-exchange-help" />
-                    <div id="scenario-exchange-help" class="form-text">A temporary queue is bound to this exchange with the channel address as binding key, so the service's own consumers still get every message.</div>
-                </div>
-            }
         }
-        else
+
+        @if (SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq)
+        {
+            <div class="mb-3">
+                <label class="form-label" for="scenario-exchange-input">Exchange</label>
+                <input id="scenario-exchange-input" class="form-control" @bind="_formExchange" @bind:event="oninput"
+                       placeholder="@(IsListening ? DefaultExchange : "(default exchange)")" aria-describedby="scenario-exchange-help" />
+                <div id="scenario-exchange-help" class="form-text">
+                    @if (IsListening)
+                    {
+                        <text>A temporary queue is bound to this exchange with the channel address as binding key, so the service's own consumers still get every message. Blank means @DefaultExchange.</text>
+                    }
+                    else
+                    {
+                        <text>Published here with the channel address as routing key — a Listen scenario on the same exchange hears it. Blank publishes straight into the queue named after the channel (the default exchange).</text>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (!IsListening)
         {
             <div class="mb-3">
                 <label class="form-label" for="scenario-payload-textarea">Payload (optional override)</label>
@@ -257,7 +268,10 @@ else
         || (int.TryParse(_formListenTimeoutText, out var seconds) && seconds is >= 1 and <= MaxListenTimeoutSeconds);
 
     private int? ListenTimeoutSeconds => int.TryParse(_formListenTimeoutText, out var seconds) ? seconds : null;
-    private string _formListenExchange = string.Empty;
+    /// <summary>What a new scenario's Exchange starts as, so a new Send and Listen on the same operation meet; the server's default for a blank Listen exchange too.</summary>
+    private const string DefaultExchange = "amq.topic";
+
+    private string _formExchange = DefaultExchange;
 
     /// <summary>The server decides which operations can be listened to (MockEndpointDetail.CanListen).</summary>
     private bool CanChooseMode => SelectedEndpoint?.CanListen == true;
@@ -336,7 +350,7 @@ else
         _formPayloadOverride = scenario.PayloadOverride ?? string.Empty;
         _formKind = scenario.Kind;
         _formListenTimeoutText = scenario.ListenTimeoutSeconds?.ToString() ?? string.Empty;
-        _formListenExchange = scenario.ListenExchange ?? string.Empty;
+        _formExchange = scenario.Exchange ?? string.Empty;
         errorMessage = null;
 
         await OnSpecificationChangedAsync();
@@ -360,7 +374,7 @@ else
         _formPayloadOverride = string.Empty;
         _formKind = TestScenarioKind.Send;
         _formListenTimeoutText = string.Empty;
-        _formListenExchange = string.Empty;
+        _formExchange = DefaultExchange;
         _specificationEndpoints = null;
     }
 
@@ -383,8 +397,8 @@ else
             listening || string.IsNullOrWhiteSpace(_formPayloadOverride) ? null : _formPayloadOverride,
             listening ? TestScenarioKind.Listen : TestScenarioKind.Send,
             listening ? ListenTimeoutSeconds : null,
-            listening && SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq && !string.IsNullOrWhiteSpace(_formListenExchange)
-                ? _formListenExchange
+            SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq && !string.IsNullOrWhiteSpace(_formExchange)
+                ? _formExchange
                 : null);
 
         try

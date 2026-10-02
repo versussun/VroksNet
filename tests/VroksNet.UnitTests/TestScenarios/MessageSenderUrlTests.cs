@@ -25,6 +25,7 @@ public class MessageSenderUrlTests
             new Connection { Id = Guid.NewGuid(), Name = "Pets API", ServiceType = ConnectionServiceType.Http, Value = connectionUrl },
             "GET /pets",
             null,
+            null,
             TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedUrl, handler.LastRequestUri?.AbsoluteUri);

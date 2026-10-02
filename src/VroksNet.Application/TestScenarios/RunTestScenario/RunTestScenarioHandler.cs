@@ -83,7 +83,7 @@ public sealed class RunTestScenarioHandler(
     private async Task<RunOutcome> SendAsync(TestScenario scenario, MockEndpoint endpoint, Connection connection, CancellationToken cancellationToken)
     {
         var payload = scenario.PayloadOverride ?? endpoint.ExampleTemplate;
-        var result = await sender.SendAsync(connection, endpoint.OperationKey, payload, cancellationToken);
+        var result = await sender.SendAsync(connection, endpoint.OperationKey, payload, scenario.Exchange, cancellationToken);
 
         var validation = result.Success && connection.ServiceType == ConnectionServiceType.Http
             ? ValidateResponse(endpoint, result)
@@ -109,7 +109,7 @@ public sealed class RunTestScenarioHandler(
     private async Task<RunOutcome> ListenAsync(TestScenario scenario, MockEndpoint endpoint, Connection connection, CancellationToken cancellationToken)
     {
         var timeout = TimeSpan.FromSeconds(scenario.ListenTimeoutSeconds ?? TestScenarioListening.DefaultTimeoutSeconds);
-        var exchange = scenario.ListenExchange ?? TestScenarioListening.DefaultRabbitMqExchange;
+        var exchange = scenario.Exchange ?? TestScenarioListening.DefaultRabbitMqExchange;
         var result = await listener.ListenAsync(connection, endpoint.OperationKey, timeout, exchange, cancellationToken);
 
         SchemaValidationResult? validation = null;

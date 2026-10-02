@@ -50,7 +50,7 @@ public sealed class TestScenarioRepository(
                     .SetProperty(s => s.PayloadOverride, scenario.PayloadOverride)
                     .SetProperty(s => s.Kind, scenario.Kind)
                     .SetProperty(s => s.ListenTimeoutSeconds, scenario.ListenTimeoutSeconds)
-                    .SetProperty(s => s.ListenExchange, scenario.ListenExchange)
+                    .SetProperty(s => s.Exchange, scenario.Exchange)
                     .SetProperty(s => s.UpdatedAt, scenario.UpdatedAt), ct);
 
             updated = rows > 0;

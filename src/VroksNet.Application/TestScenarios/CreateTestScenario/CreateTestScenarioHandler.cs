@@ -16,8 +16,8 @@ public sealed class CreateTestScenarioHandler(
 
         var target = await TestScenarioTargetResolver.ResolveAsync(
             specifications, connections, request.SpecificationId, request.MockEndpointId, request.ConnectionId, cancellationToken);
-        var (listenTimeoutSeconds, listenExchange) = TestScenarioTargetResolver.ValidateListenSettings(
-            target, request.Kind, request.ListenTimeoutSeconds, request.ListenExchange);
+        var (listenTimeoutSeconds, exchange) = TestScenarioTargetResolver.ValidateKindSettings(
+            target, request.Kind, request.ListenTimeoutSeconds, request.Exchange);
 
         var scenario = new TestScenario
         {
@@ -29,7 +29,7 @@ public sealed class CreateTestScenarioHandler(
             PayloadOverride = request.PayloadOverride,
             Kind = request.Kind,
             ListenTimeoutSeconds = listenTimeoutSeconds,
-            ListenExchange = listenExchange,
+            Exchange = exchange,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };

@@ -1,6 +1,7 @@
 using System.Text;
 using NATS.Client.Core;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 using VroksNet.Application.Abstractions;
 using VroksNet.Domain.Connections;
 using VroksNet.Domain.TestScenarios;
@@ -20,10 +21,10 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
-    public Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, CancellationToken cancellationToken) => connection.ServiceType switch
+    public Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, string? exchange, CancellationToken cancellationToken) => connection.ServiceType switch
     {
         ConnectionServiceType.Http => SendHttpAsync(connection.Value, operationKey, payload, cancellationToken),
-        ConnectionServiceType.RabbitMq => PublishRabbitMqAsync(connection.Value, operationKey, payload, cancellationToken),
+        ConnectionServiceType.RabbitMq => PublishRabbitMqAsync(connection.Value, operationKey, payload, exchange ?? string.Empty, cancellationToken),
         ConnectionServiceType.Nats => PublishNatsAsync(connection.Value, operationKey, payload, cancellationToken),
         _ => Task.FromResult(new MessageSendResult(false, $"Unsupported service type '{connection.ServiceType}'."))
     };
@@ -70,7 +71,7 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
         }
     }
 
-    private static async Task<MessageSendResult> PublishRabbitMqAsync(string connectionString, string operationKey, string? payload, CancellationToken cancellationToken)
+    private static async Task<MessageSendResult> PublishRabbitMqAsync(string connectionString, string operationKey, string? payload, string exchange, CancellationToken cancellationToken)
     {
         var channelAddress = OperationCompatibility.ChannelAddressOf(operationKey);
         if (channelAddress is null)
@@ -88,15 +89,27 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
             await using var connection = await RabbitMqConnections.OpenAsync(uri, Timeout, cancellationToken);
             await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
-            // The default exchange ("") routes by routing key = queue name — simplest reasonable
-            // choice here since a TestScenario has no separate "exchange" concept to configure.
+            // Publishing to a missing exchange isn't an error the publish reports — the broker closes
+            // the channel afterwards — so check it exists first. The default exchange ("") always
+            // does; it routes by routing key = queue name.
+            if (exchange.Length > 0)
+            {
+                await channel.ExchangeDeclarePassiveAsync(exchange, cancellationToken);
+            }
+
             await channel.BasicPublishAsync(
-                exchange: string.Empty,
+                exchange: exchange,
                 routingKey: channelAddress,
                 body: Encoding.UTF8.GetBytes(payload ?? string.Empty),
                 cancellationToken: cancellationToken);
 
-            return new MessageSendResult(true, $"Published to routing key \"{channelAddress}\".");
+            return new MessageSendResult(true, exchange.Length > 0
+                ? $"Published to exchange \"{exchange}\", routing key \"{channelAddress}\"."
+                : $"Published to routing key \"{channelAddress}\".");
+        }
+        catch (OperationInterruptedException ex) when (ex.ShutdownReason?.ReplyCode == 404)
+        {
+            return new MessageSendResult(false, $"Exchange \"{exchange}\" doesn't exist on this broker.");
         }
         catch (TimeoutException)
         {

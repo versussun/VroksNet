@@ -28,8 +28,15 @@ public sealed class TestScenario
     /// <summary>How long a <see cref="TestScenarioKind.Listen"/> run waits for a message — <see cref="TestScenarioListening.DefaultTimeoutSeconds"/> if null. Null for <see cref="TestScenarioKind.Send"/>.</summary>
     public int? ListenTimeoutSeconds { get; set; }
 
-    /// <summary>The RabbitMQ exchange a <see cref="TestScenarioKind.Listen"/> run binds its own temporary queue to — <see cref="TestScenarioListening.DefaultRabbitMqExchange"/> if null. Ignored for NATS.</summary>
-    public string? ListenExchange { get; set; }
+    /// <summary>
+    /// RabbitMQ only (null for NATS/HTTP): the exchange a <see cref="TestScenarioKind.Send"/> run
+    /// publishes to — the default exchange ("", i.e. straight into the queue named after the
+    /// channel) if null — or a <see cref="TestScenarioKind.Listen"/> run binds its own temporary
+    /// queue to — <see cref="TestScenarioListening.DefaultRabbitMqExchange"/> if null. The routing
+    /// key is the channel address either way, so a Send and a Listen on the same operation and
+    /// exchange meet.
+    /// </summary>
+    public string? Exchange { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
 

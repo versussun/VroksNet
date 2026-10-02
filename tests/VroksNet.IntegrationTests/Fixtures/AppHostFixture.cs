@@ -26,6 +26,12 @@ public sealed class AppHostFixture : IAsyncLifetime
     /// </summary>
     public Uri ApiServiceHttpAddress { get; private set; } = null!;
 
+    /// <summary>
+    /// The one browser origin the provider port allows here. AppHost leaves CORS off; the fixture
+    /// turns it on for this test graph only, so its preflight handling can be exercised.
+    /// </summary>
+    public const string AllowedProviderOrigin = "http://allowed.example";
+
     /// <summary>apiservice's provider-mode port (AppHost.cs "provider" endpoint): the mock at real spec paths, nothing else.</summary>
     public Uri ProviderAddress { get; private set; } = null!;
 
@@ -40,6 +46,8 @@ public sealed class AppHostFixture : IAsyncLifetime
         {
             clientBuilder.AddStandardResilienceHandler();
         });
+        appHost.CreateResourceBuilder<ProjectResource>("apiservice")
+            .WithEnvironment("Provider__CorsOrigins", AllowedProviderOrigin);
 
         App = await appHost.BuildAsync(cancellationToken).WaitAsync(StartupTimeout, cancellationToken);
         await App.StartAsync(cancellationToken).WaitAsync(StartupTimeout, cancellationToken);

@@ -21,8 +21,8 @@ public sealed class UpdateTestScenarioHandler(
 
         var target = await TestScenarioTargetResolver.ResolveAsync(
             specifications, connections, request.SpecificationId, request.MockEndpointId, request.ConnectionId, cancellationToken);
-        var (listenTimeoutSeconds, listenExchange) = TestScenarioTargetResolver.ValidateListenSettings(
-            target, request.Kind, request.ListenTimeoutSeconds, request.ListenExchange);
+        var (listenTimeoutSeconds, exchange) = TestScenarioTargetResolver.ValidateKindSettings(
+            target, request.Kind, request.ListenTimeoutSeconds, request.Exchange);
 
         scenario.Name = request.Name;
         scenario.SpecificationId = request.SpecificationId;
@@ -31,7 +31,7 @@ public sealed class UpdateTestScenarioHandler(
         scenario.PayloadOverride = request.PayloadOverride;
         scenario.Kind = request.Kind;
         scenario.ListenTimeoutSeconds = listenTimeoutSeconds;
-        scenario.ListenExchange = listenExchange;
+        scenario.Exchange = exchange;
         scenario.UpdatedAt = DateTimeOffset.UtcNow;
 
         return await repository.UpdateAsync(scenario, cancellationToken);

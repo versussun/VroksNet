@@ -46,13 +46,13 @@ Create/update body:
   "payloadOverride": null,
   "kind": "Send",
   "listenTimeoutSeconds": null,
-  "listenExchange": null
+  "exchange": null
 }
 ```
 
 - `kind`: `"Send"` (HTTP request or broker publish, the default) or `"Listen"` (broker operations only).
 - `listenTimeoutSeconds`: 1–80, `null` = 30. Listen only.
-- `listenExchange`: RabbitMQ Listen only, `null` = `amq.topic`.
+- `exchange`: RabbitMQ only (dropped for NATS/HTTP). Send publishes to it with routing key = channel address, `null` = the default exchange `""` (straight into the queue named after the channel); Listen binds to it, `null` = `amq.topic`. A missing exchange fails the run with a readable message. (Was `listenExchange`, Listen only.)
 - An operation/connection mismatch (an HTTP operation through a broker connection, etc.) is rejected.
 
 ## Mock and provider mode (Type 3)
@@ -63,7 +63,7 @@ Create/update body:
 | anything on the provider port (`:7353`), at the real path | the request | the same, for an operation served at its real path; or `404` |
 | `PUT /api/mock-endpoints/{id}/provider-mode` | `{ "enabled": true }` | `204`; `404`; `409 { "detail" }` with the reason (e.g. an overlap) |
 | `PUT /api/mock-endpoints/{id}/enabled` | `{ "enabled": false }` | `204`; `404`; `409 { "detail" }` for a non-HTTP operation. A disabled operation answers `404` under `/mock` and on the provider port |
-| `GET /api/system/provider` | | `{ "enabled", "port", "publicUrl" }` |
+| `GET /api/system/provider` | | `{ "enabled", "port", "publicUrl", "corsOrigins" }` — `corsOrigins` is empty when CORS is off on the provider port |
 
 ## Call History
 

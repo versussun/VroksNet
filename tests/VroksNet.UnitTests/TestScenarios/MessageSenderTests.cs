@@ -18,7 +18,7 @@ public class MessageSenderTests
     [Fact]
     public async Task SendAsync_HttpOperationThroughRabbitMqConnection_FailsWithoutAttemptingAnyRequest()
     {
-        var result = await Sender.SendAsync(Connection("RabbitMq", "amqp://guest:guest@127.0.0.1:1"), "GET /pets", null, TestContext.Current.CancellationToken);
+        var result = await Sender.SendAsync(Connection("RabbitMq", "amqp://guest:guest@127.0.0.1:1"), "GET /pets", null, null, TestContext.Current.CancellationToken);
 
         Assert.False(result.Success);
         Assert.Contains("AsyncAPI-shaped", result.Message);
@@ -27,7 +27,7 @@ public class MessageSenderTests
     [Fact]
     public async Task SendAsync_AsyncApiOperationThroughHttpConnection_FailsWithoutAttemptingAnyRequest()
     {
-        var result = await Sender.SendAsync(Connection("Http", "https://this-host-does-not-exist.invalid"), "orders.created:send", null, TestContext.Current.CancellationToken);
+        var result = await Sender.SendAsync(Connection("Http", "https://this-host-does-not-exist.invalid"), "orders.created:send", null, null, TestContext.Current.CancellationToken);
 
         Assert.False(result.Success);
         Assert.Contains("HTTP-shaped", result.Message);
@@ -36,7 +36,7 @@ public class MessageSenderTests
     [Fact]
     public async Task SendAsync_Http_UnresolvableHost_Fails()
     {
-        var result = await Sender.SendAsync(Connection("Http", "https://this-host-does-not-exist.invalid"), "GET /pets", "[]", TestContext.Current.CancellationToken);
+        var result = await Sender.SendAsync(Connection("Http", "https://this-host-does-not-exist.invalid"), "GET /pets", "[]", null, TestContext.Current.CancellationToken);
 
         Assert.False(result.Success);
         Assert.False(string.IsNullOrWhiteSpace(result.Message));
@@ -45,7 +45,7 @@ public class MessageSenderTests
     [Fact]
     public async Task SendAsync_RabbitMq_ClosedPort_Fails()
     {
-        var result = await Sender.SendAsync(Connection("RabbitMq", "amqp://guest:guest@127.0.0.1:1"), "orders.created:send", "{}", TestContext.Current.CancellationToken);
+        var result = await Sender.SendAsync(Connection("RabbitMq", "amqp://guest:guest@127.0.0.1:1"), "orders.created:send", "{}", null, TestContext.Current.CancellationToken);
 
         Assert.False(result.Success);
         Assert.False(string.IsNullOrWhiteSpace(result.Message));
@@ -54,7 +54,7 @@ public class MessageSenderTests
     [Fact]
     public async Task SendAsync_Nats_ClosedPort_Fails()
     {
-        var result = await Sender.SendAsync(Connection("Nats", "nats://127.0.0.1:1"), "orders.created:send", "{}", TestContext.Current.CancellationToken);
+        var result = await Sender.SendAsync(Connection("Nats", "nats://127.0.0.1:1"), "orders.created:send", "{}", null, TestContext.Current.CancellationToken);
 
         Assert.False(result.Success);
         Assert.False(string.IsNullOrWhiteSpace(result.Message));

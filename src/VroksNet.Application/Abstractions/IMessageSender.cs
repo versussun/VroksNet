@@ -5,11 +5,13 @@ namespace VroksNet.Application.Abstractions;
 /// <summary>
 /// Actually sends a message to a <see cref="Connection"/>'s target: an HTTP request built from an
 /// operation key ("METHOD /path") for <see cref="ConnectionServiceType.Http"/>, or a broker
-/// publish built from one ("channel/address:action") for RabbitMq/Nats.
+/// publish built from one ("channel/address:action") for RabbitMq/Nats. <c>exchange</c> is the
+/// RabbitMQ exchange to publish to (null or "" — the default exchange, i.e. straight into the
+/// queue named after the channel); ignored for the other service types.
 /// </summary>
 public interface IMessageSender
 {
-    Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, CancellationToken cancellationToken);
+    Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, string? exchange, CancellationToken cancellationToken);
 }
 
 /// <summary>
