@@ -138,6 +138,76 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
         await Expect(contract.Locator("li")).Not.ToHaveCountAsync(0);
     }
 
+    [Fact]
+    public async Task ListenScenario_ForASendOperation_DefaultsToListen_AndReportsATimeout()
+    {
+        var suffix = Guid.NewGuid();
+        var specTitle = $"E2E Listen Spec {suffix}";
+        var connectionName = $"E2E Listen Broker {suffix}";
+        // The scenario name deliberately avoids the word "Listen", so the badge assertion below
+        // can't be satisfied by the name.
+        var scenarioName = $"E2E Order Watcher {suffix}";
+        var rabbitMqConnectionString = await Fixture.App.GetConnectionStringAsync("rabbitmq", TestContext.Current.CancellationToken);
+        Assert.NotNull(rabbitMqConnectionString);
+
+        await Page.GotoAsync("/specifications");
+        await Page.Locator("#spec-kind-select").SelectOptionAsync("AsyncApi");
+        await Page.Locator("input[type=file]").SetInputFilesAsync(new FilePayload
+        {
+            Name = "listen.yaml",
+            MimeType = "application/yaml",
+            Buffer = Encoding.UTF8.GetBytes($"""
+                asyncapi: 3.0.0
+                info:
+                  title: "{specTitle}"
+                  version: "1.0.0"
+                channels:
+                  orderCreated:
+                    address: e2e.listen.{suffix:N}
+                operations:
+                  publishOrderCreated:
+                    action: send
+                    channel:
+                      $ref: "#/channels/orderCreated"
+                """),
+        });
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = specTitle })).ToBeVisibleAsync();
+
+        await Page.GotoAsync("/settings");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add connection" }).ClickAsync();
+        await Page.GetByLabel("Name").FillAsync(connectionName);
+        await Page.GetByLabel("Service type").SelectOptionAsync("RabbitMq");
+        await Page.GetByLabel("Connection string").FillAsync(rabbitMqConnectionString);
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = connectionName })).ToBeVisibleAsync();
+
+        await Page.GotoAsync("/test-scenarios");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add test scenario" }).ClickAsync();
+        await Page.GetByLabel("Name").FillAsync(scenarioName);
+        await Page.GetByLabel("Specification").SelectOptionAsync(new SelectOptionValue { Label = $"{specTitle} (AsyncApi)" });
+        await Expect(Page.Locator("#scenario-operation-select option")).ToHaveCountAsync(2);
+        await Page.GetByLabel("Operation").SelectOptionAsync(new SelectOptionValue { Label = $"e2e.listen.{suffix:N}:send" });
+
+        // A "send" operation is one the service publishes — the form starts in Listen mode.
+        await Expect(Page.GetByLabel("Mode")).ToHaveValueAsync("Listen");
+        await Page.GetByLabel("Connection").SelectOptionAsync(new SelectOptionValue { Label = $"{connectionName} (RabbitMq)" });
+        await Expect(Page.GetByLabel("Exchange")).ToBeVisibleAsync();
+        await Expect(Page.GetByLabel("Payload (optional override)")).Not.ToBeVisibleAsync();
+
+        // Out-of-range timeouts are caught before saving.
+        await Page.GetByLabel("Wait up to (seconds)").FillAsync("200");
+        await Expect(Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true })).ToBeDisabledAsync();
+        await Page.GetByLabel("Wait up to (seconds)").FillAsync("1");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
+
+        var row = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = scenarioName });
+        await Expect(row.GetByText("Listen", new LocatorGetByTextOptions { Exact = true })).ToBeVisibleAsync();
+
+        // Nothing publishes on the channel, so the run waits its 1s and fails with a timeout.
+        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run" }).ClickAsync();
+        await Expect(row).ToContainTextAsync("No message");
+    }
+
     private static string BuildPetstoreYaml(string title) => $"""
         openapi: 3.0.3
         info:

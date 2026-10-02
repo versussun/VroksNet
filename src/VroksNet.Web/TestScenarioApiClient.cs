@@ -32,11 +32,11 @@ public sealed class TestScenarioApiClient(HttpClient httpClient)
         return await response.Content.ReadFromJsonAsync<TestScenarioSummary>(JsonOptions, cancellationToken);
     }
 
-    public async Task<Guid> CreateAsync(string name, Guid specificationId, Guid mockEndpointId, Guid connectionId, string? payloadOverride, CancellationToken cancellationToken = default)
+    public async Task<Guid> CreateAsync(TestScenarioForm form, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.PostAsJsonAsync(
             "/api/test-scenarios",
-            new { name, specificationId, mockEndpointId, connectionId, payloadOverride },
+            form,
             JsonOptions,
             cancellationToken);
         response.EnsureSuccessStatusCode();
@@ -45,11 +45,11 @@ public sealed class TestScenarioApiClient(HttpClient httpClient)
     }
 
     /// <summary>Returns false if no scenario with that id exists.</summary>
-    public async Task<bool> UpdateAsync(Guid id, string name, Guid specificationId, Guid mockEndpointId, Guid connectionId, string? payloadOverride, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(Guid id, TestScenarioForm form, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.PutAsJsonAsync(
             $"/api/test-scenarios/{id}",
-            new { id, name, specificationId, mockEndpointId, connectionId, payloadOverride },
+            form,
             JsonOptions,
             cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
