@@ -14,7 +14,7 @@ using VroksNet.UnitTests.TestDoubles;
 
 namespace VroksNet.UnitTests.Publishers;
 
-/// <summary>Publishers (async mocks, Фаза 03): the schedule, validation on create/update, and what one publish does.</summary>
+/// <summary>Publishers (async mocks, Phase 03): the schedule, validation on create/update, and what one publish does.</summary>
 public sealed class PublisherTests
 {
     private const string OrderSchema = """{ "type": "object", "required": ["orderId"], "properties": { "orderId": { "type": "string" } } }""";

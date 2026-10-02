@@ -1,174 +1,181 @@
 # VroksNet — Project Brief
 
-**Status:** Draft v0.8
+**Status:** Draft v0.9 (synced with the code on 2026-10-02)
 **Stack:** .NET 10, .NET Aspire, Clean Architecture, Blazor WebAssembly, Docker
 **Users:** single internal team, no auth on MVP
 
-Внутренний сервер для мокинга API и contract testing по спецификациям OpenAPI и AsyncAPI — аналог Microcks на стеке .NET.
+An internal server for API mocking and contract testing against OpenAPI and AsyncAPI specifications — a Microcks equivalent on the .NET stack.
 
-> Правила структуры кода и стиля — в `.claude/CLAUDE.md`. Этот документ — про продукт: зачем, что входит в MVP, архитектура и план.
+> Code structure and style rules live in `.claude/CLAUDE.md`. This document is about the product: why, what's in the MVP, architecture and plan.
 
-## 1. Цель
+## 1. Goal
 
-Команде нужен инструмент для двух связанных задач: (1) мокинг API — чтобы фронтенд и смежные сервисы могли разрабатываться и тестироваться независимо от готовности реального бэкенда, и (2) contract testing — чтобы проверять, что реальные сервисы действительно соответствуют заявленным спецификациям.
+The team needs a tool for two related jobs: (1) API mocking, so the frontend and neighboring services can be built and tested independently of whether the real backend is ready; and (2) contract testing, to check that real services actually conform to their declared specifications.
 
-В отличие от Microcks, охват сознательно узкий: без мультитенантности, без встроенной аутентификации, без интеграции с CI/CD на первом этапе. Сервис разворачивается через .NET Aspire (в разработке и как оркестратор контейнеров) и одним docker-набором в продакшене внутри инфраструктуры команды.
+Unlike Microcks, the scope is deliberately narrow: no multi-tenancy, no built-in authentication, no CI/CD integration in the first stage. The service is deployed through .NET Aspire (in development, and as a container orchestrator) and as a single Docker setup in production inside the team's infrastructure.
 
-## 2. Объём MVP
+## 2. MVP scope
 
-По обеим спецификациям сразу, без деления на «REST сначала, async потом».
+Both specification kinds at once, with no "REST first, async later" split.
 
-| Область | Что делает |
+| Area | What it does |
 |---|---|
-| Загрузка спецификаций | Импорт OpenAPI (2.0/3.x, YAML/JSON) и AsyncAPI (2.x/3.x) файлов через UI и через REST API |
-| REST-моки | Генерация ответов по примерам из спецификации (examples / schema-based fallback), матчинг по методу, пути, query и телу запроса |
-| Async-моки | Публикация тестовых сообщений в NATS, RabbitMQ и Kafka по описанным в AsyncAPI каналам, с заданной периодичностью или по триггеру |
-| Управление моками | Blazor-панель: список загруженных спецификаций, включение/выключение мок-эндпоинтов, редактирование примеров |
-| История вызовов | Лог входящих запросов к REST-мокам и отправленных async-сообщений — для отладки |
-| Contract testing | Разовая проверка «схема ⇄ реальный ответ» вручную из UI (без встраивания в пайплайн) |
+| Specification import | Import OpenAPI (Swagger 2.0 and OpenAPI 3.0/3.1) and AsyncAPI **3.0** files, YAML or JSON, through the UI and the REST API. An AsyncAPI 2.x file imports without an error but with **zero operations** — the parser reads only the 3.0 layout (top-level `operations`) |
+| REST mocks | Answer with the operation's example from the spec, templated (see "Response dynamics"), at the status the example came from. Matched on **method and path only** (path parameters included); query and body aren't used for matching. An operation without an example answers `{}` — there's no schema-based generation |
+| Async mocks | **Publishers**: publish an AsyncAPI operation's example message to NATS, RabbitMQ or Kafka every 1s–24h, or on demand ("Publish now") |
+| Mock management | A Blazor panel: imported specifications, per-operation enable/disable and "Serve at real path" (provider mode), a try-it call per HTTP operation. Examples can't be edited in the UI — change the spec and re-import it |
+| Call history | Every incoming mock call (matched or not), every test-scenario run (HTTP request, broker publish, received broker message) and every Publisher publish, with request/response bodies (capped at 64K) and the contract-check result; filterable, with "Clear history" |
+| Contract testing | Four kinds of tests (`docs/contract-testing-plan.md`): call a service and validate its response, publish to a broker, check incoming requests to the mock against the spec (provider mode), listen on a broker and validate the message. Run manually from the UI or the REST API; not wired into a pipeline |
 
-### Динамика ответов
+### Response dynamics
 
-Решено: простой **templating**, без скриптов и без сценарного переключения ответов.
+Decided: simple **templating**, with no scripting and no scenario-based switching of responses.
 
-Плейсхолдеры в теле/заголовках ответа подставляются значениями из запроса на момент матчинга:
+Placeholders in the response **body** are filled in with values from the request at match time (response headers aren't templated — the spec's response headers aren't stored):
 
-| Плейсхолдер | Источник |
+| Placeholder | Source |
 |---|---|
-| `{{request.path.<name>}}` | Значение path-параметра из URL |
-| `{{request.query.<name>}}` | Значение query-параметра |
-| `{{request.header.<name>}}` | Заголовок запроса |
-| `{{request.body.<jsonpath>}}` | Значение из тела запроса (JSON path) |
-| `{{uuid}}` | Сгенерированный GUID — для полей вроде `id` в ответе |
-| `{{now}}` | Текущая метка времени (ISO 8601) |
+| `{{request.path.<name>}}` | A path parameter's value from the URL |
+| `{{request.query.<name>}}` | A query parameter's value |
+| `{{request.header.<name>}}` | A request header |
+| `{{request.body}}` / `{{request.body.<jsonpath>}}` | The whole request body, or a value from it (JSON path, `$.a.b` or `a.b`) |
+| `{{uuid}}` | A generated GUID — for fields like `id` in the response |
+| `{{now}}` | The current timestamp (ISO 8601) |
 
-Работает поверх examples из спецификации: движок берёт example как шаблон и подставляет плейсхолдеры перед отправкой ответа. Без переменных — просто статичный example, как раньше.
+It works on top of the specification's examples: the engine takes the example as a template and fills in the placeholders before sending the response. Without placeholders, it's just the static example, as before. A placeholder that can't be filled in becomes `null` (or an empty string inside a quoted value) and is recorded as a warning in the call history. Publishers fill in `{{uuid}}` and `{{now}}` in their messages; Test Scenario payloads are sent as-is. The exact rules are in `docs/contract-testing-plan.md` 3.8–3.10.
 
-**Сознательно не сейчас:** переключение мока на конкретный сценарий (например, заголовок `X-Mock-Scenario: not-found` → 404 вместо happy path). Это отдельная фича следующей итерации — на старте достаточно happy path со статическими/шаблонизированными examples из спеки.
+**Deliberately not now:** switching a mock to a specific scenario (for example, a `X-Mock-Scenario: not-found` header → 404 instead of the happy path). That's a separate feature for a later iteration; at the start, the happy path with static/templated examples from the spec is enough.
 
-### Версионирование спецификаций
+### Specification versioning
 
-Решено: при повторной загрузке спецификация **всегда заменяет** предыдущую версию — истории версий нет, активна только последняя загрузка.
+Decided: re-importing a specification **always replaces** the previous version. There's no version history; only the latest import is active.
 
-Сопоставление «это обновление существующей спеки, а не новая» — по **имени/title внутри самой спеки** (`info.title` в OpenAPI и AsyncAPI), а не по имени файла: файл можно переименовать, а `info.title` — смысловой идентификатор сервиса, как это делает Microcks.
+Whether an import "updates an existing spec rather than adding a new one" is decided by the **name/title inside the spec itself** (`info.title` in OpenAPI and AsyncAPI), not by the file name: a file can be renamed, while `info.title` is the service's meaningful identifier — the same approach Microcks takes.
 
-Открытый нюанс для реализации (не блокер для MVP, но стоит держать в голове в фазе 01): если пользователь вручную отредактировал примеры мока в Admin UI, а потом загрузил новую версию спеки с тем же title — эти ручные правки будут перезаписаны данными из новой спеки. На старте это ожидаемое поведение; если станет болью — можно будет добавить точечное предупреждение в UI перед заменой.
+What survives a re-import: the specification's id, and — for OpenAPI operations whose key (`METHOD /path`) is still in the spec — the enabled/disabled state and "Serve at real path". Examples can't be edited in the UI, so there are no manual edits to lose.
 
-### Осознанно не входит в MVP
+**Known limitation:** every operation gets a **new id** on re-import, and Test Scenarios and Publishers reference operations by id. So after a spec is re-imported, its scenarios and Publishers fail with "The scenario's specification, operation, or connection no longer exists." and have to be recreated. Not yet decided how to fix it (keep the ids of operations whose key is unchanged, or reference operations by key).
 
-- Аутентификация, роли, мультитенантность
-- CI/CD-интеграция (CLI, Maven/Gradle/NuGet-плагины, webhook-триггеры)
-- Security testing спецификаций
-- MQTT, WebSocket — можно добавить позже, если появится нужда (Kafka добавлена после MVP — см. «Фаза 05»)
-- Кластеризация / горизонтальное масштабирование
-- Сценарии ошибок (`X-Mock-Scenario` и подобное) — см. «Динамика ответов» выше
-- История версий спецификаций — см. «Версионирование» выше
+### Deliberately out of the MVP
 
-## 3. Архитектура
+- Authentication, roles, multi-tenancy
+- CI/CD integration (CLI, Maven/Gradle/NuGet plugins, webhook triggers)
+- Security testing of specifications
+- MQTT, WebSocket — can be added later if needed (Kafka was added after the MVP — see "Phase 05")
+- Clustering / horizontal scaling
+- Error scenarios (`X-Mock-Scenario` and the like) — see "Response dynamics" above
+- Specification version history — see "Specification versioning" above
 
-Solution уже создан по Clean Architecture и оркестрируется .NET Aspire. Продуктовые компоненты брифа ложатся на существующие проекты один в один:
+## 3. Architecture
 
-| Компонент брифа | Проект в solution | Роль |
+The solution is already set up with Clean Architecture and orchestrated by .NET Aspire. The brief's product components map one-to-one onto the existing projects:
+
+| Brief component | Solution project | Role |
 |---|---|---|
-| Оркестрация (dev) | `VroksNet.AppHost` | Aspire AppHost: в разработке поднимает ApiService и Web как отдельные процессы с hot reload, плюс NATS, RabbitMQ, Kafka как ресурсы — без ручного docker-compose |
-| Сквозная инфраструктура | `VroksNet.ServiceDefaults` | Телеметрия, health checks, resilience — общие для ApiService и Web |
-| Mock API + хост Admin UI | `VroksNet.ApiService` | Composition root: динамический роутинг REST-запросов по OpenAPI-спекам, регистрирует Mediator. В Production дополнительно сервит собранные статические файлы `VroksNet.Web` (wwwroot + SPA-фолбэк на `index.html`) — единственный процесс в контейнере |
-| Admin UI | `VroksNet.Web` | Blazor **WebAssembly** (standalone, браузерный проект): загрузка спек, управление моками, просмотр истории вызовов. В Production не запускается как отдельный процесс — только собирается, а раздаёт его `VroksNet.ApiService` |
-| Spec Engine | `VroksNet.Application` | Парсинг/валидация OpenAPI и AsyncAPI, генерация примеров, матчинг запросов — как use cases через [martinothamar/Mediator](https://github.com/martinothamar/Mediator) |
-| Домен | `VroksNet.Domain` | Спецификации, мок-эндпоинты, каналы, записи истории вызовов как сущности/value objects — без ссылок на фреймворки |
-| Async Worker + Storage | `VroksNet.Infrastructure` | `BackgroundService` для публикации в NATS/RabbitMQ/Kafka по каналам из AsyncAPI; EF Core-реализации репозиториев из Application |
+| Orchestration (dev) | `VroksNet.AppHost` | Aspire AppHost: in development, runs ApiService and Web as separate processes with hot reload, plus NATS, RabbitMQ and Kafka as resources — no hand-written docker-compose |
+| Cross-cutting infrastructure | `VroksNet.ServiceDefaults` | Telemetry, health checks (`/health`, `/alive`), resilience — used by ApiService (Web, as a browser app, doesn't reference it) |
+| Mock API + Admin UI host | `VroksNet.ApiService` | Composition root: the REST API, mocks under `/mock/…` and, on a second port (7353), at the spec's real paths (provider mode); registers Mediator. In Production it also serves `VroksNet.Web`'s built static files (wwwroot + SPA fallback to `index.html`) — the only process in the container |
+| Admin UI | `VroksNet.Web` | Blazor **WebAssembly** (standalone, a browser project). Pages: Home, Specifications (list and details), Test Scenarios, Publishers, Call History, Settings (storage, connections). In Production it isn't run as its own process — it's only built, and `VroksNet.ApiService` serves it |
+| Use cases | `VroksNet.Application` | Importing specs, matching mock requests, running test scenarios, Publishers, call history — as use cases through [martinothamar/Mediator](https://github.com/martinothamar/Mediator); defines the interfaces (parsers, repositories, broker clients, schema validator, template engine) that Infrastructure implements |
+| Domain | `VroksNet.Domain` | Specifications, mock endpoints, connections, test scenarios, Publishers and call records as entities, plus the rules on them (operation/connection compatibility, overlap of provider-mode operations, the Publisher schedule) — with no framework references |
+| Infrastructure | `VroksNet.Infrastructure` | The OpenAPI and AsyncAPI parsers; broker and HTTP clients for connection tests, sends and listens; `PublisherBackgroundService`; the template engine and the JSON Schema validator; EF Core persistence with the serialized write queue |
 
-Зависимости идут внутрь, как описано в `.claude/CLAUDE.md`: `Domain ← Application ← Infrastructure`, `Presentation → Application`.
+Dependencies point inward, as described in `.claude/CLAUDE.md`: `Domain ← Application ← Infrastructure`, `Presentation → Application`.
 
-### Деплой: один процесс, один образ
+### Deployment: one process, one image
 
-**Исходная точка (историческая справка):** проект начинался со стандартного Aspire Starter-шаблона, где `VroksNet.Web` был Blazor **Server** — собственный Kestrel-процесс и отдельный образ при публикации. Автоматического «слияния в один образ по `ASPNETCORE_ENVIRONMENT=Production`» в такой схеме нет.
+**Starting point (historical note):** the project began from the standard Aspire Starter template, where `VroksNet.Web` was Blazor **Server** — its own Kestrel process and a separate image when published. That setup has no automatic "merge into one image on `ASPNETCORE_ENVIRONMENT=Production`".
 
-**Решение (✅ реализовано):** перевести `VroksNet.Web` на Blazor **WebAssembly** (standalone) и раздавать его как статику из `VroksNet.ApiService` в Production — классический паттерн «backend отдаёт SPA».
+**Decision (✅ implemented):** move `VroksNet.Web` to Blazor **WebAssembly** (standalone) and serve it as static files from `VroksNet.ApiService` in Production — the classic "backend serves the SPA" pattern.
 
-Что это значит технически:
-- `VroksNet.Web.csproj` меняет SDK на `Microsoft.NET.Sdk.BlazorWebAssembly` (standalone-клиент, без собственного Kestrel/server-side рендеринга).
-- `VroksNet.ApiService` в Production раздаёт собранные wasm-файлы как статику и делает SPA-фолбэк на `index.html` для незнакомых маршрутов (`app.UseStaticFiles()` / `app.MapFallbackToFile("index.html")`; `UseBlazorFrameworkFiles()` в .NET 8+ не нужен).
-- Сборка: multi-stage Dockerfile — сначала `dotnet publish` для `VroksNet.Web`, его `wwwroot`/wasm-выход копируется в `wwwroot` `VroksNet.ApiService`, затем публикуется сам `VroksNet.ApiService`. Один Dockerfile, один финальный образ, один процесс в контейнере.
-- В разработке `VroksNet.Web` и `VroksNet.ApiService` по-прежнему можно гонять как два процесса через `AppHost` (это даёт hot reload и удобный dev-опыт) — потребуется настроить CORS на `ApiService`, чтобы WASM-клиент на своём dev-порту мог обращаться к API. Это нормально: расхождение dev/prod-топологии тут ожидаемо и не противоречит цели «один образ» — она про то, что деплоится и запускается в проде.
-- `.claude/CLAUDE.md` нужно поправить под эту схему: `VroksNet.Web` — WASM-клиент, не отдельный host; `VroksNet.ApiService` — единственный сервер, отдающий и API, и статику UI.
+What this means technically:
+- `VroksNet.Web.csproj` switches its SDK to `Microsoft.NET.Sdk.BlazorWebAssembly` (a standalone client, with no Kestrel or server-side rendering of its own).
+- In Production, `VroksNet.ApiService` serves the built wasm files as static files and falls back to `index.html` for unknown routes (`app.UseStaticFiles()` / `app.MapFallbackToFile("index.html")`; `UseBlazorFrameworkFiles()` isn't needed in .NET 8+).
+- Build: a multi-stage Dockerfile — first `dotnet publish` for `VroksNet.Web`, its `wwwroot`/wasm output is copied into `VroksNet.ApiService`'s `wwwroot`, then `VroksNet.ApiService` itself is published. One Dockerfile, one final image, one process in the container.
+- In development, `VroksNet.Web` and `VroksNet.ApiService` can still run as two processes through `AppHost` (this gives hot reload and a comfortable dev experience) — CORS has to be set up on `ApiService` so the WASM client on its own dev port can reach the API. That's fine: a dev/prod topology difference is expected here and doesn't contradict the "one image" goal, which is about what gets deployed and run in production.
+- `.claude/CLAUDE.md` is updated for this setup (✅): `VroksNet.Web` is a WASM client, not a separate host; `VroksNet.ApiService` is the only server, serving both the API and the UI's static files.
 
-### Хранилище: решение
+### Storage: decision
 
-Выбор сделан: **SQLite**. Ноль внешних зависимостей, один файл внутри контейнера (или на смонтированном volume, чтобы данные переживали пересоздание контейнера), не нужен отдельный Aspire-ресурс для БД — вписывается в идею единого образа из раздела выше.
+The choice is made: **SQLite**. Zero external dependencies, one file inside the container (or on a mounted volume, so data survives container recreation), no separate Aspire resource for a database — it fits the single-image idea from the section above.
 
-Ранее отмеченный риск конкурентной записи (async-воркер и Mock API пишут в базу параллельно — история вызовов, статусы) остаётся в силе и требует нескольких обязательных мер на фазе 00, а не «просто EF Core + SQLite по умолчанию»:
+How it's set up (✅ implemented): without `ConnectionStrings:VroksNetDb` the app uses a shared in-memory database (the default for `dotnet run` and the AppHost — data lives until the process stops); with it set to a file path, a SQLite file. The Docker image sets `Data Source=/app/data/vroksnet.db` on a `/app/data` volume.
 
-- Включить **WAL journal mode** (`PRAGMA journal_mode=WAL`) — позволяет читать во время записи и заметно снижает `SQLITE_BUSY`.
-- Задать разумный `busy_timeout` (например, 5 секунд) на уровне подключения, чтобы конкурентные писатели ждали друг друга вместо немедленной ошибки.
-- Рассмотреть **сериализацию записи через один канал** (например, `System.Threading.Channels` с одним writer-воркером, который единолично пишет в БД, а Mock API и async-воркер только публикуют в канал) — снимает гонки на уровне приложения, не полагаясь только на блокировки SQLite.
-- Мигрировать через EF Core-миграции с самого начала, даже для SQLite — облегчит переход на PostgreSQL позже, если нагрузка вырастет за пределы одной команды.
+The previously noted concurrent-write risk (the async worker and the Mock API write to the database in parallel — call history, statuses) still stands and calls for several mandatory measures in Phase 00, not just "EF Core + SQLite with defaults":
 
-Если конкурентная запись всё же станет узким местом — миграция на PostgreSQL остаётся доступной через EF Core без переписывания доменного слоя.
+- Enable **WAL journal mode** (`PRAGMA journal_mode=WAL`) — allows reads during writes and noticeably reduces `SQLITE_BUSY`.
+- Set a reasonable `busy_timeout` (e.g. 5 seconds) on the connection, so concurrent writers wait for each other instead of failing immediately.
+- **Serialize writes through a single channel** (✅ implemented as `IDbWriteQueue` + `DbWriteBackgroundService`: one worker alone writes to the database, while the Mock API and the background workers only enqueue) — removes races at the application level instead of relying on SQLite locks alone.
+- Migrate with EF Core migrations from the start, even for SQLite — that eases a later move to PostgreSQL if the load grows beyond one team.
 
-## 4. Технический стек
+If concurrent writes still become a bottleneck, migrating to PostgreSQL remains possible through EF Core without rewriting the domain layer.
 
-| Слой | Технология | Зачем |
+## 4. Tech stack
+
+| Layer | Technology | Why |
 |---|---|---|
-| Платформа | .NET 10 | Актуальный LTS-цикл, уже выбран в solution |
-| Оркестрация (dev) | .NET Aspire (`AppHost`, `ServiceDefaults`) | Запуск ApiService + Web + NATS + RabbitMQ + Kafka в dev с hot reload; в Production не используется — деплоится один образ |
-| Use-case dispatch | martinothamar/Mediator (source-generator, без рефлексии) | Уже принят как стандарт в `.claude/CLAUDE.md` — не MediatR |
-| Backend / Mock API | ASP.NET Core (`VroksNet.ApiService`) | Composition root; в Production также раздаёт статику Admin UI |
-| Admin UI | Blazor WebAssembly, standalone (`VroksNet.Web`) | Браузерный SPA-клиент; в Production собирается и раздаётся как статика из `ApiService`, отдельно не запускается |
-| OpenAPI-парсинг | Microsoft.OpenApi.Readers | Официальная .NET библиотека, поддержка 2.0/3.x |
-| AsyncAPI-парсинг | Кастомный парсер над YamlDotNet | Готовых зрелых .NET-библиотек для AsyncAPI 3.x пока нет — парсим JSON-схему спецификации сами |
-| Async-брокеры | NATS.Client, RabbitMQ.Client, Confluent.Kafka | Официальные .NET-клиенты под выбранные протоколы |
-| Хранилище | SQLite + EF Core (WAL mode, сериализованная запись) | См. раздел 3 |
-| Деплой | Docker, multi-stage build (Web → статика → ApiService) | Один Dockerfile, один образ, один процесс в проде |
+| Platform | .NET 10 | The current LTS cycle, already chosen for the solution |
+| Orchestration (dev) | .NET Aspire 13.6 (`AppHost`, `ServiceDefaults`) | Runs ApiService + Web + NATS + RabbitMQ + Kafka in dev with hot reload; not used in Production — a single image is deployed |
+| Use-case dispatch | martinothamar/Mediator (source generator, no reflection) | Already adopted as the standard in `.claude/CLAUDE.md` — not MediatR |
+| Backend / Mock API | ASP.NET Core (`VroksNet.ApiService`) | Composition root; in Production it also serves the Admin UI's static files |
+| Admin UI | Blazor WebAssembly, standalone (`VroksNet.Web`) | A browser SPA client; in Production it's built and served as static files from `ApiService`, never run separately |
+| OpenAPI parsing | Microsoft.OpenApi 3.x + Microsoft.OpenApi.YamlReader | The official .NET library; reads Swagger 2.0 and OpenAPI 3.0/3.1 |
+| AsyncAPI parsing | A custom parser over SharpYaml | There's no typed AsyncAPI model on NuGet — the parser walks the raw YAML of the 3.0 layout and resolves the spec's own local `$ref`s. SharpYaml already comes with Microsoft.OpenApi.YamlReader, so no second YAML library is added |
+| Contract checks and templating | JsonSchema.Net, JsonPath.Net | JSON Schema validation of bodies and messages; JSON path for `{{request.body.<jsonpath>}}` |
+| Async brokers | NATS.Client.Core, RabbitMQ.Client, Confluent.Kafka | The official .NET clients for the chosen protocols |
+| Storage | SQLite + EF Core (WAL mode, serialized writes) | See section 3 |
+| Deployment | Docker, multi-stage build (Web → static files → ApiService) | One Dockerfile, one image, one process in production |
 
-## 5. Дорожная карта
+## 5. Roadmap
 
-Пять фаз, каждая — рабочий инкремент, который можно показать команде.
+Six phases, each a working increment that can be shown to the team. All of them are done; what comes next is proposed in the ADRs (section 7).
 
-### Фаза 00 — Каркас проекта ✅ готово
-Solution с Clean Architecture и Aspire (`VroksNet.slnx`, все проекты в `src/`, `.claude/CLAUDE.md` с правилами); SQLite + EF Core с WAL, busy timeout и сериализованной записью через один канал (`DbWriteQueue`/`DbWriteBackgroundService`); NATS и RabbitMQ — Aspire-ресурсы в `AppHost`.
-**Результат:** `dotnet run --project VroksNet.AppHost` поднимает весь стек, включая инфраструктуру
+### Phase 00 — Project skeleton ✅ done
+A Clean Architecture + Aspire solution (`VroksNet.slnx`, all projects under `src/`, `.claude/CLAUDE.md` with the rules); SQLite + EF Core with WAL, busy timeout and writes serialized through a single channel (`DbWriteQueue`/`DbWriteBackgroundService`); NATS and RabbitMQ as Aspire resources in `AppHost`.
+**Result:** `dotnet run --project VroksNet.AppHost` brings up the whole stack, infrastructure included
 
-### Фаза 01 — OpenAPI → REST-моки ✅ готово
-Импорт OpenAPI с replace-по-title, динамический роутинг в `/mock`, шаблонизированные ответы со статусом из спеки (сделано как Фаза F `docs/contract-testing-plan.md`, 4.6). Генерации ответа по схеме для операций без example нет — отдаётся `{}`.
+### Phase 01 — OpenAPI → REST mocks ✅ done
+OpenAPI import with replace-by-title, dynamic routing under `/mock`, templated responses with the status from the spec (done as Phase F of `docs/contract-testing-plan.md`, 4.6). There's no schema-based response generation for operations without an example — they answer `{}`.
 
-Загрузка и парсинг OpenAPI в `VroksNet.Application` (сопоставление по `info.title`, замена при повторной загрузке), генерация ответов по examples/схеме с подстановкой плейсхолдеров (`{{request...}}`, `{{uuid}}`, `{{now}}`), динамический роутинг запросов в `VroksNet.ApiService`.
-**Результат:** загрузили спеку — получили рабочий REST-мок по её эндпоинтам, с шаблонизированными ответами
+Loading and parsing OpenAPI (matched by `info.title`, replaced on re-import), answering with the spec's example with placeholder substitution (`{{request...}}`, `{{uuid}}`, `{{now}}`), dynamic request routing in `VroksNet.ApiService`.
+**Result:** import a spec — get a working REST mock for its endpoints, with templated responses
 
-### Фаза 02 — Admin UI на Blazor WebAssembly ✅ готово
-Список спецификаций, карточка мока, включение/выключение эндпоинтов, простой просмотр истории вызовов в `VroksNet.Web` (WASM); публикация как статики из `VroksNet.ApiService`, multi-stage Dockerfile для единого образа.
-**Результат:** моками можно управлять без прямых обращений к API, приложение деплоится одним образом
+### Phase 02 — Admin UI on Blazor WebAssembly ✅ done
+A list of specifications, a mock card, enabling/disabling endpoints, a simple call-history view in `VroksNet.Web` (WASM); publishing as static files from `VroksNet.ApiService`, a multi-stage Dockerfile for the single image.
+**Result:** mocks can be managed without calling the API directly, and the app deploys as one image
 
-### Фаза 03 — AsyncAPI → NATS / RabbitMQ ✅ готово
-Импорт AsyncAPI; публикация и прослушивание через тест-сценарии; **Publishers** — async-моки: сущность `Publisher` (операция + брокерное подключение + exchange + интервал 1 с – 24 ч), `PublisherBackgroundService` раз в секунду публикует всё, чему подошёл срок, плюс «Publish now» из UI. Payload — шаблон (`{{uuid}}`, `{{now}}`), сверяется со схемой сообщения, каждая публикация пишется в историю вызовов. Триггер — расписание и ручной запуск; триггера «по вызову HTTP-мока» нет (решение заказчика).
+### Phase 03 — AsyncAPI → NATS / RabbitMQ ✅ done
+AsyncAPI import; publishing and listening through test scenarios; **Publishers** — async mocks: a `Publisher` entity (operation + broker connection + exchange + interval from 1s to 24h), `PublisherBackgroundService` publishing whatever is due once a second, plus "Publish now" from the UI. The payload is a template (`{{uuid}}`, `{{now}}`), checked against the message schema, and every publish is written to the call history. The triggers are the schedule and a manual run; there's no "on an HTTP mock call" trigger (the customer's decision).
 
-Парсинг AsyncAPI, `BackgroundService`-воркер публикации сообщений в `VroksNet.Infrastructure`, настройка периодичности/триггеров из UI.
-**Результат:** загрузили AsyncAPI-спеку — сервис публикует мок-события в брокер
+AsyncAPI parsing, a `BackgroundService` worker publishing messages in `VroksNet.Infrastructure`, configuring intervals/triggers from the UI.
+**Result:** import an AsyncAPI spec — the service publishes mock events to a broker
 
-### Фаза 04 — Contract testing + полировка ✅ готово
-**Сделано:** все четыре вида contract-тестов, история вызовов, динамика ответов, exchange для Send и CORS на провайдерском порту (Фазы A–H плана), руководства в `docs/guides/contract-testing/`, документация по эксплуатации — `docs/runbook.md`.
+### Phase 04 — Contract testing + polish ✅ done
+**Done:** all four kinds of contract tests, call history, response dynamics, an exchange for Send and CORS on the provider port (Phases A–H of the plan), guides in `docs/guides/contract-testing/`, operations documentation in `docs/runbook.md`.
 
-Ручная проверка «схема ⇄ реальный ответ», история и логи, документация по эксплуатации. Детальный план реализации (4 вида тестов, обзор уже сделанного, порядок фаз) — `docs/contract-testing-plan.md`.
-**Результат:** инструмент, который можно передать команде и не сопровождать вручную
+A manual "schema ⇄ real response" check, history and logs, operations documentation. The detailed implementation plan (the 4 kinds of tests, a review of what already exists, the order of phases) is in `docs/contract-testing-plan.md`.
+**Result:** a tool that can be handed to the team without needing hand-holding
 
+### Phase 05 — Kafka ✅ done
+A third broker `Connection` type, `Kafka`: connection testing (a cluster metadata request), Send/Listen test scenarios and Publishers. The topic is the AsyncAPI channel address. The connection value is a bootstrap-servers list (`host:9092,host2:9092`) or librdkafka `key=value;…` settings (for SASL/TLS). Listen doesn't use a consumer group: the matching topics' partitions are assigned by hand from their current end, with no commits, so real consumers don't notice anything. In dev, the `kafka` Aspire resource.
 
-### Фаза 05 — Kafka ✅ готово
-Третий тип брокерного `Connection` — `Kafka`: проверка подключения (запрос метаданных кластера), Send/Listen тест-сценарии и Publishers. Топик = адрес канала AsyncAPI. Значение подключения — список bootstrap-серверов (`host:9092,host2:9092`) или настройки librdkafka `key=value;…` (для SASL/TLS). Listen не использует consumer group: партиции подходящих топиков назначаются вручную с текущего конца, без коммитов, поэтому реальные консьюмеры ничего не замечают. В dev — Aspire-ресурс `kafka`.
+## 6. First steps
 
-## 6. Первые шаги
+- [x] Set up the git repository and the solution structure — already done (`VroksNet`, .NET 10 / Aspire, Clean Architecture)
+- [x] Move `VroksNet.Web` to `Microsoft.NET.Sdk.BlazorWebAssembly` (standalone), set up CORS on `VroksNet.ApiService` for dev mode
+- [x] Have `VroksNet.ApiService` serve the WASM build's static files (`UseStaticFiles`, `MapFallbackToFile("index.html")`) in Production
+- [x] Write the multi-stage Dockerfile: publish `VroksNet.Web` → copy wwwroot into `VroksNet.ApiService` → publish `VroksNet.ApiService`
+- [x] Update `.claude/CLAUDE.md` for the new setup (Web is a WASM client, not a separate host)
+- [x] Wire up SQLite + EF Core: enable WAL mode and busy timeout, design serialized writes through a single channel/worker
+- [x] Add NATS and RabbitMQ as resources in `VroksNet.AppHost` (via `AddNats`/`AddRabbitMQ`)
+- [ ] Collect 2–3 real OpenAPI specs and 1–2 AsyncAPI specs from your services as test data — for now there are only the sample specs in `docs/samples/` (OpenAPI 3.0/3.1, Swagger 2.0, AsyncAPI 3.0 for Kafka/NATS/RabbitMQ — see `docs/samples/README.md`)
+- [x] In `VroksNet.Domain`, add the `ApiSpecification` (with `Title` as the version-matching key), `MockEndpoint` and `CallRecord` entities; in `VroksNet.Application`, the first use case `ImportOpenApiSpec` through Mediator, implementing replace-by-title
+- [x] Prototype OpenAPI parsing with Microsoft.OpenApi in `ImportOpenApiSpecHandler` — load a file and print the list of endpoints to the console/log
+- [x] Design the placeholder substitution engine (`{{request.path.*}}`, `{{request.query.*}}`, `{{request.header.*}}`, `{{request.body.*}}`, `{{uuid}}`, `{{now}}`) on top of the spec's examples — `ResponseTemplateEngine`, Phase F (`docs/contract-testing-plan.md`, 4.6)
 
-- [x] Завести git-репозиторий и структуру solution — уже сделано (`VroksNet`, .NET 10 / Aspire, Clean Architecture)
-- [x] Перевести `VroksNet.Web` на `Microsoft.NET.Sdk.BlazorWebAssembly` (standalone), настроить CORS на `VroksNet.ApiService` для dev-режима
-- [x] Настроить `VroksNet.ApiService` на раздачу статики WASM-сборки (`UseStaticFiles`, `MapFallbackToFile("index.html")`) для Production
-- [x] Написать multi-stage Dockerfile: publish `VroksNet.Web` → копия wwwroot в `VroksNet.ApiService` → publish `VroksNet.ApiService`
-- [x] Обновить `.claude/CLAUDE.md` под новую схему (Web — WASM-клиент, не отдельный host)
-- [x] Подключить SQLite + EF Core: включить WAL mode и busy timeout, спроектировать сериализованную запись через один канал/воркер
-- [x] Добавить NATS и RabbitMQ как ресурсы в `VroksNet.AppHost` (через `AddNats`/`AddRabbitMQ`)
-- [ ] Собрать 2–3 реальных OpenAPI-спеки и 1–2 AsyncAPI-спеки из ваших сервисов как тестовые данные — пока есть только учебные спеки в `docs/samples/` (OpenAPI 3.0/3.1, Swagger 2.0, AsyncAPI 3.0 для Kafka/NATS/RabbitMQ — см. `docs/samples/README.md`)
-- [x] В `VroksNet.Domain` завести сущности `ApiSpecification` (с `Title` как ключом сопоставления версий), `MockEndpoint`, `CallRecord`; в `VroksNet.Application` — первый use case `ImportOpenApiSpec` через Mediator, реализующий replace-по-title
-- [x] Прототип парсинга OpenAPI через Microsoft.OpenApi в `ImportOpenApiSpecHandler` — загрузить файл и вывести список эндпоинтов в консоль/лог
-- [x] Спроектировать движок подстановки плейсхолдеров (`{{request.path.*}}`, `{{request.query.*}}`, `{{request.header.*}}`, `{{request.body.*}}`, `{{uuid}}`, `{{now}}`) поверх examples из спеки — `ResponseTemplateEngine`, Фаза F (`docs/contract-testing-plan.md`, 4.6)
+## 7. Open questions
 
-## 7. Открытые вопросы
+None from the previous version — both are resolved (see "Response dynamics" and "Specification versioning" in section 2).
 
-Пока нет — оба вопроса с прошлой версии решены (см. «Динамика ответов» и «Версионирование спецификаций» в разделе 2).
+- **VroksNet as an Aspire resource, provisioned at startup** (specs, connections and Publishers from files) — proposal and open questions in `docs/adr/0001-aspire-integration-and-provisioning.md`.
+- **Background, delayed and scheduled test runs** (run history, scheduling, CI suites) — proposal and open questions in `docs/adr/0002-background-and-scheduled-test-runs.md`.

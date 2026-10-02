@@ -11,7 +11,7 @@ using VroksNet.UnitTests.TestDoubles;
 
 namespace VroksNet.UnitTests.TestScenarios;
 
-/// <summary>Listen-mode Test Scenarios ("Фаза C"): defaults, validation on create, and the run's receive-then-validate branch.</summary>
+/// <summary>Listen-mode Test Scenarios ("Phase C"): defaults, validation on create, and the run's receive-then-validate branch.</summary>
 public class ListenTestScenarioTests
 {
     private const string OrderSchema = """{ "type": "object", "required": ["orderId"], "properties": { "orderId": { "type": "string" } } }""";

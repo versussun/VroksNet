@@ -4,7 +4,7 @@ using VroksNet.Infrastructure.Hosting;
 namespace VroksNet.ApiService.Endpoints;
 
 /// <summary>
-/// Provider mode ("Тип 3" in docs/contract-testing-plan.md): a second port on which every request
+/// Provider mode ("Type 3" in docs/contract-testing-plan.md): a second port on which every request
 /// is answered by the mock at its real path — "GET /orders" rather than "GET /mock/orders" — so a
 /// real service only needs its host:port pointed here. Being a separate port is what keeps a spec's
 /// paths from ever colliding with ApiService's own routes (/api, /health, the Admin UI and its SPA

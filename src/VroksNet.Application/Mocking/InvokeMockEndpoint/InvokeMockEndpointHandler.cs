@@ -13,7 +13,7 @@ namespace VroksNet.Application.Mocking.InvokeMockEndpoint;
 /// logs it to the call history (<see cref="CallDirection.InboundHttpRequest"/>) — unmatched calls too, since "why did
 /// my service get a 404?" is exactly what the history is for. Logging is best-effort: a failed
 /// history write is logged as a warning and the mock still answers. A request body is checked
-/// against the operation's request schema ("Тип 3" in docs/contract-testing-plan.md) and the
+/// against the operation's request schema ("Type 3" in docs/contract-testing-plan.md) and the
 /// outcome logged; the response doesn't change either way — the mock still answers the caller.
 /// Placeholders that can't be filled in don't fail the call either: they're logged as warnings.
 /// </summary>

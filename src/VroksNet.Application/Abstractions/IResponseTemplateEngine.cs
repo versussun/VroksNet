@@ -3,7 +3,7 @@ namespace VroksNet.Application.Abstractions;
 /// <summary>
 /// Substitutes placeholders in a spec's example (from OpenAPI/AsyncAPI) with live values from
 /// the matched request, before it's returned as a mock response. See docs/project-brief.md
-/// section 2 "Динамика ответов" for the supported placeholders: <c>{{request.path.*}}</c>,
+/// section 2 "Response dynamics" for the supported placeholders: <c>{{request.path.*}}</c>,
 /// <c>{{request.query.*}}</c>, <c>{{request.header.*}}</c>, <c>{{request.body.&lt;jsonpath&gt;}}</c>,
 /// <c>{{uuid}}</c>, <c>{{now}}</c> — and docs/contract-testing-plan.md 3.9–3.10 for how values
 /// are escaped and what an unresolvable placeholder becomes.

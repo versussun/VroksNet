@@ -7,7 +7,7 @@ using VroksNet.IntegrationTests.Fixtures;
 
 namespace VroksNet.IntegrationTests;
 
-/// <summary>Publishers (async mocks, Фаза 03) against the real RabbitMQ/NATS containers AppHost boots: on a schedule and on demand.</summary>
+/// <summary>Publishers (async mocks, Phase 03) against the real RabbitMQ/NATS containers AppHost boots: on a schedule and on demand.</summary>
 [Collection("AppHost")]
 public sealed class PublisherApiTests(AppHostFixture fixture)
 {

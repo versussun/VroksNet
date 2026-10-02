@@ -3,8 +3,8 @@ namespace VroksNet.Domain.ApiSpecifications;
 /// <summary>
 /// A loaded OpenAPI or AsyncAPI specification. <see cref="Title"/> (the spec's own
 /// <c>info.title</c>) is the identity used when a re-uploaded spec should replace this one,
-/// rather than the file name — see docs/project-brief.md section 2 "Версионирование
-/// спецификаций".
+/// rather than the file name — see docs/project-brief.md section 2 "Specification
+/// versioning".
 /// </summary>
 public sealed class ApiSpecification
 {
