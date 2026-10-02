@@ -23,13 +23,15 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
     // Inlines "$ref": "#/components/schemas/X" into the schema's own serialized text, so a schema
     // extracted for one operation validates standalone — the rest of the document isn't kept
     // around as context once RequestSchemaJson/ResponseSchemaJson are stored on MockEndpoint.
-    private static readonly OpenApiWriterSettings SchemaWriterSettings = new() { InlineLocalReferences = true };
+    // A new instance per write, never a shared static: the settings carry Microsoft.OpenApi's
+    // mutable LoopDetector, so two imports parsing at once would corrupt each other's.
+    private static OpenApiWriterSettings SchemaWriterSettings() => new() { InlineLocalReferences = true };
 
     // A recursive schema can't be fully inlined: Microsoft.OpenApi inlines one level and leaves
     // "$ref": "#/components/schemas/X" at the cycle. Those components are copied into the
     // extracted schema's own "$defs" (serialized with their refs as-is) and every such ref is
     // rewritten to "#/$defs/X", so the schema still resolves standalone.
-    private static readonly OpenApiWriterSettings ComponentWriterSettings = new();
+    private static OpenApiWriterSettings ComponentWriterSettings() => new();
 
     private const string ComponentSchemaRefPrefix = "#/components/schemas/";
 
@@ -134,7 +136,7 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
             return null;
         }
 
-        var root = await SerializeSchemaAsync(schema, SchemaWriterSettings, cancellationToken);
+        var root = await SerializeSchemaAsync(schema, SchemaWriterSettings(), cancellationToken);
 
         var pending = new Queue<string>(RewriteComponentRefs(root));
         if (pending.Count > 0 && root is JsonObject rootObject)
@@ -149,7 +151,7 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
                     continue;
                 }
 
-                var definition = await SerializeSchemaAsync(component, ComponentWriterSettings, cancellationToken);
+                var definition = await SerializeSchemaAsync(component, ComponentWriterSettings(), cancellationToken);
                 defs[name] = definition;
                 foreach (var referenced in RewriteComponentRefs(definition))
                 {
