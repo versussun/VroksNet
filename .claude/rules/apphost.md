@@ -21,7 +21,7 @@ Aspire orchestration only.
 ## Message brokers
 
 - Both RabbitMQ and NATS are in MVP scope (`docs/project-brief.md` §2). They are wired as Aspire resources (`AddRabbitMQ("rabbitmq")`, `AddNats("nats")`), and ApiService has matching clients (`Aspire.RabbitMQ.Client` → `AddRabbitMQClient("rabbitmq")`, `Aspire.NATS.Net` → `AddNatsClient("nats")`).
-- Only connectivity is proven so far. The async-mock publish worker (a `BackgroundService` publishing on AsyncAPI channels) is Phase 03 work and hasn't been built.
+- The async-mock publish worker (`PublisherBackgroundService`, see "Publishers" in `.claude/rules/application.md`) publishes to broker *Connections* the user configures. It doesn't use these Aspire-wired clients, the same as `MessageSender`.
 - These Aspire clients target the **dev-time broker resources only**. User-defined `Connection`s use their own clients. See "Connection testing" in `.claude/rules/infrastructure.md`.
 
 ## Gotchas

@@ -105,7 +105,7 @@ public sealed class CallRecordRepositoryTests : IAsyncLifetime
         await InsertAsync(Start, record => record.ContractValid = false);            // wrong spec
 
         var page = await _repository.ListAsync(
-            new CallRecordFilter(specificationId, null, scenarioId, CallDirection.OutboundHttpRequest, false), null, 10, cancellationToken);
+            new CallRecordFilter(specificationId, null, scenarioId, Direction: CallDirection.OutboundHttpRequest, ContractValid: false), null, 10, cancellationToken);
 
         Assert.Equal(match.Id, Assert.Single(page).Id);
     }

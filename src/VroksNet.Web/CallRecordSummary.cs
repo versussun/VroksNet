@@ -13,6 +13,8 @@ public sealed record CallRecordSummary(
     string? ConnectionName,
     Guid? TestScenarioId,
     string? TestScenarioName,
+    Guid? PublisherId,
+    string? PublisherName,
     string? RequestLine,
     int? StatusCode,
     bool? ContractValid,

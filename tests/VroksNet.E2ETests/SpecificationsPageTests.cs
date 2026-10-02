@@ -91,7 +91,8 @@ public sealed class SpecificationsPageTests(AppHostFixture fixture) : PageTestBa
         var endpointCard = Page.Locator(".card", new PageLocatorOptions { HasText = "orders.created:send" });
         await Expect(endpointCard).ToBeVisibleAsync();
         await Expect(endpointCard.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Send" })).Not.ToBeVisibleAsync();
-        await Expect(endpointCard).ToContainTextAsync("aren't live-invokable");
+        await Expect(endpointCard).ToContainTextAsync("aren't invoked here");
+        await Expect(endpointCard.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = "Publishers" })).ToHaveAttributeAsync("href", "publishers");
     }
 
     private static string BuildOrdersAsyncApiYaml(string title) => $"""

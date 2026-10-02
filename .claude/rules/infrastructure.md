@@ -38,7 +38,7 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
 - **OpenAPI:** use `Microsoft.OpenApi` + `Microsoft.OpenApi.YamlReader` (the 3.x line). **Register the YAML reader explicitly:** `new OpenApiReaderSettings().AddYamlReader()` (from `Microsoft.OpenApi.Reader`), then `OpenApiDocument.LoadAsync(stream, "yaml", settings, cancellationToken)`. Without it you get `NotSupportedException: Format 'yaml' is not supported.`
 - **AsyncAPI** (`AsyncApiSpecificationParser`): NuGet has no typed AsyncAPI model, so the parser walks the raw YAML via `SharpYaml` (`YamlMappingNode`/`YamlSequenceNode`/`YamlScalarNode`) and resolves the spec's own local `"#/a/b/c"` `$ref`s by hand. Keep that minimal: no general JSON Reference or external-file support.
 - **Pin `SharpYaml` to the exact version `Microsoft.OpenApi.YamlReader` brings transitively** (currently `2.1.5`), so it can't drift. Don't add a second general-purpose YAML library.
-- **AsyncAPI operation keys use the format `"{channel address}:{action}"`** (e.g. `"orders.created:send"`, per `MockEndpoint.OperationKey`). They are **not** invokable through `/mock/{**path}`, because `MockInvocationEndpoints`/`OperationKeyMatcher` assume HTTP method + path. Publishing them is Phase 03 work (see "Message brokers" in `.claude/rules/apphost.md`).
+- **AsyncAPI operation keys use the format `"{channel address}:{action}"`** (e.g. `"orders.created:send"`, per `MockEndpoint.OperationKey`). They are **not** invokable through `/mock/{**path}`, because `MockInvocationEndpoints`/`OperationKeyMatcher` assume HTTP method + path. They're published through Publishers and Test Scenarios instead (see "Publishers" in `.claude/rules/application.md`).
 - **Keep the two parser interfaces separate.** `ISpecificationParser` (→ `OpenApiSpecificationParser`) and `IAsyncApiSpecificationParser : ISpecificationParser` (→ `AsyncApiSpecificationParser`) are registered side by side. The derived interface adds no members; it exists so DI can tell the two apart (otherwise the last registration silently wins).
 - **Each spec kind is its own vertical slice:** its own `Application/Specifications/Import{Kind}Spec` request + handler and its own `POST /api/specifications/{openapi|asyncapi}` endpoint, with no `Kind` parameter branching. Follow this pattern for any new spec kind.
 
@@ -60,6 +60,13 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
   - Both subscribe with `TestScenarioListening.SubscriptionPatternOf(channel address)`, where whole-segment `{param}`s become `*`.
   - Everything lives only for one run. Connect/setup (10s) is separate from the listen timeout. Each stage reports its own message, and a missing exchange reports a readable one.
   - Time the listen wait out by cancelling the read, not via `WaitAsync`: an abandoned NATS read faults unobserved when the subscription is disposed.
+
+### Publishers (async-mock worker)
+
+- **`PublisherBackgroundService` (`Infrastructure/Publishing`) only schedules.** Once a second it sends `ListDuePublishers(now)` and then `PublishNow(id)` for each due id, concurrently, through Mediator in one scope. The next tick waits for all of them, so a publisher never runs twice at once. Keep the publishing logic in `PublishNowHandler`, which the "Publish now" button also uses, not in the worker.
+- **A failing tick or publish is logged, never thrown out of the loop.** One broken publisher mustn't stop the others.
+- **EF's SQL command logging is at Warning** (`Microsoft.EntityFrameworkCore.Database.Command` in ApiService's `appsettings.json`). The worker reads the publishers every second, and at Information that would log a SELECT every second. To see SQL while debugging, lower it locally rather than in the checked-in config.
+- **`Publisher.LastPublishedAt` is the schedule's anchor** and is set to when the publish *started*. Failures set it too, so a broken publisher retries once per interval. `PublisherSchedule.IsDue` filters in memory on purpose: there are only a handful of publishers, so no SQL ordering on a `DateTimeOffset` is needed.
 
 ### Response templating
 

@@ -66,6 +66,9 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("MockEndpointId")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("PublisherId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("RequestLine")
                         .HasColumnType("TEXT");
 
@@ -173,6 +176,57 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
                     b.HasIndex("SpecificationId");
 
                     b.ToTable("MockEndpoints");
+                });
+
+            modelBuilder.Entity("VroksNet.Domain.Publishers.Publisher", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Exchange")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("IntervalSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LastPublishMessage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("LastPublishSuccess")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("LastPublishedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("MockEndpointId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PayloadOverride")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SpecificationId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Publishers");
                 });
 
             modelBuilder.Entity("VroksNet.Domain.TestScenarios.TestScenario", b =>

@@ -16,7 +16,7 @@ public sealed class ListCallRecordsHandler(
     {
         var limit = Math.Clamp(request.Limit ?? DefaultLimit, 1, MaxLimit);
         var after = request.Cursor is null ? null : CallRecordCursorFormat.Parse(request.Cursor);
-        var filter = new CallRecordFilter(request.SpecificationId, request.MockEndpointId, request.TestScenarioId, request.Direction, request.ContractValid);
+        var filter = new CallRecordFilter(request.SpecificationId, request.MockEndpointId, request.TestScenarioId, request.PublisherId, request.Direction, request.ContractValid);
 
         // One extra row tells whether an older page exists without a separate count query.
         var records = await callRecords.ListAsync(filter, after, limit + 1, cancellationToken);
@@ -31,6 +31,7 @@ public sealed class ListCallRecordsHandler(
             IdsOf(page, record => record.MockEndpointId),
             IdsOf(page, record => record.ConnectionId),
             IdsOf(page, record => record.TestScenarioId),
+            IdsOf(page, record => record.PublisherId),
             cancellationToken);
 
         var items = page
@@ -46,6 +47,8 @@ public sealed class ListCallRecordsHandler(
                 NameOf(record.ConnectionId, resolved.ConnectionNames, "(deleted connection)"),
                 record.TestScenarioId,
                 NameOf(record.TestScenarioId, resolved.TestScenarioNames, "(deleted test scenario)"),
+                record.PublisherId,
+                NameOf(record.PublisherId, resolved.PublisherNames, "(deleted publisher)"),
                 record.RequestLine,
                 record.StatusCode,
                 record.ContractValid,

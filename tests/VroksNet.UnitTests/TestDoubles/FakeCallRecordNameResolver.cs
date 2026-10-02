@@ -13,17 +13,21 @@ internal sealed class FakeCallRecordNameResolver : ICallRecordNameResolver
 
     public Dictionary<Guid, string> TestScenarioNames { get; } = [];
 
+    public Dictionary<Guid, string> PublisherNames { get; } = [];
+
     public Task<CallRecordNames> ResolveAsync(
         IReadOnlyCollection<Guid> specificationIds,
         IReadOnlyCollection<Guid> mockEndpointIds,
         IReadOnlyCollection<Guid> connectionIds,
         IReadOnlyCollection<Guid> testScenarioIds,
+        IReadOnlyCollection<Guid> publisherIds,
         CancellationToken cancellationToken)
         => Task.FromResult(new CallRecordNames(
             Pick(SpecificationTitles, specificationIds),
             Pick(OperationKeys, mockEndpointIds),
             Pick(ConnectionNames, connectionIds),
-            Pick(TestScenarioNames, testScenarioIds)));
+            Pick(TestScenarioNames, testScenarioIds),
+            Pick(PublisherNames, publisherIds)));
 
     private static Dictionary<Guid, string> Pick(Dictionary<Guid, string> names, IReadOnlyCollection<Guid> ids)
         => ids.Where(names.ContainsKey).ToDictionary(id => id, id => names[id]);

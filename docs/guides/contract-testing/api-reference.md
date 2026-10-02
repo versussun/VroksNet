@@ -65,10 +65,41 @@ Create/update body:
 | `PUT /api/mock-endpoints/{id}/enabled` | `{ "enabled": false }` | `204`; `404`; `409 { "detail" }` for a non-HTTP operation. A disabled operation answers `404` under `/mock` and on the provider port |
 | `GET /api/system/provider` | | `{ "enabled", "port", "publicUrl", "corsOrigins" }` — `corsOrigins` is empty when CORS is off on the provider port |
 
+## Publishers (async mocks)
+
+Not a contract test: a publisher publishes an AsyncAPI operation's message to a broker on a schedule, so services that consume it have something to receive.
+
+| Method & path | Body | Returns |
+|---|---|---|
+| `GET /api/publishers` | | `[{ "id", "name", "operationKey", "connectionName", "exchange", "intervalSeconds", "isEnabled", "lastPublishedAt", "lastPublishSuccess", "lastPublishMessage", … }]` |
+| `POST /api/publishers` | see below | `{ "id" }`; `400 { "detail" }` with the reason |
+| `PUT /api/publishers/{id}` | same, without `enabled` | `204`; `400`; `404` |
+| `PUT /api/publishers/{id}/enabled` | `{ "enabled": true }` | `204`; `404` — start/stop the schedule |
+| `POST /api/publishers/{id}/publish` | | `{ "success", "message", "payload", "contractValidation" }` / `404` — publish once now |
+| `DELETE /api/publishers/{id}` | | `204` / `404` |
+
+```json
+{
+  "name": "Order created every 5s",
+  "specificationId": "…",
+  "mockEndpointId": "…",
+  "connectionId": "…",
+  "payloadOverride": "{\"orderId\":\"{{uuid}}\",\"at\":\"{{now}}\"}",
+  "intervalSeconds": 5,
+  "exchange": "amq.topic",
+  "enabled": true
+}
+```
+
+- The operation must be an AsyncAPI one and the connection a RabbitMQ/NATS one. `intervalSeconds` is 1–86400.
+- `payloadOverride`: `null` publishes the operation's own example. Either way it's a template: `{{uuid}}` and `{{now}}` are filled in per message. `{{request.*}}` has no request behind it, so it becomes `null`/empty and shows up as a warning.
+- `exchange`: RabbitMQ only, `null` = the default exchange (straight into the queue named after the channel).
+- Each publish is checked against the operation's payload schema. A mismatch is reported in `message`/`contractValidation` and in Call History, but the message is still sent.
+
 ## Call History
 
 | Method & path | Query / body | Returns |
 |---|---|---|
-| `GET /api/call-records` | `specificationId`, `mockEndpointId`, `testScenarioId`, `direction`, `contractValid`, `cursor`, `limit` | `{ "items": [], "nextCursor" }` — each item carries `statusCode`, `contractValid`, `validationErrors[]` and `warnings[]` (e.g. response placeholders that couldn't be filled in) |
+| `GET /api/call-records` | `specificationId`, `mockEndpointId`, `testScenarioId`, `publisherId`, `direction`, `contractValid`, `cursor`, `limit` | `{ "items": [], "nextCursor" }` — each item carries `statusCode`, `contractValid`, `validationErrors[]`, `warnings[]` (e.g. placeholders that couldn't be filled in) and `testScenarioName`/`publisherName` |
 | `GET /api/call-records/{id}` | | `{ "id", "requestSnapshot", "responseSnapshot" }` / `404` |
 | `DELETE /api/call-records` | | `{ "deleted" }` |

@@ -1,11 +1,13 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.EntityFrameworkCore;
 using VroksNet.Application.Abstractions;
 using VroksNet.Infrastructure.Connections;
 using VroksNet.Infrastructure.Hosting;
 using VroksNet.Infrastructure.Persistence;
+using VroksNet.Infrastructure.Publishing;
 using VroksNet.Infrastructure.SchemaValidation;
 using VroksNet.Infrastructure.Specifications;
 using VroksNet.Infrastructure.Templating;
@@ -78,6 +80,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IApiSpecificationRepository, ApiSpecificationRepository>();
         services.AddScoped<IConnectionRepository, ConnectionRepository>();
         services.AddScoped<ITestScenarioRepository, TestScenarioRepository>();
+        services.AddScoped<IPublisherRepository, PublisherRepository>();
         services.AddScoped<ICallRecordRepository, CallRecordRepository>();
         services.AddScoped<ICallRecordNameResolver, CallRecordNameResolver>();
         services.AddSingleton<IMessageListener, MessageListener>();
@@ -95,6 +98,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient();
         services.AddScoped<IConnectionTester, ConnectionTester>();
         services.AddScoped<IMessageSender, MessageSender>();
+
+        // The async-mock worker: publishes enabled publishers on their schedule.
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddHostedService<PublisherBackgroundService>();
 
         return services;
     }
