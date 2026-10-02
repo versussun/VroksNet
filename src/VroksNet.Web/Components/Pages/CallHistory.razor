@@ -1,0 +1,372 @@
+@page "/call-history"
+@inject CallRecordApiClient CallRecordApi
+@inject SpecificationApiClient SpecificationApi
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>Call History</PageTitle>
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h1>Call History</h1>
+        <p class="text-muted mb-0">Every Test Scenario run and every call to the mock, newest first.</p>
+    </div>
+    <div class="d-flex gap-2 ms-3">
+        <button type="button" class="btn btn-outline-secondary text-nowrap" @onclick="ReloadAsync" disabled="@IsBusy">Refresh</button>
+        <button type="button" class="btn btn-outline-danger text-nowrap" @onclick="ClearAsync" disabled="@IsBusy">Clear history</button>
+    </div>
+</div>
+
+<div class="row g-2 mb-3">
+    <div class="col-sm-4">
+        <label class="form-label" for="history-spec-select">Specification</label>
+        <select id="history-spec-select" class="form-select form-select-sm" @bind="_specificationFilter" @bind:after="ReloadAsync">
+            <option value="">All specifications</option>
+            @if (_specifications is not null)
+            {
+                @foreach (var spec in _specifications)
+                {
+                    <option @key="spec.Id" value="@spec.Id">@spec.Title</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="col-sm-4">
+        <label class="form-label" for="history-direction-select">Kind</label>
+        <select id="history-direction-select" class="form-select form-select-sm" @bind="_directionFilter" @bind:after="ReloadAsync">
+            <option value="">All kinds</option>
+            @foreach (var direction in Enum.GetValues<CallDirection>())
+            {
+                <option value="@direction">@DirectionLabel(direction)</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-4">
+        <label class="form-label" for="history-contract-select">Contract</label>
+        <select id="history-contract-select" class="form-select form-select-sm" @bind="_contractFilter" @bind:after="ReloadAsync">
+            <option value="">Any result</option>
+            <option value="true">Matches spec</option>
+            <option value="false">Contract violated</option>
+        </select>
+    </div>
+</div>
+
+@if (_specificationsError is not null)
+{
+    <p class="text-warning" role="alert">@_specificationsError</p>
+}
+
+@if (_errorMessage is not null)
+{
+    <p class="text-danger" role="alert">@_errorMessage</p>
+}
+
+@if (_items.Count == 0)
+{
+    @if (_errorMessage is null)
+    {
+        <p role="status"><em>@EmptyText</em></p>
+    }
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-sm align-middle call-table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Kind</th>
+                    <th>Call</th>
+                    <th>Via</th>
+                    <th>Status</th>
+                    <th>Contract</th>
+                    <th><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var record in _items)
+                {
+                    var expanded = _expanded.Contains(record.Id);
+                    var callText = record.OperationKey ?? record.RequestLine ?? "(unknown)";
+                    <tr @key="record.Id">
+                        <td class="text-nowrap"><small>@record.Timestamp.ToLocalTime().ToString("g")</small></td>
+                        <td class="text-nowrap"><small>@DirectionLabel(record.Direction)</small></td>
+                        <td class="call-cell">
+                            <code>@callText</code>
+                            @if (record.SpecificationTitle is not null)
+                            {
+                                <br /><small class="text-muted">@record.SpecificationTitle</small>
+                            }
+                        </td>
+                        <td>
+                            @if (record.Direction == CallDirection.InboundHttpRequest)
+                            {
+                                <small class="text-muted">Mock</small>
+                            }
+                            else
+                            {
+                                <small>@(record.TestScenarioName ?? "—")</small>
+                                @if (record.ConnectionName is not null)
+                                {
+                                    <br /><small class="text-muted">@record.ConnectionName</small>
+                                }
+                            }
+                        </td>
+                        <td>
+                            @if (record.StatusCode is { } status)
+                            {
+                                <span class="badge @StatusBadgeClass(status)">@status</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td>
+                            @switch (record.ContractValid)
+                            {
+                                case true:
+                                    <span class="badge bg-success">Matches spec</span>
+                                    break;
+                                case false:
+                                    <span class="badge bg-warning text-dark">Contract violated</span>
+                                    break;
+                                default:
+                                    <span class="text-muted" title="Not checked against the spec">—</span>
+                                    break;
+                            }
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-link btn-sm p-0"
+                                    aria-expanded="@(expanded ? "true" : "false")"
+                                    aria-controls="@($"call-details-{record.Id}")"
+                                    aria-label="@($"{(expanded ? "Hide details" : "Details")} for {callText}")"
+                                    @onclick="() => ToggleDetailsAsync(record.Id)">
+                                @(expanded ? "Hide" : "Details")
+                            </button>
+                        </td>
+                    </tr>
+                    @if (expanded)
+                    {
+                        <tr @key="(record.Id, nameof(CallRecordDetails))">
+                            <td colspan="7" class="details-cell">
+                                <div id="@($"call-details-{record.Id}")" class="call-details" role="region" aria-label="Call details">
+                                    @if (record.RequestLine is not null)
+                                    {
+                                        <p class="mb-2"><span class="fw-semibold">Request:</span> <code>@record.RequestLine</code></p>
+                                    }
+                                    @if (record.ValidationErrors is { Length: > 0 } errors)
+                                    {
+                                        <p class="fw-semibold mb-1">Contract violations</p>
+                                        <ul class="small text-danger">
+                                            @foreach (var error in errors)
+                                            {
+                                                <li>@error</li>
+                                            }
+                                        </ul>
+                                    }
+                                    @if (!_details.TryGetValue(record.Id, out var details))
+                                    {
+                                        <p class="text-muted mb-0" role="status"><em>Loading bodies…</em></p>
+                                    }
+                                    else if (details is null)
+                                    {
+                                        <p class="text-muted mb-0">The bodies couldn't be loaded — the record may have been cleared.</p>
+                                    }
+                                    else
+                                    {
+                                        <p class="fw-semibold mb-1">Request body</p>
+                                        <pre class="mb-2"><code>@(string.IsNullOrEmpty(details.RequestSnapshot) ? "(none)" : details.RequestSnapshot)</code></pre>
+                                        <p class="fw-semibold mb-1">Response</p>
+                                        <pre class="mb-0"><code>@(string.IsNullOrEmpty(details.ResponseSnapshot) ? "(none)" : details.ResponseSnapshot)</code></pre>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_nextCursor is not null)
+    {
+        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => LoadAsync(append: true)" disabled="@IsBusy">
+            @(_isLoading ? "Loading…" : "Load older")
+        </button>
+    }
+}
+
+@code {
+    private readonly List<CallRecordSummary> _items = [];
+    private readonly HashSet<Guid> _expanded = [];
+
+    // Absent = not fetched yet; null value = fetched but the record no longer exists.
+    private readonly Dictionary<Guid, CallRecordDetails?> _details = [];
+
+    private SpecificationSummary[]? _specifications;
+    private string? _nextCursor;
+    private string? _errorMessage;
+    private string? _specificationsError;
+    private bool _isLoading;
+    private bool _hasLoaded;
+    private bool _isClearing;
+    private CancellationTokenSource? _loadCts;
+
+    private string _specificationFilter = string.Empty;
+    private string _directionFilter = string.Empty;
+    private string _contractFilter = string.Empty;
+
+    private bool IsBusy => _isLoading || _isClearing;
+
+    private bool HasFilters => _specificationFilter.Length > 0 || _directionFilter.Length > 0 || _contractFilter.Length > 0;
+
+    private string EmptyText => !_hasLoaded ? "Loading..." : HasFilters ? "No calls match the selected filters." : "No calls recorded yet.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The filter list is a nicety — the history itself doesn't depend on it, so a failure
+        // here leaves the select with just "All specifications" rather than breaking the page.
+        try
+        {
+            _specifications = await SpecificationApi.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _specificationsError = $"Failed to load specifications for the filter: {ex.Message}";
+        }
+
+        await ReloadAsync();
+    }
+
+    private static string DirectionLabel(CallDirection direction) => direction switch
+    {
+        CallDirection.InboundHttpRequest => "Mock call (in)",
+        CallDirection.OutboundHttpRequest => "HTTP request (out)",
+        CallDirection.OutboundBrokerPublish => "Broker publish (out)",
+        _ => direction.ToString()
+    };
+
+    private static string StatusBadgeClass(int status) => status switch
+    {
+        < 300 => "bg-success",
+        < 400 => "bg-secondary",
+        _ => "bg-danger"
+    };
+
+    private Task ReloadAsync() => LoadAsync(append: false);
+
+    /// <summary>
+    /// Loads the first page (replacing the list) or the next older one (appending). Starting a
+    /// load cancels any still in flight, and a cancelled load's result is dropped — so quick
+    /// filter changes or a filter change during "Load older" can't mix pages from different
+    /// filters, or leave the cursor pointing into the wrong result set. The list is only replaced
+    /// once the new page has arrived, so a failed refresh keeps what was shown.
+    /// </summary>
+    private async Task LoadAsync(bool append)
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        var cts = _loadCts = new CancellationTokenSource();
+
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            var page = await CallRecordApi.GetPageAsync(
+                Guid.TryParse(_specificationFilter, out var specificationId) ? specificationId : null,
+                Enum.TryParse<CallDirection>(_directionFilter, out var direction) ? direction : null,
+                bool.TryParse(_contractFilter, out var contractValid) ? contractValid : null,
+                append ? _nextCursor : null,
+                cts.Token);
+
+            if (cts.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (!append)
+            {
+                _items.Clear();
+                _expanded.Clear();
+                _details.Clear();
+            }
+
+            _items.AddRange(page.Items);
+            _nextCursor = page.NextCursor;
+            _hasLoaded = true;
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            // Superseded by a newer load (or the page was left) — nothing to show.
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load call history: {ex.Message}";
+        }
+        finally
+        {
+            // Only the latest load owns the flag; a superseded one mustn't clear it.
+            if (ReferenceEquals(_loadCts, cts))
+            {
+                _isLoading = false;
+            }
+        }
+    }
+
+    private async Task ToggleDetailsAsync(Guid id)
+    {
+        if (_expanded.Remove(id))
+        {
+            return;
+        }
+
+        _expanded.Add(id);
+        if (_details.ContainsKey(id))
+        {
+            return;
+        }
+
+        try
+        {
+            _details[id] = await CallRecordApi.GetDetailsAsync(id);
+        }
+        catch (Exception ex)
+        {
+            _details.Remove(id);
+            _expanded.Remove(id);
+            _errorMessage = $"Failed to load call details: {ex.Message}";
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Delete the entire call history? This can't be undone.");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _isClearing = true;
+        try
+        {
+            await CallRecordApi.ClearAsync();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to clear call history: {ex.Message}";
+        }
+        finally
+        {
+            _isClearing = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+    }
+}

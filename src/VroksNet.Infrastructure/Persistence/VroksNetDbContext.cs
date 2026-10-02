@@ -52,7 +52,19 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
                         schemas => new Dictionary<string, string?>(schemas)));
         });
 
-        modelBuilder.Entity<CallRecord>(entity => entity.HasKey(record => record.Id));
+        modelBuilder.Entity<CallRecord>(entity =>
+        {
+            entity.HasKey(record => record.Id);
+            // Stored as UTC ticks (INTEGER), not EF's default ISO text: SQLite can't ORDER BY or
+            // compare DateTimeOffset text, and text order would be wrong across offsets anyway.
+            // The offset itself isn't kept — every record is written with DateTimeOffset.UtcNow.
+            entity.Property(record => record.Timestamp)
+                .HasConversion(timestamp => timestamp.UtcTicks, ticks => new DateTimeOffset(ticks, TimeSpan.Zero));
+            // The call history is always read newest first by (Timestamp, Id) — the keyset — and
+            // optionally narrowed to one spec; Id in the index lets it satisfy the whole sort.
+            entity.HasIndex(record => new { record.Timestamp, record.Id });
+            entity.HasIndex(record => new { record.SpecificationId, record.Timestamp, record.Id });
+        });
 
         modelBuilder.Entity<Connection>(entity =>
         {

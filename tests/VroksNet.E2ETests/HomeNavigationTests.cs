@@ -18,6 +18,7 @@ public sealed class HomeNavigationTests(AppHostFixture fixture) : PageTestBase(f
     [Theory]
     [InlineData("Specifications", "/specifications")]
     [InlineData("Test Scenarios", "/test-scenarios")]
+    [InlineData("Call History", "/call-history")]
     [InlineData("Settings", "/settings")]
     public async Task NavMenu_NavigatesToPage(string linkText, string expectedPath)
     {
