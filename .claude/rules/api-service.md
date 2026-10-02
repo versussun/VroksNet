@@ -15,6 +15,14 @@ The only server process and the **only composition root**, in both dev and prod.
 - **One process, one Docker image.** The root `Dockerfile` is multi-stage: it publishes `VroksNet.Web` first, then copies its `wwwroot` into the final image next to ApiService's own publish output. Keep it that way.
 - **Never reference `Microsoft.AspNetCore.OpenApi`.** Don't re-add it. It brings back a `NU1107` version conflict.
 - **Keep the Development CORS predicate as `IsLoopback || Host.EndsWith(".localhost")`.** Don't narrow it to `IsLoopback` alone.
+- **Provider mode lives on its own port, never on the main one** (`ProviderPortSetup`, enabled by `Provider:Port`).
+  - Only the mock is reachable there, which is what keeps spec paths from colliding with `/api`, `/health` and the Admin UI's SPA fallback. Don't add a catch-all for real paths on the main port.
+  - `ListenOnProviderPort` *adds* the port to the configured addresses (`urls`, or `http_ports`/`https_ports`) through `Infrastructure/Hosting/ProviderListenAddresses.Merge`. A plain `UseUrls`/`ListenAnyIP` would replace them.
+  - Keep `Merge` pure and unit-tested. It must fail startup on a port that collides with the API's own addresses or is ≤ 0, and stay loopback-only when the main addresses are.
+  - `Kestrel:Endpoints` combined with `Provider:Port` fails at startup, because Kestrel would ignore the added address.
+  - Keep the provider branch free of anything that reads endpoint metadata. Adding `ShortCircuit()` or auth/antiforgery services later would leak onto it.
+  - `MapProviderPort` must stay first in the pipeline, right after `UseExceptionHandler`.
+  - Docker sets `Provider__Port=7353`, the same number as AppHost's pinned provider endpoint. Keep the two equal. the "Overriding HTTP_PORTS" warning at startup is expected.
 - **Add extra dev origins through config, not by widening the CORS policy.** Use the `Cors:AdditionalDevOrigins` key (env var `Cors__AdditionalDevOrigins=https://foo.example,https://bar.example`) for hosts-file custom hostnames, tunnel domains and the like.
 
 ## Gotchas
