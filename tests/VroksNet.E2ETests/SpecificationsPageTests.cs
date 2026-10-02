@@ -52,6 +52,16 @@ public sealed class SpecificationsPageTests(AppHostFixture fixture) : PageTestBa
         await endpointCard.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Send" }).ClickAsync();
         await Expect(endpointCard.Locator("span.badge").Last).ToHaveTextAsync("200");
         await Expect(endpointCard.Locator("pre code").Last).ToContainTextAsync("Fido");
+
+        // Turning the mock off is saved, not just shown. (A 404 isn't asserted: another spec in the
+        // same run may also declare GET /pets and answer it.)
+        var enabledSwitch = endpointCard.GetByRole(AriaRole.Switch, new LocatorGetByRoleOptions { Name = "Mock enabled" });
+        await enabledSwitch.UncheckAsync();
+        await Expect(endpointCard.Locator("span.badge").First).ToHaveTextAsync("Disabled");
+        await Page.ReloadAsync();
+        await Expect(enabledSwitch).Not.ToBeCheckedAsync();
+        await enabledSwitch.CheckAsync();
+        await Expect(endpointCard.Locator("span.badge").First).ToHaveTextAsync("Enabled");
     }
 
     [Fact]

@@ -54,6 +54,24 @@ public sealed class ApiSpecificationRepository(
         return updated;
     }
 
+    public async Task<int> SetEnabledAsync(IReadOnlyCollection<Guid> mockEndpointIds, bool enabled, CancellationToken cancellationToken)
+    {
+        if (mockEndpointIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var updated = 0;
+        await writeQueue.EnqueueAsync(async (context, ct) =>
+        {
+            updated = await context.MockEndpoints
+                .Where(endpoint => mockEndpointIds.Contains(endpoint.Id))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(endpoint => endpoint.IsEnabled, enabled), ct);
+        }, cancellationToken);
+
+        return updated;
+    }
+
     public Task UpsertAsync(ApiSpecification specification, CancellationToken cancellationToken)
     {
         return writeQueue.EnqueueAsync(async (context, ct) =>

@@ -24,6 +24,8 @@ public sealed class ImportOpenApiSpecHandler(
         // Re-importing replaces the endpoints; keep provider mode on for operations that are still
         // there (same key, so no new overlap with other specs can have appeared).
         var servedKeys = existing?.Endpoints.Where(e => e.ServeAtRealPath).Select(e => e.OperationKey).ToHashSet(StringComparer.Ordinal) ?? [];
+        // Likewise an operation someone turned off stays off.
+        var disabledKeys = existing?.Endpoints.Where(e => !e.IsEnabled).Select(e => e.OperationKey).ToHashSet(StringComparer.Ordinal) ?? [];
 
         var specification = existing
             ?? new ApiSpecification
@@ -47,7 +49,8 @@ public sealed class ImportOpenApiSpecHandler(
                 RequestSchema = operation.RequestSchemaJson,
                 ResponseSchema = operation.ResponseSchemaJson,
                 ResponseSchemasByStatus = operation.ResponseSchemasByStatus?.ToDictionary() ?? [],
-                ServeAtRealPath = servedKeys.Contains(operation.OperationKey)
+                ServeAtRealPath = servedKeys.Contains(operation.OperationKey),
+                IsEnabled = !disabledKeys.Contains(operation.OperationKey)
             })
             .ToList();
 
