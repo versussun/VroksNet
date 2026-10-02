@@ -1,5 +1,6 @@
 using Mediator;
 using VroksNet.ApiService.Endpoints.Requests;
+using VroksNet.Application.Mocking.SetEndpointEnabled;
 using VroksNet.Application.Mocking.SetEndpointProviderMode;
 
 namespace VroksNet.ApiService.Endpoints;
@@ -30,6 +31,24 @@ public static class MockEndpointEndpoints
             };
         })
         .WithName("SetEndpointProviderMode");
+
+        // Body: { "enabled": true|false }. 409 with the reason for a non-HTTP operation.
+        app.MapPut("/api/mock-endpoints/{id:guid}/enabled", async (Guid id, EndpointEnabledBody body, IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            if (body.Enabled is not { } enabled)
+            {
+                return Results.Problem(detail: "The body must say { \"enabled\": true } or { \"enabled\": false }.", statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            var result = await mediator.Send(new SetEndpointEnabled(id, enabled), cancellationToken);
+            return result switch
+            {
+                { Found: false } => Results.NotFound(),
+                { Refusal: { } refusal } => Results.Problem(detail: refusal, statusCode: StatusCodes.Status409Conflict),
+                _ => Results.NoContent()
+            };
+        })
+        .WithName("SetEndpointEnabled");
 
         return app;
     }

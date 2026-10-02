@@ -6,8 +6,8 @@
     <div class="card-header d-flex justify-content-between align-items-center">
         <code>@Endpoint.OperationKey</code>
         <div class="d-flex align-items-center gap-2">
-            <span class="badge @(Endpoint.IsEnabled ? "bg-success" : "bg-secondary")">
-                @(Endpoint.IsEnabled ? "Enabled" : "Disabled")
+            <span class="badge @(_isEnabled ? "bg-success" : "bg-secondary")">
+                @(_isEnabled ? "Enabled" : "Disabled")
             </span>
             <button type="button" class="btn btn-outline-primary btn-sm" @onclick="CreateTest">+ Create test</button>
         </div>
@@ -32,9 +32,9 @@
             <p class="text-muted fst-italic">No example in the spec for this operation.</p>
         }
 
-        @if (!Endpoint.IsEnabled)
+        @if (!_isEnabled && IsHttpOperation)
         {
-            <p class="text-muted fst-italic mb-0">This endpoint is disabled — sending a request to it will return 404.</p>
+            <p class="text-muted fst-italic">This endpoint is disabled — sending a request to it will return 404.</p>
         }
 
         @if (!IsHttpOperation)
@@ -43,6 +43,21 @@
         }
         else
         {
+            <div class="form-check form-switch mb-2">
+                @* Re-keyed after a failed change, for the same reason as the provider switch below. *@
+                <input @key="_enabledSwitchVersion" class="form-check-input" type="checkbox" role="switch" id="@($"enabled-{Endpoint.Id}")"
+                       checked="@_isEnabled" disabled="@_isTogglingEnabled" @onchange="ToggleEnabledAsync"
+                       aria-describedby="@($"enabled-help-{Endpoint.Id}")" />
+                <label class="form-check-label" for="@($"enabled-{Endpoint.Id}")">Mock enabled</label>
+                <div id="@($"enabled-help-{Endpoint.Id}")" class="form-text">
+                    When off, this operation answers 404 — under <code>/mock</code> and on the provider port alike.
+                </div>
+                @if (_enabledError is not null)
+                {
+                    <div class="text-danger small" role="alert">@_enabledError</div>
+                }
+            </div>
+
             <div class="form-check form-switch mb-2">
                 @* Re-keyed after a refused change: the browser already ticked the box, and re-rendering the
                    same "false" wouldn't be seen as a change, so the element is recreated instead (and
@@ -118,6 +133,10 @@
     private readonly Dictionary<string, string> _paramValues = [];
     private bool _isSending;
     private bool _serveAtRealPath;
+    private bool _isEnabled;
+    private bool _isTogglingEnabled;
+    private string? _enabledError;
+    private int _enabledSwitchVersion;
     private bool _isTogglingProvider;
     private string? _providerError;
     private int _providerSwitchVersion;
@@ -160,6 +179,8 @@
             _lastEndpoint = Endpoint;
             _serveAtRealPath = Endpoint.ServeAtRealPath;
             _providerError = null;
+            _isEnabled = Endpoint.IsEnabled;
+            _enabledError = null;
         }
 
         var parts = Endpoint.OperationKey.Split(' ', 2);
@@ -182,6 +203,35 @@
         {
             _refocusProviderSwitch = false;
             await _providerSwitch.FocusAsync();
+        }
+    }
+
+    private async Task ToggleEnabledAsync(ChangeEventArgs e)
+    {
+        var enabled = e.Value is true;
+        _isTogglingEnabled = true;
+        _enabledError = null;
+
+        try
+        {
+            _enabledError = await SpecificationApi.SetEndpointEnabledAsync(Endpoint.Id, enabled);
+        }
+        catch (Exception ex)
+        {
+            _enabledError = $"Failed to change whether the mock is enabled: {ex.Message}";
+        }
+        finally
+        {
+            _isTogglingEnabled = false;
+        }
+
+        if (_enabledError is null)
+        {
+            _isEnabled = enabled;
+        }
+        else
+        {
+            _enabledSwitchVersion++;
         }
     }
 

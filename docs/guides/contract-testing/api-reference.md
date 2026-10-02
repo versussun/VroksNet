@@ -59,9 +59,10 @@ Create/update body:
 
 | Method & path | Body | Returns |
 |---|---|---|
-| any of GET/POST/PUT/PATCH/DELETE `/mock/{path}` | the request | the matching enabled operation's example (`200`), or `404` |
-| anything on the provider port (`:7353`), at the real path | the request | the example for an operation served at its real path (`200`), or `404` |
+| any of GET/POST/PUT/PATCH/DELETE `/mock/{path}` | the request | the matching enabled operation's example, placeholders filled in, at the spec's status; or `404` |
+| anything on the provider port (`:7353`), at the real path | the request | the same, for an operation served at its real path; or `404` |
 | `PUT /api/mock-endpoints/{id}/provider-mode` | `{ "enabled": true }` | `204`; `404`; `409 { "detail" }` with the reason (e.g. an overlap) |
+| `PUT /api/mock-endpoints/{id}/enabled` | `{ "enabled": false }` | `204`; `404`; `409 { "detail" }` for a non-HTTP operation. A disabled operation answers `404` under `/mock` and on the provider port |
 | `GET /api/system/provider` | | `{ "enabled", "port", "publicUrl" }` |
 
 ## Call History
