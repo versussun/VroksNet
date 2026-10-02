@@ -78,6 +78,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IConnectionRepository, ConnectionRepository>();
         services.AddScoped<ITestScenarioRepository, TestScenarioRepository>();
         services.AddScoped<ICallRecordRepository, CallRecordRepository>();
+        services.AddScoped<ICallRecordNameResolver, CallRecordNameResolver>();
         services.AddScoped<ISpecificationParser, OpenApiSpecificationParser>();
         services.AddScoped<IAsyncApiSpecificationParser, AsyncApiSpecificationParser>();
         services.AddScoped<IResponseTemplateEngine, PassthroughResponseTemplateEngine>();

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Mediator;
 using VroksNet.Application.Abstractions;
+using VroksNet.Application.CallRecords;
 using VroksNet.Domain.CallRecords;
 using VroksNet.Domain.Connections;
 using VroksNet.Domain.MockEndpoints;
@@ -64,8 +65,8 @@ public sealed class RunTestScenarioHandler(
             TestScenarioId = scenario.Id,
             Direction = connection.ServiceType == ConnectionServiceType.Http ? CallDirection.OutboundHttpRequest : CallDirection.OutboundBrokerPublish,
             Timestamp = ranAt,
-            RequestSnapshot = payload,
-            ResponseSnapshot = result.Success ? result.ResponseBody ?? result.Message : result.Message,
+            RequestSnapshot = CallRecordSnapshot.Truncate(payload),
+            ResponseSnapshot = CallRecordSnapshot.Truncate(result.Success ? result.ResponseBody ?? result.Message : result.Message),
             StatusCode = result.StatusCode,
             ContractValid = validation?.IsValid,
             ValidationErrors = validation is { IsValid: false } ? JsonSerializer.Serialize(validation.Errors) : null

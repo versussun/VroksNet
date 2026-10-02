@@ -17,6 +17,13 @@ public sealed class CallRecord
 
     public CallDirection Direction { get; set; }
 
+    /// <summary>
+    /// For an inbound mock call, the request line actually received (e.g. "GET /mock/pets/1?x=1") —
+    /// the only record of what was asked for when nothing matched (<see cref="MockEndpointId"/> is
+    /// null then). Null for outbound calls, whose target is the operation + connection instead.
+    /// </summary>
+    public string? RequestLine { get; set; }
+
     public DateTimeOffset Timestamp { get; set; }
 
     public string? RequestSnapshot { get; set; }

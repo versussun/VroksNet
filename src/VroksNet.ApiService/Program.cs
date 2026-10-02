@@ -86,6 +86,7 @@ app.MapSpecificationEndpoints();
 app.MapMockInvocationEndpoints();
 app.MapConnectionEndpoints();
 app.MapTestScenarioEndpoints();
+app.MapCallRecordEndpoints();
 app.MapSystemEndpoints();
 
 // Serves VroksNet.Web's published Blazor WebAssembly output as static files, with a SPA

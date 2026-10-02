@@ -1,0 +1,18 @@
+/* Long single-line values (compact JSON bodies, request lines, operation keys) wrap instead of
+   widening the auto-layout table past the viewport. */
+.call-cell code,
+.call-details code {
+    overflow-wrap: anywhere;
+}
+
+.call-details pre {
+    max-height: 16rem;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* Lets the colspan details cell shrink to the table's width rather than to its content. */
+.details-cell {
+    max-width: 0;
+}
