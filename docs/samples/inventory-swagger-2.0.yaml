@@ -1,0 +1,198 @@
+# Sample spec for local testing — NOT a real service spec. See docs/samples/README.md.
+#
+# A legacy Swagger 2.0 spec. VroksNet reads it through Microsoft.OpenApi, which upgrades it to
+# the 3.x model on import: `examples: application/json:` on a response becomes that response's
+# JSON example, `in: body` parameters become the request body, and `produces`/`consumes` pick the
+# media types. Nothing to convert by hand.
+swagger: "2.0"
+info:
+  title: Inventory Sample API
+  version: "0.9.3"
+  description: Warehouse stock levels and reservations.
+host: inventory.example.com
+basePath: /v1
+schemes: [https]
+consumes: [application/json]
+produces: [application/json]
+paths:
+  /warehouses:
+    get:
+      operationId: listWarehouses
+      summary: All warehouses
+      responses:
+        "200":
+          description: Warehouses
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Warehouse"
+          examples:
+            application/json:
+              - code: KBP-1
+                name: Kyiv Boryspil
+                country: UA
+                active: true
+              - code: LWO-2
+                name: Lviv West
+                country: UA
+                active: false
+  /warehouses/{code}/stock:
+    get:
+      operationId: getStock
+      summary: Stock levels in one warehouse
+      parameters:
+        - name: code
+          in: path
+          required: true
+          type: string
+        - name: sku
+          in: query
+          required: false
+          type: string
+          description: Only this SKU.
+      responses:
+        "200":
+          description: Stock levels
+          schema:
+            $ref: "#/definitions/StockReport"
+          examples:
+            application/json:
+              warehouse: "{{request.path.code}}"
+              generatedAt: "{{now}}"
+              items:
+                - sku: SKU-RED-M
+                  onHand: 120
+                  reserved: 15
+                - sku: SKU-BLUE-L
+                  onHand: 0
+                  reserved: 0
+        "404":
+          description: Unknown warehouse
+          schema:
+            $ref: "#/definitions/Error"
+  /reservations:
+    post:
+      operationId: reserveStock
+      summary: Reserve stock for an order
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/ReservationRequest"
+      responses:
+        "201":
+          description: Reserved
+          schema:
+            $ref: "#/definitions/Reservation"
+          examples:
+            application/json:
+              id: "{{uuid}}"
+              orderId: "{{request.body.orderId}}"
+              warehouse: KBP-1
+              status: held
+              expiresAt: "2026-12-31T23:59:59Z"
+              lines:
+                - sku: SKU-RED-M
+                  quantity: 2
+        "409":
+          description: Not enough stock
+          schema:
+            $ref: "#/definitions/Error"
+  /reservations/{id}:
+    delete:
+      operationId: releaseReservation
+      summary: Release a reservation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        "204":
+          description: Released
+definitions:
+  Warehouse:
+    type: object
+    required: [code, name, country, active]
+    properties:
+      code:
+        type: string
+      name:
+        type: string
+      country:
+        type: string
+      active:
+        type: boolean
+  StockLine:
+    type: object
+    required: [sku, onHand, reserved]
+    properties:
+      sku:
+        type: string
+      onHand:
+        type: integer
+        minimum: 0
+      reserved:
+        type: integer
+        minimum: 0
+  StockReport:
+    type: object
+    required: [warehouse, items]
+    properties:
+      warehouse:
+        type: string
+      generatedAt:
+        type: string
+        format: date-time
+      items:
+        type: array
+        items:
+          $ref: "#/definitions/StockLine"
+  ReservationLine:
+    type: object
+    required: [sku, quantity]
+    properties:
+      sku:
+        type: string
+      quantity:
+        type: integer
+        minimum: 1
+  ReservationRequest:
+    type: object
+    required: [orderId, lines]
+    properties:
+      orderId:
+        type: string
+      lines:
+        type: array
+        items:
+          $ref: "#/definitions/ReservationLine"
+  Reservation:
+    type: object
+    required: [id, orderId, warehouse, status, lines]
+    properties:
+      id:
+        type: string
+      orderId:
+        type: string
+      warehouse:
+        type: string
+      status:
+        type: string
+        enum: [held, committed, released, expired]
+      expiresAt:
+        type: string
+        format: date-time
+      lines:
+        type: array
+        items:
+          $ref: "#/definitions/ReservationLine"
+  Error:
+    type: object
+    required: [code, message]
+    properties:
+      code:
+        type: string
+      message:
+        type: string

@@ -1,0 +1,218 @@
+# Sample spec for local testing — NOT a real service spec. See docs/samples/README.md.
+#
+# AsyncAPI 3.0 for NATS: the channel address is the NATS subject.
+# - devices.{deviceId}.telemetry: a Listen scenario subscribes to devices.*.telemetry and hears
+#   every device. A Publisher/Send can't fill {deviceId} in, so a concrete-subject operation
+#   (devices.sim-001.telemetry) is there for publishing a simulated device.
+# - Core NATS doesn't queue: whoever should receive a publish must be subscribed at that moment.
+# - Messages can be inline in the channel (no components.messages hop) — both forms work.
+asyncapi: 3.0.0
+info:
+  title: IoT Telemetry NATS Sample
+  version: "1.3.0"
+  description: Field devices report telemetry and heartbeats; the platform sends them commands and raises alerts.
+servers:
+  local:
+    host: localhost:4222
+    protocol: nats
+    description: The Aspire "nats" resource (credentials and port are in the dashboard).
+channels:
+  telemetryAnyDevice:
+    address: devices.{deviceId}.telemetry
+    parameters:
+      deviceId:
+        description: Hardware serial, e.g. sim-001.
+    messages:
+      telemetry:
+        $ref: "#/components/messages/Telemetry"
+  telemetrySimulator:
+    address: devices.sim-001.telemetry
+    description: The simulated device VroksNet can publish as.
+    messages:
+      telemetry:
+        $ref: "#/components/messages/Telemetry"
+  heartbeat:
+    address: devices.sim-001.heartbeat
+    messages:
+      heartbeat:
+        name: Heartbeat
+        payload:
+          type: object
+          required: [deviceId, at, uptimeSeconds]
+          properties:
+            deviceId:
+              type: string
+            at:
+              type: string
+              format: date-time
+            uptimeSeconds:
+              type: integer
+              minimum: 0
+            firmware:
+              type: string
+        examples:
+          - payload:
+              deviceId: sim-001
+              at: "{{now}}"
+              uptimeSeconds: 86400
+              firmware: 2.4.1
+  commands:
+    address: devices.sim-001.commands
+    messages:
+      command:
+        $ref: "#/components/messages/Command"
+  alerts:
+    address: fleet.alerts
+    messages:
+      alert:
+        $ref: "#/components/messages/Alert"
+operations:
+  reportTelemetry:
+    action: send
+    channel:
+      $ref: "#/channels/telemetryAnyDevice"
+    summary: Every device publishes a reading every few seconds — listen here to check any of them.
+    messages:
+      - $ref: "#/channels/telemetryAnyDevice/messages/telemetry"
+  simulateTelemetry:
+    action: send
+    channel:
+      $ref: "#/channels/telemetrySimulator"
+    summary: Point a Publisher at this (e.g. every 5s) to simulate a device.
+    messages:
+      - $ref: "#/channels/telemetrySimulator/messages/telemetry"
+  sendHeartbeat:
+    action: send
+    channel:
+      $ref: "#/channels/heartbeat"
+    messages:
+      - $ref: "#/channels/heartbeat/messages/heartbeat"
+  receiveCommand:
+    action: receive
+    channel:
+      $ref: "#/channels/commands"
+    summary: The device consumes commands — a Send scenario plays the platform.
+    messages:
+      - $ref: "#/channels/commands/messages/command"
+  raiseAlert:
+    action: send
+    channel:
+      $ref: "#/channels/alerts"
+    messages:
+      - $ref: "#/channels/alerts/messages/alert"
+components:
+  messages:
+    Telemetry:
+      name: Telemetry
+      title: Telemetry reading
+      payload:
+        $ref: "#/components/schemas/TelemetryPayload"
+      examples:
+        - name: normal
+          payload:
+            readingId: "{{uuid}}"
+            deviceId: sim-001
+            measuredAt: "{{now}}"
+            location: { lat: 50.4501, lon: 30.5234 }
+            metrics:
+              temperatureC: 21.7
+              humidityPct: 43
+              batteryPct: 88
+              rssiDbm: -67
+            status: ok
+    Command:
+      name: Command
+      payload:
+        $ref: "#/components/schemas/CommandPayload"
+      examples:
+        - name: reboot
+          payload:
+            commandId: "{{uuid}}"
+            issuedAt: "{{now}}"
+            type: reboot
+            args: { delaySeconds: 10 }
+            expiresInSeconds: 300
+    Alert:
+      name: Alert
+      payload:
+        $ref: "#/components/schemas/AlertPayload"
+      examples:
+        - name: lowBattery
+          payload:
+            alertId: "{{uuid}}"
+            raisedAt: "{{now}}"
+            deviceId: sim-001
+            severity: warning
+            code: BATTERY_LOW
+            message: Battery below 15%
+            value: 14
+  schemas:
+    TelemetryPayload:
+      type: object
+      required: [readingId, deviceId, measuredAt, metrics, status]
+      properties:
+        readingId:
+          type: string
+        deviceId:
+          type: string
+        measuredAt:
+          type: string
+          format: date-time
+        location:
+          type: object
+          required: [lat, lon]
+          properties:
+            lat:
+              type: number
+              minimum: -90
+              maximum: 90
+            lon:
+              type: number
+              minimum: -180
+              maximum: 180
+        metrics:
+          type: object
+          minProperties: 1
+          additionalProperties:
+            type: number
+        status:
+          type: string
+          enum: [ok, degraded, fault]
+    CommandPayload:
+      type: object
+      required: [commandId, issuedAt, type]
+      properties:
+        commandId:
+          type: string
+        issuedAt:
+          type: string
+          format: date-time
+        type:
+          type: string
+          enum: [reboot, set-interval, update-firmware, locate]
+        args:
+          type: object
+        expiresInSeconds:
+          type: integer
+          minimum: 1
+    AlertPayload:
+      type: object
+      required: [alertId, raisedAt, deviceId, severity, code]
+      properties:
+        alertId:
+          type: string
+        raisedAt:
+          type: string
+          format: date-time
+        deviceId:
+          type: string
+        severity:
+          type: string
+          enum: [info, warning, critical]
+        code:
+          type: string
+          pattern: "^[A-Z_]+$"
+        message:
+          type: string
+        value:
+          type: number

@@ -32,6 +32,10 @@
     <Content Include="Fixtures\**\*.yaml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- The importable examples in docs/samples — SampleSpecificationsTests keeps them working. -->
+    <Content Include="..\..\docs\samples\*.yaml" Link="Samples\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

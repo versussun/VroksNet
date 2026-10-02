@@ -164,7 +164,7 @@ Solution с Clean Architecture и Aspire (`VroksNet.slnx`, все проекты
 - [x] Обновить `.claude/CLAUDE.md` под новую схему (Web — WASM-клиент, не отдельный host)
 - [x] Подключить SQLite + EF Core: включить WAL mode и busy timeout, спроектировать сериализованную запись через один канал/воркер
 - [x] Добавить NATS и RabbitMQ как ресурсы в `VroksNet.AppHost` (через `AddNats`/`AddRabbitMQ`)
-- [ ] Собрать 2–3 реальных OpenAPI-спеки и 1–2 AsyncAPI-спеки из ваших сервисов как тестовые данные — пока есть только учебные `docs/samples/petstore-openapi.yaml` и `orders-asyncapi.yaml`
+- [ ] Собрать 2–3 реальных OpenAPI-спеки и 1–2 AsyncAPI-спеки из ваших сервисов как тестовые данные — пока есть только учебные спеки в `docs/samples/` (OpenAPI 3.0/3.1, Swagger 2.0, AsyncAPI 3.0 для Kafka/NATS/RabbitMQ — см. `docs/samples/README.md`)
 - [x] В `VroksNet.Domain` завести сущности `ApiSpecification` (с `Title` как ключом сопоставления версий), `MockEndpoint`, `CallRecord`; в `VroksNet.Application` — первый use case `ImportOpenApiSpec` через Mediator, реализующий replace-по-title
 - [x] Прототип парсинга OpenAPI через Microsoft.OpenApi в `ImportOpenApiSpecHandler` — загрузить файл и вывести список эндпоинтов в консоль/лог
 - [x] Спроектировать движок подстановки плейсхолдеров (`{{request.path.*}}`, `{{request.query.*}}`, `{{request.header.*}}`, `{{request.body.*}}`, `{{uuid}}`, `{{now}}`) поверх examples из спеки — `ResponseTemplateEngine`, Фаза F (`docs/contract-testing-plan.md`, 4.6)
