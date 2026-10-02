@@ -46,7 +46,9 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
                     json => JsonSerializer.Deserialize<Dictionary<string, string?>>(json, (JsonSerializerOptions?)null) ?? new Dictionary<string, string?>(),
                     new ValueComparer<Dictionary<string, string?>>(
                         (left, right) => left == null ? right == null : right != null && left.Count == right.Count && !left.Except(right).Any(),
-                        schemas => schemas.Aggregate(0, (hash, pair) => HashCode.Combine(hash, pair.Key, pair.Value)),
+                        // XOR, so the hash doesn't depend on enumeration order — equal dictionaries filled in
+                        // a different order must hash the same.
+                        schemas => schemas.Aggregate(0, (hash, pair) => hash ^ HashCode.Combine(pair.Key, pair.Value)),
                         schemas => new Dictionary<string, string?>(schemas)));
         });
 

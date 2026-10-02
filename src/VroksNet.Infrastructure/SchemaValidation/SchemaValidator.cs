@@ -24,7 +24,18 @@ public sealed class SchemaValidator : ISchemaValidator
             return new SchemaValidationResult(false, [$"Not valid JSON: {ex.Message}"]);
         }
 
-        var results = schema.Evaluate(instance, Options);
+        EvaluationResults results;
+        try
+        {
+            results = schema.Evaluate(instance, Options);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // E.g. an unresolvable "$ref" in a stored schema. Reported as a failed check rather
+            // than thrown, so a contract-test run still records its outcome instead of a 500.
+            return new SchemaValidationResult(false, [$"The spec's schema couldn't be evaluated: {ex.Message}"]);
+        }
+
         if (results.IsValid)
         {
             return SchemaValidationResult.Valid;

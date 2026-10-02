@@ -86,7 +86,7 @@ else
                                         @if (!contract.IsValid)
                                         {
                                             <ul class="small text-danger mb-0 mt-1">
-                                                @foreach (var error in contract.Errors)
+                                                @foreach (var error in contract.Errors ?? [])
                                                 {
                                                     <li>@error</li>
                                                 }

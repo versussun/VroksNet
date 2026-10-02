@@ -1,0 +1,29 @@
+# A self-referencing schema (a tree of nodes) — exercises OpenApiSpecificationParser's "$defs"
+# handling: Microsoft.OpenApi can't fully inline a cycle, so the extracted schema must carry the
+# component itself to still resolve standalone.
+openapi: 3.0.3
+info:
+  title: Recursive Sample API
+  version: "1.0.0"
+paths:
+  /tree:
+    get:
+      responses:
+        "200":
+          description: The whole tree
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Node"
+components:
+  schemas:
+    Node:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/Node"

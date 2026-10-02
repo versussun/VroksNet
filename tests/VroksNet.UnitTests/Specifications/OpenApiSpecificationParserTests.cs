@@ -1,3 +1,4 @@
+using VroksNet.Infrastructure.SchemaValidation;
 using VroksNet.Infrastructure.Specifications;
 
 namespace VroksNet.UnitTests.Specifications;
@@ -72,6 +73,24 @@ public class OpenApiSpecificationParserTests
         // Declared, but with no JSON body — the key is kept so the status counts as declared.
         Assert.Null(schemas["5XX"]);
         Assert.Null(schemas["default"]);
+    }
+
+    [Fact]
+    public async Task ParseAsync_RecursiveSchema_CarriesComponentsAsDefsSoItValidatesStandalone()
+    {
+        var yaml = await File.ReadAllTextAsync(FixturePath("recursive-openapi.yaml"), TestContext.Current.CancellationToken);
+
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+
+        var schema = Assert.Single(result.Operations).ResponseSchemasByStatus!["200"];
+        Assert.NotNull(schema);
+        Assert.DoesNotContain("#/components/", schema);
+        Assert.Contains("\"$defs\"", schema);
+
+        var validator = new SchemaValidator();
+        Assert.True(validator.Validate(schema, """{"name":"root","children":[{"name":"leaf","children":[]}]}""").IsValid);
+        // The violation is two levels deep — past the one level Microsoft.OpenApi inlines.
+        Assert.False(validator.Validate(schema, """{"name":"root","children":[{"name":"a","children":[{"children":[]}]}]}""").IsValid);
     }
 
     [Fact]
