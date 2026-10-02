@@ -51,6 +51,23 @@ public sealed class KafkaApiTests(AppHostFixture fixture)
     }
 
     [Fact]
+    public async Task RunTestScenario_Kafka_ToAMissingTopic_SaysTheTopicDoesNotExist()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var suffix = Guid.NewGuid().ToString("N");
+        var bootstrapServers = await BootstrapServersAsync(cancellationToken);
+
+        // The AppHost broker auto-creates topics (Aspire's own Kafka health check relies on it),
+        // so this client opts out instead — the same as a cluster where auto-creation is off.
+        var connectionValue = $"bootstrap.servers={bootstrapServers};allow.auto.create.topics=false";
+        var scenarioId = await CreateScenarioAsync(fixture.ApiServiceClient, suffix, $"missing.{suffix}", connectionValue, kind: "Send", timeoutSeconds: null, cancellationToken);
+        var run = await RunAsync(scenarioId, cancellationToken);
+
+        Assert.False(run["success"]!.GetValue<bool>());
+        Assert.Contains($"Topic \"missing.{suffix}\" doesn't exist", run["message"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task Listen_Kafka_ReceivesOnTopicAndValidates()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
