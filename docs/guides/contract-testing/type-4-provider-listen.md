@@ -84,7 +84,7 @@ SCENARIO=$(curl -s -X POST "$API/api/test-scenarios" -H "Content-Type: applicati
   \"payloadOverride\": null,
   \"kind\": \"Listen\",
   \"listenTimeoutSeconds\": 30,
-  \"listenExchange\": \"orders\"
+  \"exchange\": \"orders\"
 }" | jq -r .id)
 ```
 
@@ -135,5 +135,5 @@ Other failures name the stage: `Timed out connecting to the broker…`, `Connect
 
 - **Default mode.** For `send` operations the form starts in Listen mode. Switch **Mode** to publish instead ([Type 2](type-2-producer-publish.md)).
 - **No schema in the spec** means any message passes (`contractValidation: null`). An empty message where a schema is declared is a violation.
-- **A Listen scenario doesn't hear a Type 2 publish from VroksNet** on the same RabbitMQ operation: Type 2 publishes through the default exchange, which can't be bound. Planned as Phase G.
+- **A Listen scenario hears a Type 2 publish from VroksNet** on the same RabbitMQ operation as long as both use the same exchange (both start as `amq.topic`). A Send scenario whose Exchange is cleared publishes through the default exchange, which can't be listened to.
 - Received messages are logged in [Call History](call-history.md) as *Broker message (in)*, with the payload.

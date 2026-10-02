@@ -13,7 +13,7 @@ public sealed record TestScenarioSummary(
     string? PayloadOverride,
     TestScenarioKind Kind,
     int? ListenTimeoutSeconds,
-    string? ListenExchange,
+    string? Exchange,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? LastRunAt,
     bool? LastRunSuccess,

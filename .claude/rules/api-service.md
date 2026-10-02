@@ -25,6 +25,7 @@ The only server process and the **only composition root**, in both dev and prod.
   - Keep `Merge` pure and unit-tested. It must fail startup on a port that collides with the API's own addresses or is ≤ 0, and stay loopback-only when the main addresses are.
   - `Kestrel:Endpoints` combined with `Provider:Port` fails at startup, because Kestrel would ignore the added address.
   - Keep the provider branch free of anything that reads endpoint metadata. Adding `ShortCircuit()` or auth/antiforgery services later would leak onto it.
+  - CORS there is off unless `Provider:CorsOrigins` is set. It has its own `Provider` policy, separate from the dev `WebDev` one: any method and header, no credentials, origins parsed by `ProviderSettings.CorsOriginsFrom`. The branch clears the matched endpoint before `UseCors`, so an API route's CORS metadata can't override that policy. The CORS middleware answers preflights itself, so they never reach the mock or the history.
   - `MapProviderPort` must stay first in the pipeline, right after `UseExceptionHandler`.
   - Docker sets `Provider__Port=7353`, the same number as AppHost's pinned provider endpoint. Keep the two equal. the "Overriding HTTP_PORTS" warning at startup is expected.
 - **Add extra dev origins through config, not by widening the CORS policy.** Use the `Cors:AdditionalDevOrigins` key (env var `Cors__AdditionalDevOrigins=https://foo.example,https://bar.example`) for hosts-file custom hostnames, tunnel domains and the like.

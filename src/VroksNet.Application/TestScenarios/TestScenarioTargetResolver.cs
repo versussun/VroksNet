@@ -34,13 +34,14 @@ public static class TestScenarioTargetResolver
     }
 
     /// <summary>
-    /// Checks <paramref name="kind"/> against the resolved operation and normalizes the listen
-    /// settings: null (meaning "use the default") for a Listen scenario that gave none, and always
-    /// null for a Send one. Throws <see cref="ArgumentException"/> on an operation that can't be
-    /// listened to, an unknown kind, or a timeout outside 1..<see cref="TestScenarioListening.MaxTimeoutSeconds"/>.
-    /// The exchange is kept only for a RabbitMQ connection.
+    /// Checks <paramref name="kind"/> against the resolved operation and normalizes its settings:
+    /// the timeout is null (meaning "use the default") for a Listen scenario that gave none, and
+    /// always null for a Send one; the exchange is kept, trimmed, only for a RabbitMQ connection
+    /// (either kind — blank means "use the kind's default"). Throws <see cref="ArgumentException"/>
+    /// on an operation that can't be listened to, an unknown kind, or a timeout outside
+    /// 1..<see cref="TestScenarioListening.MaxTimeoutSeconds"/>.
     /// </summary>
-    public static (int? TimeoutSeconds, string? Exchange) ValidateListenSettings(
+    public static (int? TimeoutSeconds, string? Exchange) ValidateKindSettings(
         ResolvedTestScenarioTarget target,
         TestScenarioKind kind,
         int? timeoutSeconds,
@@ -51,9 +52,14 @@ public static class TestScenarioTargetResolver
             throw new ArgumentException($"Unknown test scenario kind '{kind}'.");
         }
 
+        // The exchange only means something for RabbitMQ — don't keep a stale one on a NATS/HTTP scenario.
+        var keptExchange = target.Connection.ServiceType == ConnectionServiceType.RabbitMq && !string.IsNullOrWhiteSpace(exchange)
+            ? exchange.Trim()
+            : null;
+
         if (kind != TestScenarioKind.Listen)
         {
-            return (null, null);
+            return (null, keptExchange);
         }
 
         if (!TestScenarioListening.CanListen(target.Endpoint.OperationKey))
@@ -67,11 +73,6 @@ public static class TestScenarioTargetResolver
         {
             throw new ArgumentException($"The listen timeout must be between 1 and {TestScenarioListening.MaxTimeoutSeconds} seconds.");
         }
-
-        // The exchange only means something for RabbitMQ — don't keep a stale one on a NATS scenario.
-        var keptExchange = target.Connection.ServiceType == ConnectionServiceType.RabbitMq && !string.IsNullOrWhiteSpace(exchange)
-            ? exchange.Trim()
-            : null;
 
         return (timeoutSeconds, keptExchange);
     }

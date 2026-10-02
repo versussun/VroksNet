@@ -24,7 +24,7 @@ internal static class TestScenarioSummaryFactory
             scenario.PayloadOverride,
             scenario.Kind,
             scenario.ListenTimeoutSeconds,
-            scenario.ListenExchange,
+            scenario.Exchange,
             scenario.UpdatedAt,
             scenario.LastRunAt,
             scenario.LastRunSuccess,

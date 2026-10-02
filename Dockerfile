@@ -51,7 +51,8 @@ ENV ConnectionStrings__VroksNetDb="Data Source=/app/data/vroksnet.db"
 
 # Provider mode (see ApiService's ProviderPortSetup): the mock at real spec paths on its own port,
 # next to the API/Admin UI on 8080 (the aspnet image's ASPNETCORE_HTTP_PORTS default). Same number
-# as AppHost's pinned provider endpoint, so it's 7353 everywhere.
+# as AppHost's pinned provider endpoint, so it's 7353 everywhere. CORS on it stays off unless the
+# container is run with -e Provider__CorsOrigins=<origins, or *>.
 ENV Provider__Port=7353
 EXPOSE 8080 7353
 

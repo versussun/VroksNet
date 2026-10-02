@@ -76,6 +76,14 @@
                         <text>Also answer on the provider port without the <code>/mock</code> prefix: </text>
                         <code>@Method @ProviderBase@PathTemplate</code>
                         <text>. Point the service under test there; request bodies are checked against the spec (see Call History).</text>
+                        @if (Provider.CorsOrigins is { Length: > 0 } origins)
+                        {
+                            <text> Browsers may call it from @(origins is ["*"] ? "any origin" : string.Join(", ", origins)).</text>
+                        }
+                        else
+                        {
+                            <text> CORS is off there, so a browser front end can't call it (set <code>Provider__CorsOrigins</code>).</text>
+                        }
                     }
                 </div>
                 @if (_providerError is not null)
