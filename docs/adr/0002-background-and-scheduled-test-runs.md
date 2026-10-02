@@ -1,6 +1,6 @@
 # ADR 0002 — Background, delayed and scheduled test runs
 
-**Status:** Proposed
+**Status:** Accepted (2026-10-02); open questions resolved 2026-10-03
 **Date:** 2026-10-02
 **Related:** `docs/contract-testing-plan.md` (test kinds, Test Scenarios), ADR 0001 (provisioning at startup), `.claude/rules/infrastructure.md` ("Publishers (async-mock worker)")
 
@@ -62,12 +62,14 @@ The cap came from the HTTP client. For background runs `MaxTimeoutSeconds` rises
 
 ### Scheduling
 
-A scenario gets an optional schedule:
+A scenario gets an optional **cron** schedule. Decided: cron from the start, with no interval-only first step — teams need schedules like "weekdays at 09:00", which an interval can't express.
 
-- **Step 1 — an interval**, as for Publishers. The difference is a **10s** minimum instead of 1s: scheduled runs hit the service under test, and ten HTTP scenarios every second is already a load test.
-- **Step 2 — cron**, only if intervals turn out not to be enough; the library is added then, not up front.
+- **Syntax:** standard 5-field cron (minute, hour, day of month, month, day of week), e.g. `*/10 * * * *` or `0 9 * * 1-5`. No seconds field: the finest schedule is once a minute. That also bounds the load on services under test, so no separate minimum interval is needed.
+- **Time zone:** each scenario has an optional IANA zone (`Europe/Kyiv`), default UTC. "09:00 on weekdays" only means something in a zone, and daylight-saving transitions follow the zone's rules.
+- **Where the code lives:** `TestScenario` stores the expression and zone as plain strings. Computing the next occurrence sits behind an Application interface (`ICronSchedule`), implemented in Infrastructure with a small dependency-free parser (Cronos — MIT; it's what Hangfire uses), pinned in `Directory.Packages.props` and referenced only there. Domain stays free of third-party libraries.
+- **Validation:** an invalid expression or unknown zone is rejected on create/update with the reason (a 400, like Publishers).
 
-The schedule is anchored on the `ScheduledFor` of the last scheduled run — the planned time, not the actual start time (which is what `LastPublishedAt` is for Publishers). That way the schedule doesn't drift by the worker's one-second tick or by queueing behind a full concurrency limit. The worker creates the next `TestRun` itself, with `Trigger = Schedule`. Runs missed while the app was down are **not caught up**: after a restart only the next one is queued.
+The schedule is anchored on the `ScheduledFor` of the last scheduled run: the next run is the cron's next occurrence after that planned time, not after the actual start time (which is what `LastPublishedAt` is for Publishers). That way the schedule doesn't drift by the worker's one-second tick or by queueing behind a full concurrency limit. The worker creates the next `TestRun` itself, with `Trigger = Schedule`. Runs missed while the app was down are **not caught up**: after a restart only the next one is queued.
 
 ### Suites
 
@@ -86,7 +88,7 @@ testSuites:
   - name: payments-contract
     scenarios: [payments-get, payments-refund, order-created-listen]
     runOnStartup: true          # Trigger = Startup, right after provisioning succeeds
-    schedule: { intervalSeconds: 600 }
+    schedule: { cron: "*/10 * * * *", timeZone: Europe/Kyiv }
 ```
 
 A startup suite that's still running doesn't affect `/health`: "ready" means "the mocks are loaded", not "the tests passed". The result is collected through the suite API.
@@ -100,8 +102,8 @@ A startup suite that's still running doesn't affect `/health`: "ready" means "th
 
 - **Test Scenarios:**
   - "Run in background" next to "Run";
-  - a "Schedule" field in the form;
-  - a "Scheduled every 10m" badge in the list.
+  - "Schedule" (cron) and "Time zone" fields in the form, showing the next few run times so a mistyped expression is visible before saving;
+  - a schedule badge in the list (e.g. `0 9 * * 1-5 · Europe/Kyiv`), with the next run time.
 - **A new run-history tab per scenario:** status, trigger, duration, a link to the traffic in Call History.
 - **A running run's status** is refreshed by polling `GET /api/test-runs/{id}` every 1–2s. No push channel (SignalR/SSE) is needed while polling copes.
 
@@ -146,20 +148,28 @@ Cheaper, but with no history and no way to cancel an individual run, and CI suit
 **Negative and risks**
 - **New tables and migrations** (`TestRun`, `TestSuite`, `SuiteRun`, `CallRecord.TestRunId`) and background history cleanup.
 - **Another worker reading the database every second**, alongside `PublisherBackgroundService`. Unnoticeable at dozens of scenarios. If it becomes noticeable, merge both workers into one scheduler.
-- **Load on services under test from scheduled runs.** The 10s minimum and the global concurrency limit bound it but don't rule it out. Needs documenting in the runbook.
+- **Load on services under test from scheduled runs.** Cron's one-minute granularity and the global concurrency limit bound it but don't rule it out. Needs documenting in the runbook.
+- **A new dependency** for cron parsing (Cronos), confined to Infrastructure behind `ICronSchedule`.
 - **The in-memory cancellation map** only works with a single process. If horizontal scaling ever arrives (currently outside the brief), cancellation has to move into the database.
 
 ## Implementation plan
 
-1. **`TestRun` + background runs + history + cancellation.** Migration, `ExecuteTestRun`, `TestRunBackgroundService`, `POST /runs`, `GET /test-runs`, the history tab, `Interrupted` on restart, the 30-minute Listen limit for background runs.
-2. **Delayed runs (`runAt`/`delaySeconds`) and interval scheduling.**
-3. **Suites**: `TestSuite`, "Listens first" ordering, `GET …/runs/latest` for CI.
-4. **`runOnStartup` and `testSuites` in the manifest** — after ADR 0001's layer 1.
-5. **Cron and failure notifications** (webhook) — on demand, not up front.
+1. **`TestRun` + background runs + history + cancellation.** Migration, `ExecuteTestRun`, `TestRunBackgroundService`, `POST /runs`, `GET /test-runs`, the history tab, `Interrupted` on restart, the 30-minute Listen limit for background runs, retention of the last 100 runs per scenario.
+2. **Cron scheduling** — the trigger the team needs first: `ICronSchedule` + Cronos, schedule and zone on `TestScenario` (migration), validation, the form fields and the badge.
 
-## Open questions
+Later — not needed first:
 
-1. **Which triggers come first?** Background runs and history, certainly (step 1). Of one-off delayed runs, scheduling and CI suites — which does the team actually need now?
-2. **Are intervals enough**, or is cron needed from the start?
-3. **How much history to keep?** Default: 100 runs per scenario.
-4. **Should failures be notified**, and where: webhook, Slack, email? Currently out of scope.
+3. **Delayed runs** (`runAt`/`delaySeconds`).
+4. **Suites**: `TestSuite`, "Listens first" ordering, `GET …/runs/latest` for CI.
+5. **`runOnStartup` and `testSuites` in the manifest** — after ADR 0001's layer 1 and step 4.
+
+Failure notifications aren't planned (see below).
+
+## Resolved questions
+
+Answered on 2026-10-03:
+
+1. **Which triggers come first?** Background runs and history (step 1), then **scheduling**. Delayed runs, suites and `runOnStartup` come later.
+2. **Intervals or cron?** **Cron from the start**, with a per-scenario time zone; no interval-only step. See "Scheduling".
+3. **How much history to keep?** The last **100 runs per scenario** (`TestRuns:RetentionPerScenario`).
+4. **Failure notifications?** **Not now.** Failures are visible in the UI and through the API; webhook/Slack/email can be revisited once history and scheduling are in use.

@@ -19,7 +19,7 @@ Not covered here: the Admin UI's REST API (`docs/guides/contract-testing/api-ref
 
 | What | Value | Status |
 |---|---|---|
-| Name | `ghcr.io/versussun/vroksnet` (the registry is an open question in ADR 0001) | to add |
+| Name | `ghcr.io/versussun/vroksnet` (GHCR, per ADR 0001) | to add |
 | Tags | `X.Y.Z`, `X.Y`, `latest`; `latest` only for releases from `master` | to add |
 | Label `org.opencontainers.image.version` | the app version | to add |
 | Label `org.opencontainers.image.source` | the repository URL | to add |
