@@ -57,8 +57,11 @@ jobs:
       # https. On Linux, --trust puts the certificate in ~/.aspnet/dev-certs/trust, which OpenSSL
       # only reads when it's on SSL_CERT_DIR.
       - name: Trust the dev certificate
+        # Exit code 4 means "trusted by some clients but not others": OpenSSL (what .NET uses)
+        # trusts it, the browsers' NSS store doesn't. That's enough here, so 4 counts as success.
         run: |
-          dotnet dev-certs https --trust
+          dotnet dev-certs https --trust || code=$?
+          if [ "${code:-0}" -ne 0 ] && [ "${code:-0}" -ne 4 ]; then exit "$code"; fi
           echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs" >> "$GITHUB_ENV"
 
       - run: dotnet restore VroksNet.slnx
@@ -82,8 +85,11 @@ jobs:
       # The browser ignores certificate errors (PageTestBase), but ApiService still needs a dev
       # certificate to serve https at all.
       - name: Trust the dev certificate
+        # Exit code 4 means "trusted by some clients but not others": OpenSSL (what .NET uses)
+        # trusts it, the browsers' NSS store doesn't. That's enough here, so 4 counts as success.
         run: |
-          dotnet dev-certs https --trust
+          dotnet dev-certs https --trust || code=$?
+          if [ "${code:-0}" -ne 0 ] && [ "${code:-0}" -ne 4 ]; then exit "$code"; fi
           echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs" >> "$GITHUB_ENV"
 
       - run: dotnet restore VroksNet.slnx
