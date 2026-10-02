@@ -67,12 +67,20 @@ if (builder.Environment.IsDevelopment())
 builder.AddRabbitMQClient("rabbitmq");
 builder.AddNatsClient("nats");
 
+var providerPort = builder.ListenOnProviderPort();
+
 var app = builder.Build();
 
 await app.Services.InitializeDatabaseAsync();
 
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
+
+// Must come before anything else serves a request: on the provider port, every path is the mock's.
+if (providerPort is { } port)
+{
+    app.MapProviderPort(port);
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -84,6 +92,7 @@ app.MapGet("/", () => "API service is running.");
 app.MapDefaultEndpoints();
 app.MapSpecificationEndpoints();
 app.MapMockInvocationEndpoints();
+app.MapMockEndpointEndpoints();
 app.MapConnectionEndpoints();
 app.MapTestScenarioEndpoints();
 app.MapCallRecordEndpoints();

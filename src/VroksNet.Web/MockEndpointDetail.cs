@@ -9,6 +9,7 @@ public sealed record MockEndpointDetail(
     Guid Id,
     string OperationKey,
     bool IsEnabled,
+    bool ServeAtRealPath,
     string? ExampleTemplate,
     bool RequiresHttpConnection,
     bool CanListen,

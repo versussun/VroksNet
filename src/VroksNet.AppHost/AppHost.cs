@@ -11,6 +11,12 @@ var nats = builder.AddNats("nats");
 // VroksNet.Web/wwwroot/appsettings.Development.json ("ApiService:BaseAddress").
 var apiService = builder.AddProject<Projects.VroksNet_ApiService>("apiservice")
     .WithHttpsEndpoint(port: 7352, name: "https")
+    // Provider mode's port (see ProviderPortSetup in ApiService): the mock at real spec paths.
+    // Pinned too, so a service under test can be pointed at a stable http://localhost:7353.
+    .WithHttpEndpoint(port: 7353, name: "provider", env: "Provider__Port")
+    // What the Admin UI tells users to point a service at (Provider__Port is the process-side
+    // target port behind Aspire's proxy, not this one).
+    .WithEnvironment("Provider__PublicUrl", "http://localhost:7353")
     .WithHttpHealthCheck("/health")
     .WithReference(rabbitmq)
     .WithReference(nats)

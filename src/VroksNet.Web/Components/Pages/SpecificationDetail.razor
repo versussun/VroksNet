@@ -1,5 +1,6 @@
 @page "/specifications/{Id:guid}"
 @inject SpecificationApiClient SpecificationApi
+@inject SystemApiClient SystemApi
 
 <PageTitle>@(details?.Title ?? "Specification")</PageTitle>
 
@@ -25,7 +26,40 @@ else
         <dd class="col-sm-10">@details.UpdatedAt.ToLocalTime().ToString("g")</dd>
     </dl>
 
-    <h2>Endpoints</h2>
+    <div class="d-flex justify-content-between align-items-center">
+        <h2>Endpoints</h2>
+        @if (details.Kind == SpecificationKind.OpenApi && details.Endpoints.Length > 0)
+        {
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-primary btn-sm" disabled="@_isChangingProviderMode" @onclick="() => SetProviderModeAsync(true)">Serve all at real paths</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" disabled="@_isChangingProviderMode" @onclick="() => SetProviderModeAsync(false)">Stop serving at real paths</button>
+            </div>
+        }
+    </div>
+
+    @* Always rendered (empty when idle) so screen readers announce a message when it appears. *@
+    <div role="status">
+        @if (_providerModeMessage is not null)
+        {
+            <div class="alert @(_providerModeSkipped.Length > 0 ? "alert-warning" : "alert-info") py-2">
+                @_providerModeMessage
+                @if (_providerModeSkipped.Length > 0)
+                {
+                    <ul class="mb-0 small">
+                        @foreach (var skipped in _providerModeSkipped)
+                        {
+                            <li><code>@skipped.OperationKey</code>: @skipped.Reason</li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+    </div>
+
+    @if (_providerModeError is not null)
+    {
+        <div class="alert alert-danger py-2" role="alert">@_providerModeError</div>
+    }
     @if (details.Endpoints.Length == 0)
     {
         <p><em>No endpoints were found in this specification.</em></p>
@@ -34,7 +68,7 @@ else
     {
         @foreach (var endpoint in details.Endpoints)
         {
-            <MockEndpointCard Endpoint="endpoint" SpecificationId="details.Id" @key="endpoint.Id" />
+            <MockEndpointCard Endpoint="endpoint" SpecificationId="details.Id" Provider="_provider" @key="endpoint.Id" />
         }
     }
 }
@@ -45,11 +79,28 @@ else
 
     private SpecificationDetails? details;
     private bool notFound;
+    private bool _isChangingProviderMode;
+    private string? _providerModeMessage;
+    private string? _providerModeError;
+    private SkippedOperation[] _providerModeSkipped = [];
+    private ProviderInfo? _provider;
 
     protected override async Task OnParametersSetAsync()
     {
         details = null;
         notFound = false;
+        _providerModeMessage = null;
+        _providerModeError = null;
+        _providerModeSkipped = [];
+
+        try
+        {
+            _provider ??= await SystemApi.GetProviderInfoAsync();
+        }
+        catch (HttpRequestException)
+        {
+            // Cards then say provider mode isn't available — the rest of the page still works.
+        }
 
         var result = await SpecificationApi.GetByIdAsync(Id);
         if (result is null)
@@ -59,6 +110,49 @@ else
         else
         {
             details = result;
+        }
+    }
+
+    private async Task SetProviderModeAsync(bool enabled)
+    {
+        _isChangingProviderMode = true;
+        _providerModeMessage = null;
+        _providerModeError = null;
+        _providerModeSkipped = [];
+
+        try
+        {
+            var result = await SpecificationApi.SetSpecificationProviderModeAsync(Id, enabled);
+            if (result is null)
+            {
+                notFound = true;
+                return;
+            }
+
+            _providerModeSkipped = result.Skipped;
+            _providerModeMessage = enabled
+                ? $"{result.Served.Length} operation(s) served at their real path on the provider port." + (result.Skipped.Length > 0 ? $" {result.Skipped.Length} skipped:" : string.Empty)
+                : "No operation of this specification is served at its real path anymore.";
+        }
+        catch (Exception ex)
+        {
+            _providerModeError = $"Failed to change provider mode: {ex.Message}";
+            return;
+        }
+        finally
+        {
+            _isChangingProviderMode = false;
+        }
+
+        // The change is saved at this point — a failed refresh mustn't read as a failed change.
+        try
+        {
+            details = await SpecificationApi.GetByIdAsync(Id);
+            notFound = details is null;
+        }
+        catch (Exception ex)
+        {
+            _providerModeError = $"The change was saved, but the page couldn't refresh ({ex.Message}) — reload it to see each operation's state.";
         }
     }
 }

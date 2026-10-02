@@ -39,4 +39,10 @@ COPY --from=web-build /app/web/wwwroot ./wwwroot
 VOLUME /app/data
 ENV ConnectionStrings__VroksNetDb="Data Source=/app/data/vroksnet.db"
 
+# Provider mode (see ApiService's ProviderPortSetup): the mock at real spec paths on its own port,
+# next to the API/Admin UI on 8080 (the aspnet image's ASPNETCORE_HTTP_PORTS default). Same number
+# as AppHost's pinned provider endpoint, so it's 7353 everywhere.
+ENV Provider__Port=7353
+EXPOSE 8080 7353
+
 ENTRYPOINT ["dotnet", "VroksNet.ApiService.dll"]

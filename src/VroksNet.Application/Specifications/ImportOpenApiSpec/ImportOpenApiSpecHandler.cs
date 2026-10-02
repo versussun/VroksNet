@@ -19,7 +19,13 @@ public sealed class ImportOpenApiSpecHandler(
     {
         var parsed = await parser.ParseAsync(request.YamlContent, cancellationToken);
 
-        var specification = await repository.FindByTitleAsync(parsed.Title, cancellationToken)
+        var existing = await repository.FindByTitleAsync(parsed.Title, cancellationToken);
+
+        // Re-importing replaces the endpoints; keep provider mode on for operations that are still
+        // there (same key, so no new overlap with other specs can have appeared).
+        var servedKeys = existing?.Endpoints.Where(e => e.ServeAtRealPath).Select(e => e.OperationKey).ToHashSet(StringComparer.Ordinal) ?? [];
+
+        var specification = existing
             ?? new ApiSpecification
             {
                 Id = Guid.NewGuid(),
@@ -39,7 +45,8 @@ public sealed class ImportOpenApiSpecHandler(
                 ExampleTemplate = operation.ExampleJson,
                 RequestSchema = operation.RequestSchemaJson,
                 ResponseSchema = operation.ResponseSchemaJson,
-                ResponseSchemasByStatus = operation.ResponseSchemasByStatus?.ToDictionary() ?? []
+                ResponseSchemasByStatus = operation.ResponseSchemasByStatus?.ToDictionary() ?? [],
+                ServeAtRealPath = servedKeys.Contains(operation.OperationKey)
             })
             .ToList();
 

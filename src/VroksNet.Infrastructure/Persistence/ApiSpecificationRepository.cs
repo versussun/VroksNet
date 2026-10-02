@@ -36,6 +36,24 @@ public sealed class ApiSpecificationRepository(
             .FirstOrDefaultAsync(specification => specification.Id == id, cancellationToken);
     }
 
+    public async Task<int> SetServeAtRealPathAsync(IReadOnlyCollection<Guid> mockEndpointIds, bool serveAtRealPath, CancellationToken cancellationToken)
+    {
+        if (mockEndpointIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var updated = 0;
+        await writeQueue.EnqueueAsync(async (context, ct) =>
+        {
+            updated = await context.MockEndpoints
+                .Where(endpoint => mockEndpointIds.Contains(endpoint.Id))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(endpoint => endpoint.ServeAtRealPath, serveAtRealPath), ct);
+        }, cancellationToken);
+
+        return updated;
+    }
+
     public Task UpsertAsync(ApiSpecification specification, CancellationToken cancellationToken)
     {
         return writeQueue.EnqueueAsync(async (context, ct) =>
