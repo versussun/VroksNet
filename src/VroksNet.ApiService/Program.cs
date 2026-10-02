@@ -64,8 +64,11 @@ if (builder.Environment.IsDevelopment())
 }
 
 // Message broker clients (Aspire-managed connections; see AppHost.cs for the container resources).
-builder.AddRabbitMQClient("rabbitmq");
-builder.AddNatsClient("nats");
+// Their health checks are off: the app never uses these clients (brokers are reached through the
+// user's own Connections), and the Docker image has no broker at all — with the checks on, /health
+// would report the API unhealthy (or throw on the missing connection string) in every deployment.
+builder.AddRabbitMQClient("rabbitmq", settings => settings.DisableHealthChecks = true);
+builder.AddNatsClient("nats", settings => settings.DisableHealthChecks = true);
 
 var providerPort = builder.ListenOnProviderPort();
 

@@ -28,6 +28,7 @@ The only server process and the **only composition root**, in both dev and prod.
   - CORS there is off unless `Provider:CorsOrigins` is set. It has its own `Provider` policy, separate from the dev `WebDev` one: any method and header, no credentials, origins parsed by `ProviderSettings.CorsOriginsFrom`. The branch clears the matched endpoint before `UseCors`, so an API route's CORS metadata can't override that policy. The CORS middleware answers preflights itself, so they never reach the mock or the history.
   - `MapProviderPort` must stay first in the pipeline, right after `UseExceptionHandler`.
   - Docker sets `Provider__Port=7353`, the same number as AppHost's pinned provider endpoint. Keep the two equal. the "Overriding HTTP_PORTS" warning at startup is expected.
+- **`/health` covers the API's own dependencies only.** Today that's the `database` check (`DatabaseHealthCheck`, registered in `AddInfrastructure`). The Aspire broker clients are registered with `DisableHealthChecks = true`: the app doesn't use them, the Docker image has no broker, and with their checks on `/health` returns `500`/`Unhealthy` in every deployment. Don't turn them back on.
 - **Add extra dev origins through config, not by widening the CORS policy.** Use the `Cors:AdditionalDevOrigins` key (env var `Cors__AdditionalDevOrigins=https://foo.example,https://bar.example`) for hosts-file custom hostnames, tunnel domains and the like.
 
 ## Gotchas

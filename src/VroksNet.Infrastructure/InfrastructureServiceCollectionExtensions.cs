@@ -77,6 +77,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IDbWriteQueue>(sp => sp.GetRequiredService<DbWriteQueue>());
         services.AddHostedService<DbWriteBackgroundService>();
 
+        // Part of /health (see ServiceDefaults' MapDefaultEndpoints) — not of /alive: an unreachable
+        // database makes the app not ready, but restarting it wouldn't fix a full or read-only disk.
+        services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
+
         services.AddScoped<IApiSpecificationRepository, ApiSpecificationRepository>();
         services.AddScoped<IConnectionRepository, ConnectionRepository>();
         services.AddScoped<ITestScenarioRepository, TestScenarioRepository>();
