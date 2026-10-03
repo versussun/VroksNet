@@ -20,8 +20,7 @@ dotnet run --project src/VroksNet.AppHost      # development: API, Admin UI, Rab
 ```
 
 ```bash
-docker build -t vroksnet .
-docker run -d -p 8080:8080 -p 7353:7353 -v vroksnet-data:/app/data vroksnet   # API + Admin UI on 8080, provider port on 7353
+docker run -d -p 8080:8080 -p 7353:7353 -v vroksnet-data:/app/data ghcr.io/versussun/vroksnet:latest   # API + Admin UI on 8080, provider port on 7353
 ```
 
 See [Getting started](docs/guides/contract-testing/getting-started.md) for details.

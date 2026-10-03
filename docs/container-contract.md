@@ -19,12 +19,12 @@ Not covered here: the Admin UI's REST API (`docs/guides/contract-testing/api-ref
 
 | What | Value | Status |
 |---|---|---|
-| Name | `ghcr.io/versussun/vroksnet` (GHCR, per ADR 0001) | to add |
-| Tags | `X.Y.Z`, `X.Y`, `latest`; `latest` only for releases from `master` | to add |
-| Label `org.opencontainers.image.version` | the app version | to add |
-| Label `org.opencontainers.image.source` | the repository URL | to add |
-| Label `io.vroksnet.contract.version` | the version of this contract (`1`) | to add |
-| User | unprivileged, with a documented UID. Mounted volumes must be accessible to it | to add |
+| Name | `ghcr.io/versussun/vroksnet` (GHCR, per ADR 0001), for `linux/amd64` and `linux/arm64` | exists |
+| Tags | a release tag `vX.Y.Z` publishes `X.Y.Z`, `X.Y` and `latest` — so `latest` is always a release. Every push to `master` publishes `master` and `sha-<commit>` | exists |
+| Label `org.opencontainers.image.version` | the app version: `X.Y.Z` for a release, `0.0.0-master.<commit>` for a `master` build | exists |
+| Label `org.opencontainers.image.source` | the repository URL | exists |
+| Label `io.vroksnet.contract.version` | the version of this contract (`1`) | exists |
+| User | unprivileged `app`, UID `1654` (from the `aspnet` base image). `/app/data` belongs to it, so a new named volume is writable; a volume from an older root-running image must be `chown`ed to `1654` | exists |
 | Entry point | `tini` → `dotnet VroksNet.ApiService.dll`. `SIGTERM` shuts the process down cleanly | exists |
 
 ## 3. Ports
