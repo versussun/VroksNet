@@ -148,7 +148,7 @@ public sealed class KafkaBrokerAdapter : IListeningBrokerAdapter
     }
 
     /// <summary>A topic regex can match a parameter between either separator, so any channel works.</summary>
-    public string? WhyCantListen(ChannelPattern channel) => null;
+    public string? WhyCantListen(ChannelPattern channel, BrokerOptions? options) => null;
 
     /// <summary>
     /// The regex for the topics <paramref name="channel"/> matches: each parameter matches one

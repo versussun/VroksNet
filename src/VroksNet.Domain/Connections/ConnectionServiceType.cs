@@ -7,5 +7,6 @@ public enum ConnectionServiceType
     RabbitMq,
     Nats,
     Kafka,
-    Mqtt
+    Mqtt,
+    Redis
 }

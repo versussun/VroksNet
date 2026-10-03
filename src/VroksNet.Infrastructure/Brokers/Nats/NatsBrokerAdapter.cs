@@ -108,7 +108,7 @@ public sealed class NatsBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public string? WhyCantListen(ChannelPattern channel) => SubjectOf(channel) is null ? CantListenMessage(channel) : null;
+    public string? WhyCantListen(ChannelPattern channel, BrokerOptions? options) => SubjectOf(channel) is null ? CantListenMessage(channel) : null;
 
     private static string CantListenMessage(ChannelPattern channel)
         => $"Channel \"{channel.Address}\" has parameters between \"/\"-separated segments, and NATS wildcards only stand for whole \".\"-separated tokens — it can't be listened on through a Nats connection.";

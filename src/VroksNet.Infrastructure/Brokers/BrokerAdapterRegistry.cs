@@ -18,8 +18,8 @@ public sealed class BrokerAdapterRegistry(IEnumerable<IBrokerAdapter> adapters) 
 
     public IReadOnlyList<BrokerOptionDefinition> OptionsOf(ConnectionServiceType type) => Find(type)?.Options ?? [];
 
-    public string? WhyCantListen(ConnectionServiceType type, string channelAddress)
+    public string? WhyCantListen(ConnectionServiceType type, string channelAddress, BrokerOptions? options)
         => Find(type) is IListeningBrokerAdapter adapter && ChannelPattern.Parse(channelAddress) is { } channel
-            ? adapter.WhyCantListen(channel)
+            ? adapter.WhyCantListen(channel, options)
             : null;
 }

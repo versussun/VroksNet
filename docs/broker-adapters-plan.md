@@ -129,7 +129,7 @@ Record the decisions and ask the open questions (see the end):
 |---|---|---|---|---|
 | N1 | Azure Event Hubs | S | via Kafka | **Done.** No adapter, but the Kafka connection value needed two additions: a quoted value (the SASL password is a connection string full of `;`/`=`), and an Event Hubs connection string pasted as is. The Kafka adapter worked unchanged against the emulator |
 | N2 | MQTT | S | yes: plain subscription | **Done.** MQTTnet 5; `+` per `/`-separated parameter; `qos`/`retain` options (with allowed values, a new `BrokerOptionDefinition.AllowedValues`); retained messages ignored by Listen; Mosquitto container; the first broker-integration matrix family |
-| N3 | Redis | S | Pub/Sub: subscription; Streams: `XREAD` from `$`, no consumer group | StackExchange.Redis; official Aspire integration; option: `mode` (pubsub/stream) |
+| N3 | Redis | S | Pub/Sub: subscription; Streams: `XREAD` from `$`, no consumer group | **Done.** StackExchange.Redis 2.13.17 (as Aspire's client); the Aspire Redis resource; option `mode` (pubsub/stream). Pub/Sub listens with a `PSUBSCRIBE` glob and skips channels that don't strictly match; stream Listen polls `XREAD` (the client doesn't block) and refuses a channel with parameters. `IBrokerRules.WhyCantListen` now gets the scenario's options for that. The value is what Aspire hands out (`host:port,password=…`) or a `redis://` URL |
 | N4 | Azure Service Bus | M | topics only, through a subscription (option `subscription`; a temporary one when the connection may manage entities) | Queues: Send only. Aspire emulator; its entities are declared up front |
 | N5 | AWS SQS / SNS | M | SNS: a temporary SQS queue subscribed to the topic; plain SQS: Send only | LocalStack in tests |
 

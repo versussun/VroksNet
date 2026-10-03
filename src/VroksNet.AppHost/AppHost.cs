@@ -4,7 +4,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 // below, all of them when it isn't set — so local development always gets every broker. The
 // integration tests set it to start only what a test collection needs (step R6 of
 // docs/broker-adapters-plan.md); "--Brokers=" starts none.
-string[] knownBrokers = ["rabbitmq", "nats", "kafka", "mqtt"];
+string[] knownBrokers = ["rabbitmq", "nats", "kafka", "mqtt", "redis"];
 var brokers = builder.Configuration["Brokers"] is { } configured
     ? configured.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.OrdinalIgnoreCase)
     : knownBrokers.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -61,6 +61,14 @@ if (brokers.Contains("mqtt"))
     apiService.WaitFor(mqtt);
 }
 
+if (brokers.Contains("redis"))
+{
+    // apiservice only waits for it: it reaches Redis through user Connections, whose value is the
+    // connection string WithReference would hand out (host:port,password=…).
+    var redis = builder.AddRedis("redis");
+    apiService.WaitFor(redis);
+}
+
 // VroksNet.Web is a standalone Blazor WebAssembly app (Microsoft.NET.Sdk.BlazorWebAssembly).
 // `dotnet run` on it launches its built-in dev server for local hot reload; in Production it
 // isn't run as its own process at all — VroksNet.ApiService serves its published output as
@@ -73,4 +81,4 @@ builder.AddProject<Projects.VroksNet_Web>("webfrontend")
     .WithExternalHttpEndpoints()
     .WaitFor(apiService);
 
-builder.Build().Run();
+await builder.Build().RunAsync();

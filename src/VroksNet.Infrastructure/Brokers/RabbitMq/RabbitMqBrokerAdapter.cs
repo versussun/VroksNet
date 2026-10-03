@@ -180,7 +180,7 @@ public sealed class RabbitMqBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public string? WhyCantListen(ChannelPattern channel) => BindingKeyOf(channel) is null ? CantListenMessage(channel) : null;
+    public string? WhyCantListen(ChannelPattern channel, BrokerOptions? options) => BindingKeyOf(channel) is null ? CantListenMessage(channel) : null;
 
     private static string CantListenMessage(ChannelPattern channel)
         => $"Channel \"{channel.Address}\" has parameters between \"/\"-separated segments, and RabbitMQ binding keys only have wildcards for whole \".\"-separated words — it can't be listened on through a RabbitMq connection.";

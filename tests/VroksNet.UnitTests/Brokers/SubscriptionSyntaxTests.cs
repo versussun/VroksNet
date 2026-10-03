@@ -3,6 +3,7 @@ using VroksNet.Infrastructure.Brokers.Kafka;
 using VroksNet.Infrastructure.Brokers.Mqtt;
 using VroksNet.Infrastructure.Brokers.Nats;
 using VroksNet.Infrastructure.Brokers.RabbitMq;
+using VroksNet.Infrastructure.Brokers.Redis;
 
 namespace VroksNet.UnitTests.Brokers;
 
@@ -45,6 +46,27 @@ public class SubscriptionSyntaxTests
     [InlineData("orders.{region}.created", null)]          // "+" only stands for a whole "/"-separated level
     public void Mqtt_TopicFilter(string channelAddress, string? expected)
         => Assert.Equal(expected, MqttBrokerAdapter.TopicFilterOf(Pattern(channelAddress)));
+
+    [Theory]
+    [InlineData("orders.created", "orders.created", false)]           // no parameters: a plain SUBSCRIBE
+    [InlineData("orders.{region}.created", "orders.*.created", true)]
+    [InlineData("user/{userId}/signedup", "user/*/signedup", true)]   // any separator: a glob "*" isn't tied to one
+    [InlineData("v[1]/{id}", @"v\[1\]/*", true)]                      // glob characters in literal segments are escaped
+    public void Redis_Subscription(string channelAddress, string expected, bool isPattern)
+    {
+        var subscription = RedisBrokerAdapter.SubscriptionOf(Pattern(channelAddress));
+
+        Assert.Equal((expected, isPattern), (subscription.ToString(), subscription.IsPattern));
+    }
+
+    [Theory]
+    [InlineData("orders.{region}.created", "orders.eu.created", true)]
+    [InlineData("orders.{region}.created", "orders.eu.west.created", false)] // a glob "*" matches this; the strict check doesn't
+    [InlineData("user/{userId}/signedup", "user/42/signedup", true)]
+    [InlineData("user/{userId}/signedup", "user//signedup", false)]
+    [InlineData("orders.created", "ordersXcreated", false)]
+    public void Redis_StrictMatch(string channelAddress, string channelName, bool matches)
+        => Assert.Equal(matches, RedisBrokerAdapter.Matches(Pattern(channelAddress), channelName));
 
     private static ChannelPattern Pattern(string channelAddress)
         => ChannelPattern.Parse(channelAddress) ?? throw new ArgumentException($"\"{channelAddress}\" isn't a valid channel pattern.");
