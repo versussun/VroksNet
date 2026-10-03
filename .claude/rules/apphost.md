@@ -20,6 +20,7 @@ Aspire orchestration only.
 
 ## Message brokers
 
+- **Which brokers start is configurable:** `Brokers` (comma-separated resource names, e.g. `--Brokers=rabbitmq,nats`; `--Brokers=` for none) — all of them when it isn't set, so `dotnet run` and the E2E tests always get every broker. The integration tests set it per collection (`.claude/rules/integration-tests.md`). An unknown name fails at startup. A new broker resource goes into `knownBrokers` and is wired inside its own `if (brokers.Contains(...))`.
 - RabbitMQ and NATS are in MVP scope (`docs/project-brief.md` §2); Kafka was added after it (Phase 05). All three are wired as Aspire resources (`AddRabbitMQ("rabbitmq")`, `AddNats("nats")`, `AddKafka("kafka")`), and `apiservice` waits for each. ApiService has matching clients for the first two (`Aspire.RabbitMQ.Client` → `AddRabbitMQClient("rabbitmq")`, `Aspire.NATS.Net` → `AddNatsClient("nats")`). There's deliberately no `Aspire.Confluent.Kafka` client: nothing would use it, since Kafka is only ever reached through user `Connection`s.
 - The async-mock publish worker (`PublisherBackgroundService`, see "Publishers" in `.claude/rules/application.md`) publishes to broker *Connections* the user configures. It doesn't use these Aspire-wired clients, the same as `MessageSender`.
 - These Aspire clients target the **dev-time broker resources only**. User-defined `Connection`s use their own clients. See "Connection testing" in `.claude/rules/infrastructure.md`.
