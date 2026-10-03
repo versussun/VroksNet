@@ -80,19 +80,35 @@ public sealed class MessageSenderApiTests(AppHostFixture fixture)
         var connectionId = await CreateConnectionAsync(client, suffix, "Nats", natsConnectionString!, cancellationToken);
         var scenarioId = await CreateScenarioAsync(client, suffix, specificationId, endpointId, connectionId, cancellationToken);
 
-        var runTask = client.PostAsync($"/api/test-scenarios/{scenarioId}/run", null, cancellationToken);
+        // The run is synchronous and publishes before it answers, and the subscription buffers what
+        // it receives — so each run's own result is checked first: when it failed, its message says
+        // why. Core NATS delivers at most once, and on CI a delivery was lost now and then although
+        // the server had confirmed the publish (an attempt timed out with nothing received), so a
+        // missed message is retried with a fresh run, up to three times, rather than failing.
+        string? received = null;
+        for (var attempt = 1; attempt <= 3 && received is null; attempt++)
+        {
+            var runResponse = await client.PostAsync($"/api/test-scenarios/{scenarioId}/run", null, cancellationToken);
+            Assert.Equal(HttpStatusCode.OK, runResponse.StatusCode);
+            var runResult = await runResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+            Assert.True(runResult!["success"]!.GetValue<bool>(), $"Run {attempt} failed: {runResult["message"]}");
 
-        // Times out by cancelling the read rather than abandoning it, so nothing is left pending
-        // when the subscription is disposed.
-        using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        receiveCts.CancelAfter(TimeSpan.FromSeconds(30));
-        var message = await subscription.Msgs.ReadAsync(receiveCts.Token);
-        Assert.Contains("ord_1", message.Data);
+            // Times out by cancelling the read rather than abandoning it, so nothing is left pending
+            // when the subscription is disposed.
+            using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            receiveCts.CancelAfter(TimeSpan.FromSeconds(10));
+            try
+            {
+                received = (await subscription.Msgs.ReadAsync(receiveCts.Token)).Data;
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                TestContext.Current.SendDiagnosticMessage($"Run {attempt} published, but nothing arrived on {subject} within 10s; retrying.");
+            }
+        }
 
-        var runResponse = await runTask;
-        Assert.Equal(HttpStatusCode.OK, runResponse.StatusCode);
-        var runResult = await runResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
-        Assert.True(runResult!["success"]!.GetValue<bool>());
+        Assert.NotNull(received);
+        Assert.Contains("ord_1", received);
     }
 
     /// <summary>One "send" operation on <paramref name="channelAddress"/>, with a JSON example payload — enough for AsyncApiSpecificationParser to produce a single MockEndpoint keyed "{channelAddress}:send".</summary>
