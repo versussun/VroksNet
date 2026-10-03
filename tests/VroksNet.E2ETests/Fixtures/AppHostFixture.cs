@@ -43,7 +43,10 @@ public sealed class AppHostFixture : IAsyncLifetime
         // documented exception to the xUnit1051 rule here (see .claude/CLAUDE.md "Testing").
         var cancellationToken = CancellationToken.None;
 
-        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.VroksNet_AppHost>(cancellationToken);
+        // The core brokers only: the browser tests don't need a broker added later, and each one
+        // would add a container to every run (see AppHost.cs "Brokers").
+        var appHost = await DistributedApplicationTestingBuilder.CreateAsync<Projects.VroksNet_AppHost>(
+            ["--Brokers=rabbitmq,nats,kafka"], cancellationToken);
         appHost.Services.ConfigureHttpClientDefaults(clientBuilder =>
         {
             clientBuilder.AddStandardResilienceHandler();

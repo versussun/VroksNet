@@ -75,32 +75,31 @@ jobs:
       - run: dotnet tests/VroksNet.IntegrationTests/bin/Debug/net10.0/VroksNet.IntegrationTests.dll --filter-not-namespace "VroksNet.IntegrationTests.Brokers.*"
 
   # One entry per broker family added after the core three (step R6 of
-  # docs/broker-adapters-plan.md). Uncomment with the first one (N2, MQTT): GitHub rejects an empty
-  # matrix. Not a required check until it has proven stable.
-  #
-  # broker-integration:
-  #   name: Broker integration (${{ matrix.family }})
-  #   runs-on: ubuntu-latest
-  #   timeout-minutes: 20
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       family: [Mqtt]
-  #   steps:
-  #     - uses: actions/checkout@v7
-  #     - uses: actions/setup-dotnet@v6
-  #       with:
-  #         dotnet-version: 10.0.x
-  #         cache: true
-  #         cache-dependency-path: Directory.Packages.props
-  #     - name: Trust the dev certificate
-  #       run: |
-  #         dotnet dev-certs https --trust || code=$?
-  #         if [ "${code:-0}" -ne 0 ] && [ "${code:-0}" -ne 4 ]; then exit "$code"; fi
-  #         echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs" >> "$GITHUB_ENV"
-  #     - run: dotnet restore VroksNet.slnx
-  #     - run: dotnet build VroksNet.slnx --no-restore
-  #     - run: dotnet tests/VroksNet.IntegrationTests/bin/Debug/net10.0/VroksNet.IntegrationTests.dll --filter-namespace "VroksNet.IntegrationTests.Brokers.${{ matrix.family }}"
+  # docs/broker-adapters-plan.md): each boots only its own broker. Not a required check until it
+  # has proven stable. Add a family: .claude/rules/integration-tests.md.
+  broker-integration:
+    name: Broker integration (${{ matrix.family }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        family: [Mqtt]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+      - name: Trust the dev certificate
+        run: |
+          dotnet dev-certs https --trust || code=$?
+          if [ "${code:-0}" -ne 0 ] && [ "${code:-0}" -ne 4 ]; then exit "$code"; fi
+          echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs" >> "$GITHUB_ENV"
+      - run: dotnet restore VroksNet.slnx
+      - run: dotnet build VroksNet.slnx --no-restore
+      - run: dotnet tests/VroksNet.IntegrationTests/bin/Debug/net10.0/VroksNet.IntegrationTests.dll --filter-namespace "VroksNet.IntegrationTests.Brokers.${{ matrix.family }}"
 
   e2e:
     name: E2E tests

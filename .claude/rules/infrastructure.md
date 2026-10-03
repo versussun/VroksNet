@@ -76,6 +76,8 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
   - **Call `onListening` exactly when the stage becomes `Listening`** — after the subscription is in place (RabbitMQ: consume started; NATS: after the PONG; Kafka: after `Assign`). A suite starts its Sends on it, so calling it earlier loses messages.
   - Everything lives only for one run. Connect/setup (10s, `BrokerListening.ConnectTimeout`) is separate from the listen timeout. Each stage reports its own message, and a missing exchange reports a readable one.
   - Time the listen wait out by cancelling the read, not via `WaitAsync`: an abandoned NATS read faults unobserved when the subscription is disposed.
+  - MQTT (`MqttBrokerAdapter`, MQTTnet pinned in `Directory.Packages.props`): a plain subscription with "+" per parameter, which only stands for a whole `/`-separated level (a `.`-separated channel with parameters is refused). It subscribes with MQTT 5's `DoNotSendOnSubscribe` and also skips a message still flagged retained: a retained message is an old one, not the next.
+- **MQTT Send** waits for the PUBACK at QoS 1/2 and pings after publishing at QoS 0 (same reason as NATS). Options `qos` (0/1/2, default 1) and `retain` (true/false, Send only) are declared with `AllowedValues`, which `BrokerOptionRules` enforces. The value is `mqtt://[user:password@]host[:1883]` or `mqtts://…[:8883]`; each run is a fresh client with a random client id and clean start.
 
 ### Publishers (async-mock worker)
 

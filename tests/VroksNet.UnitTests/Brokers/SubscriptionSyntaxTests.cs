@@ -1,5 +1,6 @@
 using VroksNet.Domain.TestScenarios;
 using VroksNet.Infrastructure.Brokers.Kafka;
+using VroksNet.Infrastructure.Brokers.Mqtt;
 using VroksNet.Infrastructure.Brokers.Nats;
 using VroksNet.Infrastructure.Brokers.RabbitMq;
 
@@ -36,6 +37,14 @@ public class SubscriptionSyntaxTests
     [InlineData("user/{userId}/signedup", "user/42/signedup.v2", false)]
     public void Kafka_TopicRegex(string channelAddress, string topic, bool matches)
         => Assert.Equal(matches, KafkaBrokerAdapter.TopicRegexOf(Pattern(channelAddress)).IsMatch(topic));
+
+    [Theory]
+    [InlineData("devices/{deviceId}/telemetry", "devices/+/telemetry")]
+    [InlineData("{site}/{deviceId}", "+/+")]
+    [InlineData("orders.created", "orders.created")]      // no parameters: the address as is
+    [InlineData("orders.{region}.created", null)]          // "+" only stands for a whole "/"-separated level
+    public void Mqtt_TopicFilter(string channelAddress, string? expected)
+        => Assert.Equal(expected, MqttBrokerAdapter.TopicFilterOf(Pattern(channelAddress)));
 
     private static ChannelPattern Pattern(string channelAddress)
         => ChannelPattern.Parse(channelAddress) ?? throw new ArgumentException($"\"{channelAddress}\" isn't a valid channel pattern.");

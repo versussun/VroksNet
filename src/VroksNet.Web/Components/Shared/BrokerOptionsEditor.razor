@@ -6,9 +6,23 @@
     var id = $"{IdPrefix}-option-{option.Name}";
     <div class="mb-3">
         <label class="form-label" for="@id">@option.Label</label>
-        <input id="@id" class="form-control" value="@Values.GetValueOrDefault(option.Name)"
-               @oninput="change => Values[option.Name] = change.Value?.ToString() ?? string.Empty"
-               placeholder="@(IsListening ? option.ListenPlaceholder : option.SendPlaceholder)" aria-describedby="@(id)-help" />
+        @if (option.AllowedValues is { } allowed)
+        {
+            <select id="@id" class="form-select" value="@Values.GetValueOrDefault(option.Name)"
+                    @onchange="change => Values[option.Name] = change.Value?.ToString() ?? string.Empty" aria-describedby="@(id)-help">
+                <option value="">@(IsListening ? option.ListenPlaceholder : option.SendPlaceholder)</option>
+                @foreach (var value in allowed)
+                {
+                    <option value="@value">@value</option>
+                }
+            </select>
+        }
+        else
+        {
+            <input id="@id" class="form-control" value="@Values.GetValueOrDefault(option.Name)"
+                   @oninput="change => Values[option.Name] = change.Value?.ToString() ?? string.Empty"
+                   placeholder="@(IsListening ? option.ListenPlaceholder : option.SendPlaceholder)" aria-describedby="@(id)-help" />
+        }
         <div id="@(id)-help" class="form-text">@(IsListening ? option.ListenDescription : option.SendDescription)</div>
     </div>
 }

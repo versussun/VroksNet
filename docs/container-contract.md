@@ -65,7 +65,7 @@ Names are given in .NET environment-variable form (`:` → `__`).
 | `Provisioning__Path` | `/app/provisioning` | the provisioning root |
 | `Provisioning__FailOnError` | `true` | a provisioning error stops the process (§7). `false` — log it, report `Failed` (and `/health` `Degraded`, still 200), keep running with what applied |
 | `Provisioning__Connections__<i>__Name` | — | a connection declared **without a manifest**, where `<i>` = 0, 1, …. This is how the package passes `WithConnection(...)` without generating files. Indexes rather than names in the key: a connection name may contain `-`, which isn't valid in an environment variable name for POSIX shells |
-| `Provisioning__Connections__<i>__Type` | — | `Http` / `RabbitMq` / `Nats` / `Kafka` |
+| `Provisioning__Connections__<i>__Type` | — | `Http` / `RabbitMq` / `Nats` / `Kafka` / `Mqtt` (added in v1 — additive) |
 | `Provisioning__Connections__<i>__Value` | — | the connection value as-is |
 | `Provisioning__Connections__<i>__ValueFrom` | — | a configuration key to take the value from, e.g. `ConnectionStrings:kafka` (set by Aspire's `WithReference(kafka)`). Exactly one of `Value` and `ValueFrom` |
 | `ConnectionStrings__<name>` | — | connection strings to brokers and services that `valueFrom` refers to. VroksNet itself doesn't read them |

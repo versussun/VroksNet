@@ -1,6 +1,6 @@
 # Plan: broker adapters, then new brokers
 
-**Status:** accepted — decisions in ADR 0003 (`docs/adr/0003-broker-adapters.md`). Steps R0–R6 are the refactoring; N1–N5 add brokers on top of it. **Progress:** R0–R6 done (R6: the mechanism; its CI matrix job is uncommented with N2, since GitHub rejects an empty matrix).
+**Status:** accepted — decisions in ADR 0003 (`docs/adr/0003-broker-adapters.md`). Steps R0–R6 are the refactoring; N1–N5 add brokers on top of it. **Progress:** R0–R6 done; the new brokers' status is in their table rows below.
 **Why:** VroksNet speaks RabbitMQ, NATS and Kafka, and more are wanted (MQTT, Redis, Azure Service Bus, AWS SQS/SNS). Today each broker is a branch in several places, so every new one would touch all of them.
 
 ## Where broker-specific code lives today
@@ -128,7 +128,7 @@ Record the decisions and ask the open questions (see the end):
 | Step | Broker | Size | Listen | Notes |
 |---|---|---|---|---|
 | N1 | Azure Event Hubs | S | via Kafka | Likely works already through the Kafka endpoint with SASL settings. Verify against the emulator, then document; no adapter |
-| N2 | MQTT | S | yes: plain subscription | MQTTnet; `+`/`#` wildcards; `qos`/`retain` options; container: Mosquitto or EMQX |
+| N2 | MQTT | S | yes: plain subscription | **Done.** MQTTnet 5; `+` per `/`-separated parameter; `qos`/`retain` options (with allowed values, a new `BrokerOptionDefinition.AllowedValues`); retained messages ignored by Listen; Mosquitto container; the first broker-integration matrix family |
 | N3 | Redis | S | Pub/Sub: subscription; Streams: `XREAD` from `$`, no consumer group | StackExchange.Redis; official Aspire integration; option: `mode` (pubsub/stream) |
 | N4 | Azure Service Bus | M | topics only, through a subscription (option `subscription`; a temporary one when the connection may manage entities) | Queues: Send only. Aspire emulator; its entities are declared up front |
 | N5 | AWS SQS / SNS | M | SNS: a temporary SQS queue subscribed to the topic; plain SQS: Send only | LocalStack in tests |

@@ -60,6 +60,7 @@ For each operation VroksNet keeps the example (used as the message to send or th
 | HTTP | base URL (may include a path and query) | `https://orders.internal/api/v1` |
 | RabbitMQ | AMQP connection string | `amqp://user:password@rabbit:5672/vhost` |
 | NATS | NATS URL | `nats://user:password@nats:4222` |
+| MQTT | `mqtt://` URL, or `mqtts://` for TLS (MQTT 5) | `mqtt://user:password@broker:1883` |
 | Kafka | bootstrap servers, or librdkafka `key=value;…` settings with `bootstrap.servers` (for SASL/TLS) | `kafka1:9092,kafka2:9092` or `bootstrap.servers=kafka:9093;security.protocol=SASL_SSL;sasl.mechanism=PLAIN;sasl.username=u;sasl.password=p` |
 
 Use **Test connection** in the form (or the **Test** button in the list) to check it's reachable.

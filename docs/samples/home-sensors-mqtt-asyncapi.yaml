@@ -1,0 +1,107 @@
+# Sample spec for local testing — NOT a real service spec. See docs/samples/README.md.
+#
+# AsyncAPI 3.0 for MQTT: the channel address is the MQTT topic, with "/" between levels.
+# - home/{room}/temperature: a Listen scenario subscribes to home/+/temperature and hears every
+#   room. A parameter has to be a whole "/"-separated level — MQTT's "+" only stands for one level.
+#   A Publisher/Send can't fill {room} in, so a concrete-topic operation (home/kitchen/temperature)
+#   is there for publishing a simulated sensor.
+# - A retained message (broker option retain=true) reaches subscribers that connect later; a Listen
+#   scenario ignores it, since it waits for the next message.
+asyncapi: 3.0.0
+info:
+  title: Home Sensors MQTT Sample
+  version: "1.0.0"
+  description: Room sensors report temperature; the hub switches heating on and off.
+servers:
+  local:
+    host: localhost:1883
+    protocol: mqtt
+    description: The AppHost "mqtt" resource (Mosquitto, anonymous).
+channels:
+  temperatureAnyRoom:
+    address: home/{room}/temperature
+    parameters:
+      room:
+        description: Room name, e.g. kitchen.
+    messages:
+      reading:
+        $ref: "#/components/messages/TemperatureReading"
+  temperatureKitchen:
+    address: home/kitchen/temperature
+    description: The simulated sensor VroksNet can publish as.
+    messages:
+      reading:
+        $ref: "#/components/messages/TemperatureReading"
+  heating:
+    address: home/kitchen/heating/set
+    messages:
+      command:
+        $ref: "#/components/messages/HeatingCommand"
+operations:
+  reportTemperature:
+    action: send
+    channel:
+      $ref: "#/channels/temperatureAnyRoom"
+    summary: Every sensor publishes a reading each minute — listen here to check any of them.
+    messages:
+      - $ref: "#/channels/temperatureAnyRoom/messages/reading"
+  simulateTemperature:
+    action: send
+    channel:
+      $ref: "#/channels/temperatureKitchen"
+    summary: Publish as the kitchen sensor.
+    messages:
+      - $ref: "#/channels/temperatureKitchen/messages/reading"
+  setHeating:
+    action: receive
+    channel:
+      $ref: "#/channels/heating"
+    summary: The hub's command to a room's heating — send it to test the thermostat.
+    messages:
+      - $ref: "#/channels/heating/messages/command"
+components:
+  messages:
+    TemperatureReading:
+      name: TemperatureReading
+      payload:
+        $ref: "#/components/schemas/TemperatureReading"
+      examples:
+        - payload:
+            sensorId: "kitchen-1"
+            celsius: 21.5
+            at: "{{now}}"
+    HeatingCommand:
+      name: HeatingCommand
+      payload:
+        $ref: "#/components/schemas/HeatingCommand"
+      examples:
+        - payload:
+            commandId: "{{uuid}}"
+            on: true
+            targetCelsius: 22
+  schemas:
+    TemperatureReading:
+      type: object
+      required: [sensorId, celsius, at]
+      properties:
+        sensorId:
+          type: string
+        celsius:
+          type: number
+          minimum: -40
+          maximum: 85
+        at:
+          type: string
+          format: date-time
+    HeatingCommand:
+      type: object
+      required: [commandId, on]
+      properties:
+        commandId:
+          type: string
+        on:
+          type: boolean
+        targetCelsius:
+          type: number
+          minimum: 5
+          maximum: 30
