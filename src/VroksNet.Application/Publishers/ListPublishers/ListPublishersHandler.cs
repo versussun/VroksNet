@@ -42,7 +42,8 @@ public sealed class ListPublishersHandler(
                     publisher.UpdatedAt,
                     publisher.LastPublishedAt,
                     publisher.LastPublishSuccess,
-                    publisher.LastPublishMessage);
+                    publisher.LastPublishMessage,
+                    publisher.ProvisionedAt);
             })
             .OrderBy(summary => summary.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();

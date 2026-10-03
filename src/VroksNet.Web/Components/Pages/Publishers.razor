@@ -45,7 +45,7 @@ else
             @foreach (var publisher in _publishers)
             {
                 <tr>
-                    <td>@publisher.Name</td>
+                    <td>@publisher.Name<ProvisionedBadge ProvisionedAt="publisher.ProvisionedAt" /></td>
                     <td>
                         <code>@publisher.OperationKey</code>
                         <br /><small class="text-muted">@publisher.SpecificationTitle</small>

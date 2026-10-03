@@ -36,6 +36,10 @@
     <Content Include="..\..\docs\samples\*.yaml" Link="Samples\%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- The provisioning example — ApplyProvisioningTests keeps it applying cleanly. -->
+    <Content Include="..\..\docs\samples\provisioning\vroksnet.yaml" Link="Samples\provisioning\vroksnet.yaml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

@@ -15,6 +15,7 @@ Everything in `.claude/rules/integration-tests.md` applies here too: one shared 
 - **Every test class extends `Fixtures/PageTestBase.cs`.** It opens a fresh `IBrowserContext`/`IPage` per test in `InitializeAsync`/`DisposeAsync`, so each test gets its own cookies and local storage while reusing the shared browser.
 - **Prefer `Page.GetByRole`/`GetByLabel`/`GetByText` over CSS selectors.** If a component lacks real `<label for>`/ARIA structure, **fix the component** (see `Settings.razor`'s `for`/`id` pairs) rather than reaching for a brittle CSS locator.
 - **Keep the `appsettings.Development.json` rewrite in `AppHostFixture`** (see Gotchas). Don't replace it with an environment-specific appsettings file.
+- **The test graph provisions one connection,** `AppHostFixture.ProvisionedConnectionName`, through `Provisioning__Connections__0__*` on `apiservice` (test graph only), so the **Provisioned** badge has something to show. Don't edit or delete it in a test: other tests may rely on it, and only a restart would bring it back.
 - **Use `Exact = true` for button names that prefix others.** `GetByRole` matches names by substring, so "Run" also matches "Run in background" and fails in strict mode.
 
 ## Setup

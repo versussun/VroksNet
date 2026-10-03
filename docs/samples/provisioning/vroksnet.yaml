@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../schemas/provisioning-manifest.v1.schema.json
+#
+# A provisioning manifest for the sample specs (see README.md next to this file).
+# Everything is referenced by name; specifications by their info.title.
+version: 1
+
+connections:
+  # VroksNet's own mock, so the "list-books" scenario passes with nothing else running.
+  - name: bookstore-http
+    type: Http
+    value: http://localhost:8080/mock
+  # The "kafka" connection isn't here: the example run passes it as
+  # Provisioning__Connections__0__* instead, to show both sources side by side.
+
+specifications:
+  - title: Bookstore Sample API
+    disabledOperations: ["DELETE /books/{bookId}"]
+
+publishers:
+  - name: order-created
+    specification: Shop Events Kafka Sample
+    operation: "shop.orders.created:send"
+    connection: kafka
+    intervalSeconds: 60
+    enabled: false   # turn it on in the UI once a broker is reachable
+
+testScenarios:
+  - name: list-books
+    specification: Bookstore Sample API
+    operation: "GET /books"
+    connection: bookstore-http
+  - name: payments-settled
+    specification: Shop Events Kafka Sample
+    operation: "shop.payments.{region}.settled:send"
+    connection: kafka
+    listenTimeoutSeconds: 120

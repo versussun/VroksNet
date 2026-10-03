@@ -28,6 +28,7 @@ internal static class TestScenarioSummaryFactory
             scenario.UpdatedAt,
             scenario.LastRunAt,
             scenario.LastRunSuccess,
-            scenario.LastRunMessage);
+            scenario.LastRunMessage,
+            scenario.ProvisionedAt);
     }
 }

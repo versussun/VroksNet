@@ -1,0 +1,12 @@
+@* "Managed by provisioning" (ADR 0001): the object comes from the provisioning directory or
+   Provisioning__Connections__*, and the next start brings it back in line, so edits made here don't last. *@
+@if (ProvisionedAt is { } provisionedAt)
+{
+    <span class="badge bg-secondary ms-1"
+          title="@($"Managed by provisioning (applied {provisionedAt.ToLocalTime():g}). Changes made here are reverted on the next start.")">Provisioned</span>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public DateTimeOffset? ProvisionedAt { get; set; }
+}

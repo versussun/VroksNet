@@ -16,7 +16,8 @@ public sealed class ListSpecificationsHandler(IApiSpecificationRepository reposi
                 specification.Title,
                 specification.Kind,
                 specification.Endpoints.Count,
-                specification.UpdatedAt))
+                specification.UpdatedAt,
+                specification.ProvisionedAt))
             .OrderBy(summary => summary.Title)
             .ToList();
     }

@@ -31,6 +31,12 @@ public sealed class AppHostFixture : IAsyncLifetime
     /// </summary>
     public Uri ApiServiceHttpAddress { get; private set; } = null!;
 
+    /// <summary>
+    /// A connection the test graph declares through <c>Provisioning__Connections__0__*</c>
+    /// (test graph only; AppHost provisions nothing), so the UI has a provisioned object to badge.
+    /// </summary>
+    public const string ProvisionedConnectionName = "e2e-provisioned";
+
     public async ValueTask InitializeAsync()
     {
         // No TestContext exists yet during fixture construction — CancellationToken.None is the
@@ -42,6 +48,10 @@ public sealed class AppHostFixture : IAsyncLifetime
         {
             clientBuilder.AddStandardResilienceHandler();
         });
+        appHost.CreateResourceBuilder<ProjectResource>("apiservice")
+            .WithEnvironment("Provisioning__Connections__0__Name", ProvisionedConnectionName)
+            .WithEnvironment("Provisioning__Connections__0__Type", "Http")
+            .WithEnvironment("Provisioning__Connections__0__Value", "http://provisioned.invalid");
 
         App = await appHost.BuildAsync(cancellationToken).WaitAsync(StartupTimeout, cancellationToken);
         await App.StartAsync(cancellationToken).WaitAsync(StartupTimeout, cancellationToken);

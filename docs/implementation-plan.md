@@ -1,6 +1,6 @@
 # Implementation plan — ADRs 0001 and 0002
 
-**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), A2 (unique names), A3 (provisioning core), A4 (connections from variables, `/api/system/info`), B1 (background runs and history).
+**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), A2 (unique names), A3 (provisioning core), A4 (connections from variables, `/api/system/info`), A5 (provisioning badge, example), B1 (background runs and history).
 **Covers:** ADR 0001 (`docs/adr/0001-aspire-integration-and-provisioning.md`) and ADR 0002 (`docs/adr/0002-background-and-scheduled-test-runs.md`). The ADRs hold the decisions and their reasoning; this document only orders the work.
 
 Each step is one pull request that can be merged and shown on its own. Sizes: **S** — a day or so, **M** — a few days, **L** — a week or more.
@@ -49,7 +49,7 @@ The largest step of track A.
 - `GET /api/system/info` per `docs/container-contract.md` §6.
 - **Done when:** a container is configured by variables alone, without a manifest.
 
-### A5. Provisioning UI and docs (S) — after A3
+### A5. Provisioning UI and docs (S) — after A3 ✅
 
 - A "managed by provisioning" badge on provisioned objects.
 - A `docs/samples/provisioning/` example and a runbook section.

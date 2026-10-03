@@ -93,7 +93,7 @@ else
             @foreach (var connection in _connections)
             {
                 <tr>
-                    <td>@connection.Name</td>
+                    <td>@connection.Name<ProvisionedBadge ProvisionedAt="connection.ProvisionedAt" /></td>
                     <td>@connection.ServiceType</td>
                     <td>
                         <code>@(_revealed.Contains(connection.Id) ? connection.Value : Mask(connection.Value))</code>

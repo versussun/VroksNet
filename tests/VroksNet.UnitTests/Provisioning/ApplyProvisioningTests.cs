@@ -239,6 +239,21 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
         Assert.Equal("localhost:9092", (await Get<IConnectionRepository>().FindByNameAsync("kafka", TestContext.Current.CancellationToken))!.Value);
     }
 
+    [Fact]
+    public async Task Apply_TheDocsExample_AppliesCleanly()
+    {
+        // docs/samples/provisioning/README.md: two sample specs, its manifest, and "kafka" from variables.
+        CopySample("bookstore-openapi.yaml", "specs/bookstore-openapi.yaml");
+        CopySample("shop-events-kafka-asyncapi.yaml", "specs/shop-events-kafka-asyncapi.yaml");
+        CopySample("provisioning/vroksnet.yaml", "vroksnet.yaml");
+        SetConnection(0, "Name", "kafka", "Type", "Kafka", "Value", "host.docker.internal:9092");
+
+        var report = await ApplyAsync();
+
+        Assert.True(report.Status == ProvisioningStatus.Applied, string.Join("\n", report.Errors.Select(e => $"{e.Source}: {e.Message}")));
+        Assert.Equal(new ProvisioningCounts(2, 2, 1, 2), report.Counts);
+    }
+
     private const string ValidManifest = """
         version: 1
         connections:
