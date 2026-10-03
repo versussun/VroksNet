@@ -22,6 +22,8 @@ public sealed class ProvisionedMarker(IDbWriteQueue writeQueue) : IProvisionedMa
                     .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.ProvisionedAt, at), ct),
                 ProvisionedObject.TestScenario => await context.TestScenarios.Where(row => row.Id == id)
                     .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.ProvisionedAt, at), ct),
+                ProvisionedObject.TestSuite => await context.TestSuites.Where(row => row.Id == id)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.ProvisionedAt, at), ct),
                 _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
             };
         }, cancellationToken);

@@ -71,7 +71,12 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
         var report = await ApplyAsync();
 
         Assert.True(report.Status == ProvisioningStatus.Applied, string.Join("\n", report.Errors.Select(e => $"{e.Source}: {e.Message}")));
-        Assert.Equal(new ProvisioningCounts(2, 2, 1, 2), report.Counts);
+        Assert.Equal(new ProvisioningCounts(2, 2, 1, 2, 1), report.Counts);
+
+        var suite = await Get<ITestSuiteRepository>().FindByNameAsync("contract", cancellationToken);
+        Assert.NotNull(suite?.ProvisionedAt);
+        Assert.True(suite.RunOnStartup);
+        Assert.Equal(2, suite.TestScenarioIds.Count);
 
         var specifications = Get<IApiSpecificationRepository>();
         var bookstore = await specifications.FindByTitleAsync("Bookstore Sample API", cancellationToken);
@@ -103,6 +108,7 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
         Assert.Equal(2, (await specifications.ListAsync(cancellationToken)).Count);
         Assert.Equal(2, (await Get<IConnectionRepository>().ListAsync(cancellationToken)).Count);
         Assert.Equal(2, (await Get<ITestScenarioRepository>().ListAsync(cancellationToken)).Count);
+        Assert.Single(await Get<ITestSuiteRepository>().ListAsync(cancellationToken));
         var reverted = Assert.Single(await Get<IPublisherRepository>().ListAsync(cancellationToken));
         Assert.Equal(publisher.Id, reverted.Id);
         Assert.Equal(60, reverted.IntervalSeconds);
@@ -153,12 +159,16 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
                 specification: No Such Spec
                 operation: "GET /books"
                 connection: bookstore-http
+            testSuites:
+              - name: half
+                scenarios: [list-books, nobody]
             """);
 
         var report = await ApplyAsync();
 
         Assert.Equal(ProvisioningStatus.Failed, report.Status);
-        Assert.Equal(["connections[rabbit]", "specs/notes.yaml", "testScenarios[lost]", "testScenarios[orphan]"], report.Errors.Select(e => e.Source).Order());
+        Assert.Equal(["connections[rabbit]", "specs/notes.yaml", "testScenarios[lost]", "testScenarios[orphan]", "testSuites[half]"], report.Errors.Select(e => e.Source).Order());
+        Assert.Contains("No test scenario named \"nobody\"", report.Errors.Single(e => e.Source == "testSuites[half]").Message);
         Assert.Contains("ConnectionStrings:rabbit", report.Errors.Single(e => e.Source == "connections[rabbit]").Message);
         Assert.Equal(new ProvisioningCounts(1, 1, 0, 1), report.Counts); // the valid parts still applied
     }
@@ -271,7 +281,7 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
         var report = await ApplyAsync();
 
         Assert.True(report.Status == ProvisioningStatus.Applied, string.Join("\n", report.Errors.Select(e => $"{e.Source}: {e.Message}")));
-        Assert.Equal(new ProvisioningCounts(2, 2, 1, 2), report.Counts);
+        Assert.Equal(new ProvisioningCounts(2, 2, 1, 2, 1), report.Counts);
     }
 
     private const string ValidManifest = """
@@ -304,6 +314,10 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
             operation: "shop.payments.{region}.settled:send"
             connection: kafka
             listenTimeoutSeconds: 120
+        testSuites:
+          - name: contract
+            scenarios: [settlements, list-books]
+            runOnStartup: true
         """;
 
     private async Task<ProvisioningReport> ApplyAsync() => await Send(new ApplyProvisioning());

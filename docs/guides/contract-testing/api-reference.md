@@ -92,7 +92,7 @@ A run:
 ```
 
 - `status`: `Queued` → `Running` → `Passed`, `Failed`, `Cancelled`, or `Interrupted` (the app stopped while it ran).
-- `trigger`: `Manual` (someone ran it, from the UI or the API), `Schedule` (the scenario's cron schedule), `Delayed` (a run queued for later), `Suite` (part of a suite run).
+- `trigger`: `Manual` (someone ran it, from the UI or the API), `Schedule` (the scenario's cron schedule), `Delayed` (a run queued for later), `Suite` (part of a suite run). A suite run's own `trigger` is `Manual` or `Startup`.
 - The run's traffic is in the call history: `GET /api/call-records?testRunId={id}`.
 
 ## Test suites
@@ -101,8 +101,8 @@ A suite is a named list of scenarios run together — the unit a CI pipeline run
 
 | Method & path | Body / query | Returns |
 |---|---|---|
-| `POST /api/test-suites` | `{ "name", "testScenarioIds": ["…"] }` | `{ "id" }`; `400` for a blank or taken name, no scenarios, a repeat or an unknown scenario |
-| `GET /api/test-suites` | | `[{ "id", "name", "scenarios": [{ "id", "name", "kind" }], "updatedAt", "lastRun" }]` |
+| `POST /api/test-suites` | `{ "name", "testScenarioIds": ["…"], "runOnStartup": false }` | `{ "id" }`; `400` for a blank or taken name, no scenarios, a repeat or an unknown scenario |
+| `GET /api/test-suites` | | `[{ "id", "name", "scenarios": [{ "id", "name", "kind" }], "runOnStartup", "updatedAt", "provisionedAt", "lastRun" }]` |
 | `GET /api/test-suites/{suite}` | | one suite; `404` |
 | `PUT /api/test-suites/{id}` | same as create | `204` / `404` / `400` |
 | `DELETE /api/test-suites/{id}` | | `204` / `404`; its run history stays |
@@ -135,6 +135,7 @@ A suite run:
 - Each scenario's run is also in `/api/test-runs` with `trigger: "Suite"`, and its traffic in the call history.
 - A scenario deleted since the suite was saved stays listed as `(deleted scenario)` and fails its run.
 - At most one run per suite at a time; a suite run takes one of the four background slots.
+- `runOnStartup: true` runs the suite once each time VroksNet starts (`trigger: "Startup"`), after provisioning succeeded — or when there's none. After a failed provisioning (with `Provisioning__FailOnError=false`) it isn't run. It doesn't hold up `/health`.
 - **In CI:** `scripts/run-test-suite.sh <url> <suite>` starts the suite, waits, prints each scenario's result and exits `0` when it passed, `1` when it didn't, `2` when it couldn't run (see the runbook).
 
 ## Mock and provider mode (Type 3)

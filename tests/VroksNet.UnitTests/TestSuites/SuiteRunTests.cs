@@ -6,6 +6,7 @@ using VroksNet.Application.TestSuites.CancelSuiteRun;
 using VroksNet.Application.TestSuites.CreateTestSuite;
 using VroksNet.Application.TestSuites.ExecuteSuiteRun;
 using VroksNet.Application.TestSuites.GetSuiteRun;
+using VroksNet.Application.TestSuites.StartStartupSuiteRuns;
 using VroksNet.Application.TestSuites.StartSuiteRun;
 using VroksNet.Domain.ApiSpecifications;
 using VroksNet.Domain.Connections;
@@ -121,6 +122,23 @@ public sealed class SuiteRunTests
         Assert.Equal(TestRunStatus.Cancelled, _suiteRuns.All.Single().Status);
         Assert.All(_runs.All, run => Assert.True(run.Status == TestRunStatus.Cancelled, $"{run.TestScenarioId}: {run.Status} {run.Message}"));
         Assert.Equal("Cancelled with its suite run.", _runs.All.Single(run => run.TestScenarioId == secondSend).Message);
+    }
+
+    [Fact]
+    public async Task StartupRuns_AreQueuedForTheSuitesMarkedRunOnStartup()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await ArrangeAsync();
+        var scenario = await AddScenarioAsync("one", TestScenarioKind.Send);
+        var create = new CreateTestSuiteHandler(_suites, _scenarios, TimeProvider.System);
+        var atStartup = await create.Handle(new CreateTestSuite("at-startup", [scenario], RunOnStartup: true), cancellationToken);
+        await create.Handle(new CreateTestSuite("by-hand", [scenario]), cancellationToken);
+
+        var started = await new StartStartupSuiteRunsHandler(_suites, _suiteRuns, TimeProvider.System).Handle(new StartStartupSuiteRuns(), cancellationToken);
+
+        Assert.Equal(1, started);
+        var run = Assert.Single(_suiteRuns.All);
+        Assert.Equal((atStartup, TestRunTrigger.Startup, TestRunStatus.Queued), (run.TestSuiteId, run.Trigger, run.Status));
     }
 
     [Fact]

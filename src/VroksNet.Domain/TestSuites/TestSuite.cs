@@ -15,7 +15,13 @@ public sealed class TestSuite
     /// <summary>The scenarios, in the order the suite was given them; Sends run in this order.</summary>
     public List<Guid> TestScenarioIds { get; set; } = [];
 
+    /// <summary>Run it once each time the app starts — after provisioning, if there is any (ADR 0002, "Relation to ADR 0001").</summary>
+    public bool RunOnStartup { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>When provisioning last brought this suite in line with the manifest; null for one created in the UI or the API.</summary>
+    public DateTimeOffset? ProvisionedAt { get; set; }
 }

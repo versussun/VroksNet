@@ -7,7 +7,9 @@ public sealed record TestSuiteSummary(
     Guid Id,
     string Name,
     IReadOnlyList<TestSuiteScenario> Scenarios,
+    bool RunOnStartup,
     DateTimeOffset UpdatedAt,
+    DateTimeOffset? ProvisionedAt,
     SuiteRunDetails? LastRun);
 
 /// <summary>A scenario in a suite; "(deleted scenario)" with a null <see cref="Kind"/> if it no longer exists.</summary>

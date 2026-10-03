@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VroksNet.Application.Provisioning;
 using VroksNet.Application.Provisioning.ApplyProvisioning;
+using VroksNet.Application.TestSuites.StartStartupSuiteRuns;
 
 namespace VroksNet.Infrastructure.Provisioning;
 
@@ -14,6 +15,8 @@ namespace VroksNet.Infrastructure.Provisioning;
 /// When it fails and <c>Provisioning:FailOnError</c> is true (the default), every error is logged
 /// and the process stops with exit code 3 (docs/container-contract.md §7): a mock with half its
 /// specs would make consumers' tests fail in confusing ways.
+/// Once provisioning has succeeded (or there was none), it queues the suites marked
+/// <c>RunOnStartup</c>; after a failure it doesn't, since they'd run against a half-set-up mock.
 /// </summary>
 public sealed class ProvisioningHostedService(
     IServiceScopeFactory scopeFactory,
@@ -47,11 +50,13 @@ public sealed class ProvisioningHostedService(
         {
             case ProvisioningStatus.NotConfigured:
                 logger.LogInformation("No provisioning directory and no Provisioning__Connections__*; nothing to provision.");
+                await StartStartupSuitesAsync(stoppingToken);
                 return;
             case ProvisioningStatus.Applied:
                 logger.LogInformation(
-                    "Provisioning applied from {Source}: {Specifications} specification(s), {Connections} connection(s), {Publishers} publisher(s), {TestScenarios} test scenario(s).",
-                    report.Source, report.Counts.Specifications, report.Counts.Connections, report.Counts.Publishers, report.Counts.TestScenarios);
+                    "Provisioning applied from {Source}: {Specifications} specification(s), {Connections} connection(s), {Publishers} publisher(s), {TestScenarios} test scenario(s), {TestSuites} test suite(s).",
+                    report.Source, report.Counts.Specifications, report.Counts.Connections, report.Counts.Publishers, report.Counts.TestScenarios, report.Counts.TestSuites);
+                await StartStartupSuitesAsync(stoppingToken);
                 return;
         }
 
@@ -69,7 +74,24 @@ public sealed class ProvisioningHostedService(
         }
         else
         {
-            logger.LogWarning("Provisioning failed with {Count} error(s); running with what applied (Provisioning:FailOnError is false).", report.Errors.Count);
+            logger.LogWarning("Provisioning failed with {Count} error(s); running with what applied (Provisioning:FailOnError is false). Startup test suites aren't run.", report.Errors.Count);
+        }
+    }
+
+    private async Task StartStartupSuitesAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var started = await scope.ServiceProvider.GetRequiredService<IMediator>().Send(new StartStartupSuiteRuns(), stoppingToken);
+            if (started > 0)
+            {
+                logger.LogInformation("Queued {Count} startup test suite run(s).", started);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Queueing the startup test suites failed.");
         }
     }
 

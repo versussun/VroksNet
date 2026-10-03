@@ -8,7 +8,8 @@ public sealed record ProvisioningManifest(
     IReadOnlyList<ManifestConnection> Connections,
     IReadOnlyList<ManifestSpecification> Specifications,
     IReadOnlyList<ManifestPublisher> Publishers,
-    IReadOnlyList<ManifestTestScenario> TestScenarios)
+    IReadOnlyList<ManifestTestScenario> TestScenarios,
+    IReadOnlyList<ManifestTestSuite> TestSuites)
 {
-    public static ProvisioningManifest Empty { get; } = new([], [], [], []);
+    public static ProvisioningManifest Empty { get; } = new([], [], [], [], []);
 }

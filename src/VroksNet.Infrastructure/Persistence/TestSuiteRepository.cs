@@ -49,6 +49,7 @@ public sealed class TestSuiteRepository(
 
             stored.Name = suite.Name;
             stored.TestScenarioIds = [.. suite.TestScenarioIds];
+            stored.RunOnStartup = suite.RunOnStartup;
             stored.UpdatedAt = suite.UpdatedAt;
             await context.SaveChangesAsync(ct);
             updated = true;

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VroksNet.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using VroksNet.Infrastructure.Persistence;
 namespace VroksNet.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(VroksNetDbContext))]
-    partial class VroksNetDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261003172741_AddTestSuiteStartupAndProvisioning")]
+    partial class AddTestSuiteStartupAndProvisioning
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
