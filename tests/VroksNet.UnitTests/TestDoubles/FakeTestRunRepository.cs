@@ -29,7 +29,7 @@ internal sealed class FakeTestRunRepository : ITestRunRepository
             .ToList());
 
     public Task<IReadOnlyList<TestRun>> ListDueAsync(DateTimeOffset now, CancellationToken cancellationToken)
-        => Task.FromResult<IReadOnlyList<TestRun>>(_runs.Where(run => run.Status == TestRunStatus.Queued && run.ScheduledFor <= now).OrderBy(run => run.ScheduledFor).ToList());
+        => Task.FromResult<IReadOnlyList<TestRun>>(_runs.Where(run => run.Status == TestRunStatus.Queued && run.ScheduledFor <= now && run.SuiteRunId is null).OrderBy(run => run.ScheduledFor).ToList());
 
     public Task<bool> MarkRunningAsync(Guid id, DateTimeOffset startedAt, CancellationToken cancellationToken)
         => Transition(id, TestRunStatus.Queued, run =>
@@ -67,6 +67,22 @@ internal sealed class FakeTestRunRepository : ITestRunRepository
         }
 
         return Task.FromResult(running.Count);
+    }
+
+    public Task<IReadOnlyList<TestRun>> ListBySuiteRunAsync(Guid suiteRunId, CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<TestRun>>(_runs.Where(run => run.SuiteRunId == suiteRunId).OrderBy(run => run.ScheduledFor).ToList());
+
+    public Task<int> CancelQueuedBySuiteRunAsync(Guid suiteRunId, DateTimeOffset at, string message, CancellationToken cancellationToken)
+    {
+        var queued = _runs.Where(run => run.SuiteRunId == suiteRunId && run.Status == TestRunStatus.Queued).ToList();
+        foreach (var run in queued)
+        {
+            run.Status = TestRunStatus.Cancelled;
+            run.FinishedAt = at;
+            run.Message = message;
+        }
+
+        return Task.FromResult(queued.Count);
     }
 
     public Task<TestRun?> FindLatestScheduledAsync(Guid testScenarioId, CancellationToken cancellationToken)

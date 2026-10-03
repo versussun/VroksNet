@@ -8,6 +8,7 @@ using VroksNet.Domain.MockEndpoints;
 using VroksNet.Domain.Publishers;
 using VroksNet.Domain.TestRuns;
 using VroksNet.Domain.TestScenarios;
+using VroksNet.Domain.TestSuites;
 
 namespace VroksNet.Infrastructure.Persistence;
 
@@ -26,6 +27,10 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
     public DbSet<Publisher> Publishers => Set<Publisher>();
 
     public DbSet<TestRun> TestRuns => Set<TestRun>();
+
+    public DbSet<TestSuite> TestSuites => Set<TestSuite>();
+
+    public DbSet<SuiteRun> SuiteRuns => Set<SuiteRun>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -108,6 +113,38 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
             // A scenario's history, newest first (the keyset includes Id), and the worker's
             // "queued and due" lookup every second.
             entity.HasIndex(run => new { run.TestScenarioId, run.ScheduledFor, run.Id });
+            entity.HasIndex(run => new { run.Status, run.ScheduledFor });
+            // A suite run's own runs.
+            entity.HasIndex(run => run.SuiteRunId);
+        });
+
+        modelBuilder.Entity<TestSuite>(entity =>
+        {
+            entity.HasKey(suite => suite.Id);
+            // Unique: CI addresses a suite by name.
+            entity.HasIndex(suite => suite.Name).IsUnique();
+            // The scenario ids in order, as one JSON column — a suite is read and written whole.
+            entity.Property(suite => suite.TestScenarioIds)
+                .HasConversion(
+                    ids => JsonSerializer.Serialize(ids, (JsonSerializerOptions?)null),
+                    json => JsonSerializer.Deserialize<List<Guid>>(json, (JsonSerializerOptions?)null) ?? new List<Guid>(),
+                    new ValueComparer<List<Guid>>(
+                        (left, right) => left == null ? right == null : right != null && left.SequenceEqual(right),
+                        ids => ids.Aggregate(0, (hash, id) => HashCode.Combine(hash, id)),
+                        ids => ids.ToList()));
+        });
+
+        modelBuilder.Entity<SuiteRun>(entity =>
+        {
+            entity.HasKey(run => run.Id);
+            // UTC ticks, like TestRun: ordered history and "due" selection in SQL.
+            entity.Property(run => run.ScheduledFor)
+                .HasConversion(time => time.UtcTicks, ticks => new DateTimeOffset(ticks, TimeSpan.Zero));
+            entity.Property(run => run.StartedAt)
+                .HasConversion(time => time.HasValue ? time.Value.UtcTicks : (long?)null, ticks => ticks.HasValue ? new DateTimeOffset(ticks.Value, TimeSpan.Zero) : null);
+            entity.Property(run => run.FinishedAt)
+                .HasConversion(time => time.HasValue ? time.Value.UtcTicks : (long?)null, ticks => ticks.HasValue ? new DateTimeOffset(ticks.Value, TimeSpan.Zero) : null);
+            entity.HasIndex(run => new { run.TestSuiteId, run.ScheduledFor });
             entity.HasIndex(run => new { run.Status, run.ScheduledFor });
         });
     }

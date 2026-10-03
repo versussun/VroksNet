@@ -21,8 +21,9 @@ An internal mock server and contract-testing tool for **OpenAPI** and **AsyncAPI
   | 3. Provider (HTTP) | validate the requests a service sends to the mock |
   | 4. Provider (broker) | listen on a broker and validate what a service publishes |
 
+- **Runs in the background, on a schedule and in CI.** A run can outlive the browser tab, wait up to 30 minutes for a message, run later or on a cron schedule, and keeps a history. **Test suites** run several scenarios together (Listens subscribe before Sends go out); `scripts/run-test-suite.sh` runs one from a pipeline and fails the build when it fails.
 - **Call history.** Every mock call, test run and publish is recorded with its bodies and contract-check result, and can be filtered.
-- **Admin UI** (Blazor WebAssembly) for all of the above: specifications, connections, test scenarios, Publishers, call history.
+- **Admin UI** (Blazor WebAssembly) for all of the above: specifications, connections, test scenarios and suites, Publishers, call history.
 
 Out of scope by design: authentication, multi-tenancy, clustering. VroksNet is meant to run inside a team's own infrastructure; see `docs/project-brief.md`.
 

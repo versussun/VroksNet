@@ -81,6 +81,14 @@ A `TestSuite` is a named list of scenarios. Running a suite creates a `SuiteRun`
 - **Outcome:** `Passed` only if every run passed.
 - **For CI:** `GET /api/test-suites/{name}/runs/latest` → `{ status, failed: [...] }`. A pipeline script polls until the status is final and exits non-zero on `Failed`. That covers the brief's "CI integration" item without a separate CLI.
 
+(Implementation notes, B4:
+- "Subscriptions ready" is a callback on `IMessageListener.ListenAsync` (`onListening`), fired once the subscription is in place on each broker. A Listen that fails before that, or isn't ready in 30 s, doesn't hold up the Sends.
+- Sends run one after another in the suite's order.
+- A suite is addressed by id or name everywhere (`/api/test-suites/{suite}/…`).
+- The suite's runs have `Trigger = Suite` and a `SuiteRunId`, and only their suite run starts them.
+- The script is `scripts/run-test-suite.sh`; it exits 2 when the suite couldn't be run at all.
+- A scenario deleted since the suite was saved fails its run rather than dropping out silently.)
+
 ### Relation to ADR 0001
 
 The provisioning manifest gains suites and running at startup:

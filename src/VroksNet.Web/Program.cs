@@ -17,6 +17,7 @@ var apiServiceBaseAddress = new Uri(builder.Configuration["ApiService:BaseAddres
 builder.Services.AddHttpClient<SpecificationApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
 builder.Services.AddHttpClient<ConnectionApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
 builder.Services.AddHttpClient<TestScenarioApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
+builder.Services.AddHttpClient<TestSuiteApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
 builder.Services.AddHttpClient<PublisherApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
 builder.Services.AddHttpClient<CallRecordApiClient>(client => client.BaseAddress = apiServiceBaseAddress);
 builder.Services.AddHttpClient<SystemApiClient>(client => client.BaseAddress = apiServiceBaseAddress);

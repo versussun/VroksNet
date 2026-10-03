@@ -274,6 +274,9 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
                     b.Property<int?>("StatusCode")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("SuiteRunId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("TestScenarioId")
                         .HasColumnType("TEXT");
 
@@ -284,6 +287,8 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SuiteRunId");
 
                     b.HasIndex("Status", "ScheduledFor");
 
@@ -353,6 +358,70 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("TestScenarios");
+                });
+
+            modelBuilder.Entity("VroksNet.Domain.TestSuites.SuiteRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("FinishedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Message")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ScheduledFor")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("StartedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("TestSuiteId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Trigger")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "ScheduledFor");
+
+                    b.HasIndex("TestSuiteId", "ScheduledFor");
+
+                    b.ToTable("SuiteRuns");
+                });
+
+            modelBuilder.Entity("VroksNet.Domain.TestSuites.TestSuite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TestScenarioIds")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("TestSuites");
                 });
 
             modelBuilder.Entity("VroksNet.Domain.MockEndpoints.MockEndpoint", b =>

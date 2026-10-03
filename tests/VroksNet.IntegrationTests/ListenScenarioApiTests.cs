@@ -112,6 +112,33 @@ public sealed class ListenScenarioApiTests(AppHostFixture fixture)
     }
 
     [Fact]
+    public async Task Listen_Nats_StillHearsAMessageAfterTheSetupBudget()
+    {
+        // The 10 s connect/setup budget must not end the subscription: a message that comes after
+        // it (here, after 12 s) still counts while the listen timeout (20 s) runs.
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = fixture.ApiServiceClient;
+        var suffix = Guid.NewGuid().ToString("N");
+        var subject = $"orders.late.{suffix}";
+        var connectionString = await fixture.App.GetConnectionStringAsync("nats", cancellationToken);
+        var scenarioId = await CreateListenScenarioAsync(client, suffix, subject, "Nats", connectionString!, exchange: null, timeoutSeconds: 20, cancellationToken);
+
+        await using var nats = new NatsConnection(new NatsOpts { Url = connectionString! });
+        var started = DateTime.UtcNow;
+        var run = await RunWhilePublishingAsync(scenarioId,
+            async () =>
+            {
+                if (DateTime.UtcNow - started > TimeSpan.FromSeconds(12))
+                {
+                    await nats.PublishAsync(subject, """{"orderId":"ord_1"}""", cancellationToken: cancellationToken);
+                }
+            },
+            cancellationToken);
+
+        Assert.True(run["success"]!.GetValue<bool>(), run.ToJsonString());
+    }
+
+    [Fact]
     public async Task Listen_NothingPublished_TimesOutAsAFailedRun()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

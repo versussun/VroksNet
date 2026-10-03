@@ -49,6 +49,10 @@
 }
 
 /* A dot with two radiating arcs — "broadcasting" messages on a schedule, for Publishers. */
+.bi-collection-fill {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' class='bi bi-collection-fill' viewBox='0 0 16 16'%3E%3Cpath d='M0 13a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 16 13V6a1.5 1.5 0 0 0-1.5-1.5h-13A1.5 1.5 0 0 0 0 6v7zM2 3a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 0-1h-11A.5.5 0 0 0 2 3zm2-2a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7A.5.5 0 0 0 4 1z'/%3E%3C/svg%3E");
+}
+
 .bi-broadcast {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' class='bi bi-broadcast' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='1.4' fill='white' stroke='none'/%3E%3Cpath d='M5.2 10.8a4 4 0 0 1 0-5.6M10.8 5.2a4 4 0 0 1 0 5.6M3 13a7 7 0 0 1 0-10M13 3a7 7 0 0 1 0 10'/%3E%3C/svg%3E");
 }

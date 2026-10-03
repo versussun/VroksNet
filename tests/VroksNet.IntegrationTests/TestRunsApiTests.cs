@@ -108,6 +108,12 @@ public sealed class TestRunsApiTests(AppHostFixture fixture)
             ConnectionId = scenario["connectionId"]!.GetValue<Guid>()
         }, cancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, clear.StatusCode);
+        var cleared = (await client.GetFromJsonAsync<JsonNode>($"/api/test-scenarios/{scenarioId}", cancellationToken))!;
+        Assert.Null(cleared["schedule"]?.GetValue<string>());
+        Assert.Null(cleared["nextScheduledRunAt"]?.GetValue<DateTimeOffset>());
+
+        // A few ticks later the worker still hasn't queued anything: the cleared schedule was stored.
+        await Task.Delay(TimeSpan.FromSeconds(2.5), cancellationToken);
         var history = await client.GetFromJsonAsync<JsonNode>($"/api/test-runs?testScenarioId={scenarioId}&status=Queued", cancellationToken);
         Assert.Empty(history!["items"]!.AsArray());
     }

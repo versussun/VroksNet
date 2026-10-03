@@ -149,6 +149,17 @@ docker run --rm -v vroksnet-data:/app/data alpine chown -R 1654:1654 /app/data
 
 Pending migrations are applied on startup. Migrations only go forward: to roll back, restore the backup taken before the upgrade and start the previous image. Don't start an older image against a database a newer one has migrated.
 
+## Running a test suite in CI
+
+A **test suite** (the **Test Suites** page, or `POST /api/test-suites`) is a named list of scenarios run together; its Listens subscribe before its Sends go out. A pipeline runs one by name and waits for the result:
+
+```bash
+scripts/run-test-suite.sh http://vroksnet:8080 payments-contract          # waits up to 30 minutes
+scripts/run-test-suite.sh http://vroksnet:8080 payments-contract 300      # …or up to 5
+```
+
+It prints each scenario's result and exits `0` when the suite passed, `1` when it failed (or was cancelled or interrupted), and `2` when it couldn't run: an unknown suite, VroksNet unreachable, or no result in time. It needs `curl` and `jq`. Without the script: `POST /api/test-suites/{name}/runs`, then poll `GET /api/suite-runs/{suiteRunId}` until `status` is final; `failed` lists what didn't pass.
+
 ## Day-to-day
 
 **Call history grows without limit.** Every mock call, scenario run and publisher publish is recorded, and there's no automatic retention. A busy mock or a publisher at a 1-second interval adds up quickly. Clear it from the Admin UI (**Call History** → **Clear history**) or:

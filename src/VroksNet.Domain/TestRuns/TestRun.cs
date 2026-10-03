@@ -15,6 +15,9 @@ public sealed class TestRun
 
     public TestRunTrigger Trigger { get; set; }
 
+    /// <summary>The <see cref="TestSuites.SuiteRun"/> this run belongs to, if any. Such a run is started by its suite run, never on its own by the worker.</summary>
+    public Guid? SuiteRunId { get; set; }
+
     /// <summary>When the run should start — for an immediate run, when it was queued. Runs are listed newest first by this.</summary>
     public DateTimeOffset ScheduledFor { get; set; }
 

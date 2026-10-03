@@ -34,7 +34,7 @@ public sealed class MessageListener : IMessageListener
     /// <summary>For reaching the broker and setting up the subscription — separate from (and not counted against) the listen timeout.</summary>
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(10);
 
-    public Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, string exchange, CancellationToken cancellationToken)
+    public Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
     {
         var channelAddress = OperationCompatibility.ChannelAddressOf(operationKey);
         if (channelAddress is null)
@@ -50,14 +50,14 @@ public sealed class MessageListener : IMessageListener
 
         return connection.ServiceType switch
         {
-            ConnectionServiceType.RabbitMq => ListenRabbitMqAsync(connection.Value, pattern, exchange, timeout, cancellationToken),
-            ConnectionServiceType.Nats => ListenNatsAsync(connection.Value, pattern, timeout, cancellationToken),
-            ConnectionServiceType.Kafka => ListenKafkaAsync(connection.Value, pattern, timeout, cancellationToken),
+            ConnectionServiceType.RabbitMq => ListenRabbitMqAsync(connection.Value, pattern, exchange, timeout, onListening, cancellationToken),
+            ConnectionServiceType.Nats => ListenNatsAsync(connection.Value, pattern, timeout, onListening, cancellationToken),
+            ConnectionServiceType.Kafka => ListenKafkaAsync(connection.Value, pattern, timeout, onListening, cancellationToken),
             _ => Task.FromResult(new MessageListenResult(false, $"Can't listen through a {connection.ServiceType} connection — only RabbitMq/Nats/Kafka."))
         };
     }
 
-    private static async Task<MessageListenResult> ListenRabbitMqAsync(string connectionString, string bindingKey, string exchange, TimeSpan timeout, CancellationToken cancellationToken)
+    private static async Task<MessageListenResult> ListenRabbitMqAsync(string connectionString, string bindingKey, string exchange, TimeSpan timeout, Action? onListening, CancellationToken cancellationToken)
     {
         if (!Uri.TryCreate(connectionString, UriKind.Absolute, out var uri))
         {
@@ -89,6 +89,7 @@ public sealed class MessageListener : IMessageListener
             };
             await channel.BasicConsumeAsync(queue.QueueName, autoAck: true, consumer, setupCts.Token);
             stage = ListenStage.Listening;
+            onListening?.Invoke();
 
             var payload = await received.Task.WaitAsync(timeout, cancellationToken);
             return new MessageListenResult(true, $"Received on exchange \"{exchange}\", routing key matching \"{bindingKey}\".", payload);
@@ -107,7 +108,7 @@ public sealed class MessageListener : IMessageListener
         }
     }
 
-    private static async Task<MessageListenResult> ListenNatsAsync(string connectionString, string subject, TimeSpan timeout, CancellationToken cancellationToken)
+    private static async Task<MessageListenResult> ListenNatsAsync(string connectionString, string subject, TimeSpan timeout, Action? onListening, CancellationToken cancellationToken)
     {
         var stage = ListenStage.Connecting;
         try
@@ -118,12 +119,15 @@ public sealed class MessageListener : IMessageListener
 
             using var setupCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             setupCts.CancelAfter(ConnectTimeout);
-            await using var subscription = await connection.SubscribeCoreAsync<string>(subject, cancellationToken: setupCts.Token);
+            // The token SubscribeCoreAsync gets ends the subscription when it fires, so it's the
+            // run's own token; the setup deadline only bounds the wait for the subscription.
+            await using var subscription = await connection.SubscribeCoreAsync<string>(subject, cancellationToken: cancellationToken).AsTask().WaitAsync(setupCts.Token);
 
             // SubscribeCoreAsync only queues SUB; the server handles commands in order, so the PONG
             // proves the subscription is registered before the listen window starts.
             await connection.PingAsync(setupCts.Token);
             stage = ListenStage.Listening;
+            onListening?.Invoke();
 
             // Cancelling the read itself (rather than abandoning it via WaitAsync) leaves no
             // pending read behind to fault unobserved when the subscription is disposed.
@@ -142,7 +146,7 @@ public sealed class MessageListener : IMessageListener
         }
     }
 
-    private static async Task<MessageListenResult> ListenKafkaAsync(string connectionString, string pattern, TimeSpan timeout, CancellationToken cancellationToken)
+    private static async Task<MessageListenResult> ListenKafkaAsync(string connectionString, string pattern, TimeSpan timeout, Action? onListening, CancellationToken cancellationToken)
     {
         var config = KafkaClients.ConfigFrom(connectionString);
         if (config is null)
@@ -177,6 +181,7 @@ public sealed class MessageListener : IMessageListener
             var start = await Task.Run(() => HighWatermarksOf(consumer, partitions, cancellationToken), cancellationToken);
             consumer.Assign(start);
             stage = ListenStage.Listening;
+            onListening?.Invoke();
 
             // Consume(token) gives up by throwing OperationCanceledException — the read is
             // cancelled, not abandoned, so nothing is left polling once the consumer is disposed.

@@ -25,6 +25,7 @@ public static class ApplicationServiceCollectionExtensions
 
         // Runs a scenario once; shared by the synchronous Run and the background ExecuteTestRun.
         services.AddScoped<TestScenarios.TestScenarioExecutor>();
+        services.AddScoped<TestRuns.TestRunRunner>();
         // The tokens of the runs executing in this process, so a running one can be cancelled.
         services.AddSingleton<TestRuns.TestRunCancellations>();
         // The latest provisioning report, read by the health check and the system-info endpoint.

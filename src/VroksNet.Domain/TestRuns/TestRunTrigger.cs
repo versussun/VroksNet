@@ -1,7 +1,7 @@
 namespace VroksNet.Domain.TestRuns;
 
 /// <summary>
-/// What started a <see cref="TestRun"/>. Startup suites (ADR 0002) add their own value when they arrive.
+/// What started a <see cref="TestRun"/> (or a <see cref="TestSuites.SuiteRun"/>). Startup suites (ADR 0002, step B5) add their own value.
 /// </summary>
 public enum TestRunTrigger
 {
@@ -12,5 +12,8 @@ public enum TestRunTrigger
     Schedule,
 
     /// <summary>A one-off background run someone asked for at a later time (<c>runAt</c> or <c>delaySeconds</c>).</summary>
-    Delayed
+    Delayed,
+
+    /// <summary>Part of a suite run (<see cref="TestRun.SuiteRunId"/>).</summary>
+    Suite
 }
