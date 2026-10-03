@@ -63,11 +63,6 @@ Names are given in .NET environment-variable form (`:` → `__`).
 | `OTEL_EXPORTER_OTLP_ENDPOINT` and other `OTEL_*` | — | exporting logs, traces and metrics (ServiceDefaults). The package calls `WithOtlpExporter()`, and the telemetry shows up in the Aspire dashboard |
 | `Provisioning__Path` | `/app/provisioning` | the provisioning root |
 | `Provisioning__FailOnError` | `true` | a provisioning error stops the process (§7). `false` — log it, report `Failed` (and `/health` `Degraded`, still 200), keep running with what applied |
-
-### To add
-
-| Variable | Default | What |
-|---|---|---|
 | `Provisioning__Connections__<i>__Name` | — | a connection declared **without a manifest**, where `<i>` = 0, 1, …. This is how the package passes `WithConnection(...)` without generating files. Indexes rather than names in the key: a connection name may contain `-`, which isn't valid in an environment variable name for POSIX shells |
 | `Provisioning__Connections__<i>__Type` | — | `Http` / `RabbitMq` / `Nats` / `Kafka` |
 | `Provisioning__Connections__<i>__Value` | — | the connection value as-is |
@@ -76,13 +71,15 @@ Names are given in .NET environment-variable form (`:` → `__`).
 
 **Connections from the two sources are merged:** from the manifest and from `Provisioning__Connections__*`. The same name in both sources is a provisioning error. Neither source silently wins.
 
+**Provisioning is configured** when the provisioning directory exists **or** at least one `Provisioning__Connections__<i>` is set. With variables alone (no directory) the report's `source` is `configuration`. Errors in a variable-declared connection name the variable, e.g. `Provisioning__Connections__2`; the same name in both sources is reported as `connections[<name>]`.
+
 ## 6. Operational endpoints
 
 | Endpoint | Response | Purpose | Status |
 |---|---|---|---|
 | `GET /alive` | `200` / `503` | liveness: the process is alive | exists |
 | `GET /health` | `200 Healthy` / `503 Unhealthy` | readiness: Unhealthy until provisioning has been applied (Healthy at once when there's no provisioning directory; `Degraded`, still 200, when it failed with `FailOnError=false`). This is what `WaitFor(mocks)` waits for | exists |
-| `GET /api/system/info` | see below | version, contract, provisioning state. The package shows it in the dashboard; consumers' tests wait on it | to add |
+| `GET /api/system/info` | see below | version, contract, provisioning state. The package shows it in the dashboard; consumers' tests wait on it | exists |
 | `GET /api/system/provider` | `{ enabled, port, publicUrl, corsOrigins }` | provider mode settings | exists |
 
 The `GET /api/system/info` response:
@@ -101,7 +98,7 @@ The `GET /api/system/info` response:
 }
 ```
 
-`status`: `NotConfigured` (no directory) · `Applying` · `Applied` · `Failed`. Each `errors[]` item is `{ "source": "specs/payments.yaml", "message": "…" }`. A connection value never appears in `message`.
+`version` is the image's `VERSION` build arg (`0.0.0-dev` for local builds). `status`: `NotConfigured` (no directory and no `Provisioning__Connections__*`) · `Applying` · `Applied` · `Failed`. Each `errors[]` item is `{ "source": "specs/payments.yaml", "message": "…" }`. A connection value never appears in `message`.
 
 ## 7. Startup and exit codes
 

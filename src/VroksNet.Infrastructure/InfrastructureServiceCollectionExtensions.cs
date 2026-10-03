@@ -98,6 +98,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ICallRecordNameResolver, CallRecordNameResolver>();
         services.AddSingleton<IMessageListener, MessageListener>();
         services.AddSingleton<IProviderSettings>(new ProviderSettings(configuration));
+        services.AddSingleton<IAppVersionProvider, AppVersionProvider>();
         services.AddScoped<ISpecificationParser, OpenApiSpecificationParser>();
         services.AddScoped<IAsyncApiSpecificationParser, AsyncApiSpecificationParser>();
         // Stateless apart from the clock it reads for {{now}}.

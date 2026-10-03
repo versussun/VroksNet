@@ -1,6 +1,6 @@
 # Implementation plan — ADRs 0001 and 0002
 
-**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), A2 (unique names), A3 (provisioning core), B1 (background runs and history).
+**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), A2 (unique names), A3 (provisioning core), A4 (connections from variables, `/api/system/info`), B1 (background runs and history).
 **Covers:** ADR 0001 (`docs/adr/0001-aspire-integration-and-provisioning.md`) and ADR 0002 (`docs/adr/0002-background-and-scheduled-test-runs.md`). The ADRs hold the decisions and their reasoning; this document only orders the work.
 
 Each step is one pull request that can be merged and shown on its own. Sizes: **S** — a day or so, **M** — a few days, **L** — a week or more.
@@ -43,7 +43,7 @@ The largest step of track A.
 - **Errors:** with `Provisioning:FailOnError=true` (the default), exit code 3.
 - **Done when:** starting again on the same test folder creates no duplicates, and a broken spec fails startup with a readable log.
 
-### A4. Connections from environment variables + `/api/system/info` (S) — after A3
+### A4. Connections from environment variables + `/api/system/info` (S) — after A3 ✅
 
 - `Provisioning__Connections__<i>__Name/Type/Value/ValueFrom`, merged with the manifest; the same name in both is an error.
 - `GET /api/system/info` per `docs/container-contract.md` §6.
