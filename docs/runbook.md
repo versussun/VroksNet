@@ -17,13 +17,19 @@ How to deploy, configure, back up, upgrade and troubleshoot a VroksNet instance.
 ## Deploy
 
 ```bash
-docker build -t vroksnet .
 docker run -d --name vroksnet --restart unless-stopped \
   -p 8080:8080 -p 7353:7353 \
   -v vroksnet-data:/app/data \
   -e Provider__PublicUrl=http://<host>:7353 \
-  vroksnet
+  ghcr.io/versussun/vroksnet:latest
 ```
+
+- **The image:** `ghcr.io/versussun/vroksnet`, for `linux/amd64` and `linux/arm64`.
+  - `latest` is the newest release, and `X.Y.Z` / `X.Y` are releases.
+  - `master` and `sha-<commit>` are builds of every merge, for trying unreleased changes.
+  - Pin a version (`:1.4.0`) rather than `latest` on anything you care about.
+  - To build it yourself: `docker build -t vroksnet .` from the repository root.
+- **It runs as an unprivileged user**, `app` (UID `1654`), not root. A new named volume is created writable by it; for an existing volume see [Upgrade and rollback](#upgrade-and-rollback).
 
 - `--restart unless-stopped`: the image runs under `tini`, so a crash exits the container (code `134` for an unhandled exception) instead of hanging, and the restart policy brings it back.
 - `-v vroksnet-data:/app/data`: without a volume the database lives in the container's writable layer and is lost when the container is recreated.
@@ -94,15 +100,21 @@ docker run --rm -v vroksnet-data:/data -v "$PWD":/backup alpine \
 docker start vroksnet
 ```
 
-What's in the database: specifications (and edits made to their examples in the UI), mock endpoint toggles, connections (including broker credentials in their connection strings), test scenarios, publishers and the call history. Treat backups as secrets because of the credentials.
+What's in the database: specifications, mock endpoint toggles, connections (including broker credentials in their connection strings), test scenarios, publishers and the call history. Treat backups as secrets because of the credentials.
 
 ## Upgrade and rollback
 
 ```bash
-git pull && docker build -t vroksnet .
+docker pull ghcr.io/versussun/vroksnet:<new version>
 # back up the volume (see above), then:
 docker rm -f vroksnet
-docker run -d --name vroksnet …   # same arguments as before
+docker run -d --name vroksnet …   # same arguments as before, with the new tag
+```
+
+**Upgrading from an image that ran as root** (any image built before the switch to the `app` user): the volume's files are owned by root, and the new image can't write them. It exits right after starting, with `SQLite Error 8: 'attempt to write a readonly database'` in `docker logs`. Hand the volume to UID `1654` once, with the container stopped:
+
+```bash
+docker run --rm -v vroksnet-data:/app/data alpine chown -R 1654:1654 /app/data
 ```
 
 Pending migrations are applied on startup. Migrations only go forward: to roll back, restore the backup taken before the upgrade and start the previous image. Don't start an older image against a database a newer one has migrated.
@@ -152,7 +164,7 @@ Read the last start: `docker logs --tail 100 vroksnet`. Usual causes are the pro
 Saving anything returns `500`, and the log has `Serialized database write failed.` If the file itself is gone or unreadable, `/health` also returns `503 Unhealthy`.
 
 1. Disk space on the host: `df -h`, and the volume's size.
-2. The volume is writable by the container.
+2. The volume is writable by the container's user, UID `1654`. `SQLite Error 8: 'attempt to write a readonly database'` means it isn't — typically a volume created by an older image that ran as root; see [Upgrade and rollback](#upgrade-and-rollback).
 3. Only one container uses the volume: `docker ps --filter volume=vroksnet-data`. Two instances on one SQLite file fight over locks (the writer waits up to 5 seconds, then fails) and both publish every publisher.
 
 ### Data disappeared after a restart

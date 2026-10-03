@@ -1,11 +1,11 @@
 # Implementation plan — ADRs 0001 and 0002
 
-**Status:** Planned, 2026-10-03. Nothing below is implemented yet.
+**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR).
 **Covers:** ADR 0001 (`docs/adr/0001-aspire-integration-and-provisioning.md`) and ADR 0002 (`docs/adr/0002-background-and-scheduled-test-runs.md`). The ADRs hold the decisions and their reasoning; this document only orders the work.
 
 Each step is one pull request that can be merged and shown on its own. Sizes: **S** — a day or so, **M** — a few days, **L** — a week or more.
 
-## Step 0 — CI (S)
+## Step 0 — CI (S) — ✅ done
 
 Every later step needs an automatic safety net; today there's no `.github` directory at all.
 
@@ -14,7 +14,7 @@ Every later step needs an automatic safety net; today there's no `.github` direc
 
 ## Track A — provisioning (ADR 0001)
 
-### A1. Publish the image to GHCR (S) — after step 0
+### A1. Publish the image to GHCR (S) — ✅ done
 
 - A publish job on `master` and on `vX.Y.Z` tags: tags `X.Y.Z`, `X.Y`, `latest`.
 - OCI labels, including `io.vroksnet.contract.version=1` (`docs/container-contract.md` §2).

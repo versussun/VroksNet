@@ -22,11 +22,10 @@ This starts the API, the Admin UI, and RabbitMQ, NATS and Kafka containers (Dock
 ### In Docker
 
 ```bash
-docker build -t vroksnet .
 docker run -d --name vroksnet \
   -p 8080:8080 -p 7353:7353 \
   -v vroksnet-data:/app/data \
-  vroksnet
+  ghcr.io/versussun/vroksnet:latest
 ```
 
 | What | Address |
