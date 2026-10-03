@@ -13,6 +13,7 @@ public sealed record PublisherSummary(
     string ConnectionServiceType,
     string? PayloadOverride,
     string? Exchange,
+    Dictionary<string, string>? BrokerOptions,
     int IntervalSeconds,
     bool IsEnabled,
     DateTimeOffset UpdatedAt,

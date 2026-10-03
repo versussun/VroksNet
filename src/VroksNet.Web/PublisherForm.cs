@@ -1,6 +1,6 @@
 namespace VroksNet.Web;
 
-/// <summary>The body of a publisher create/update. <see cref="Exchange"/> only matters for a RabbitMQ connection; <see cref="Enabled"/> only on create (start/stop is its own call afterwards).</summary>
+/// <summary>The body of a publisher create/update. <see cref="BrokerOptions"/> must be options the connection's type declares (null: the defaults); <see cref="Enabled"/> only on create (start/stop is its own call afterwards).</summary>
 public sealed record PublisherForm(
     string Name,
     Guid SpecificationId,
@@ -8,5 +8,5 @@ public sealed record PublisherForm(
     Guid ConnectionId,
     string? PayloadOverride,
     int IntervalSeconds,
-    string? Exchange,
+    Dictionary<string, string>? BrokerOptions,
     bool Enabled);

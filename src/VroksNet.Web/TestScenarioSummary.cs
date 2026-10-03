@@ -14,6 +14,7 @@ public sealed record TestScenarioSummary(
     TestScenarioKind Kind,
     int? ListenTimeoutSeconds,
     string? Exchange,
+    Dictionary<string, string>? BrokerOptions,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? LastRunAt,
     bool? LastRunSuccess,

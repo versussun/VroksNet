@@ -24,6 +24,8 @@ public sealed class KafkaBrokerAdapter : IListeningBrokerAdapter
 
     public ConnectionServiceType Type => ConnectionServiceType.Kafka;
 
+    public IReadOnlyList<BrokerOptionDefinition> Options => [];
+
     public async Task<ConnectionTestResult> TestAsync(Connection connection, CancellationToken cancellationToken)
     {
         var config = KafkaClients.ConfigFrom(connection.Value);
@@ -49,7 +51,7 @@ public sealed class KafkaBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, string? exchange, CancellationToken cancellationToken)
+    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken)
     {
         var topic = OperationCompatibility.ChannelAddressOf(operationKey);
         if (topic is null)
@@ -85,7 +87,7 @@ public sealed class KafkaBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public async Task<MessageListenResult> ListenAsync(Connection connection, ChannelPattern channel, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
+    public async Task<MessageListenResult> ListenAsync(Connection connection, ChannelPattern channel, TimeSpan timeout, BrokerOptions? options, CancellationToken cancellationToken, Action? onListening = null)
     {
         // What the messages show: the address with each parameter as "*".
         var pattern = channel.Render("*");
@@ -144,6 +146,9 @@ public sealed class KafkaBrokerAdapter : IListeningBrokerAdapter
             return new MessageListenResult(false, ex is KafkaException kafka ? kafka.Error.Reason : ex.Message);
         }
     }
+
+    /// <summary>A topic regex can match a parameter between either separator, so any channel works.</summary>
+    public string? WhyCantListen(ChannelPattern channel) => null;
 
     /// <summary>
     /// The regex for the topics <paramref name="channel"/> matches: each parameter matches one

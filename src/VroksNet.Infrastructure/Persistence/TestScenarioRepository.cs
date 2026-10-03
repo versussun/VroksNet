@@ -58,7 +58,7 @@ public sealed class TestScenarioRepository(
                     .SetProperty(s => s.PayloadOverride, scenario.PayloadOverride)
                     .SetProperty(s => s.Kind, scenario.Kind)
                     .SetProperty(s => s.ListenTimeoutSeconds, scenario.ListenTimeoutSeconds)
-                    .SetProperty(s => s.Exchange, scenario.Exchange)
+                    .SetProperty(s => s.BrokerOptions, scenario.BrokerOptions)
                     .SetProperty(s => s.Schedule, scenario.Schedule)
                     .SetProperty(s => s.ScheduleTimeZone, scenario.ScheduleTimeZone)
                     .SetProperty(s => s.UpdatedAt, scenario.UpdatedAt), ct);

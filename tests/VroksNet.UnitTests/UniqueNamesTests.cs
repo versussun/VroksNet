@@ -34,8 +34,8 @@ public sealed class UniqueNamesTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await ArrangeAsync();
-        var create = new CreateTestScenarioHandler(_scenarios, _specifications, _connections, new CronSchedule());
-        var update = new UpdateTestScenarioHandler(_scenarios, _specifications, _connections, new FakeTestRunRepository(), new CronSchedule());
+        var create = new CreateTestScenarioHandler(_scenarios, _specifications, _connections, new CronSchedule(), BrokerAdapters.Registry());
+        var update = new UpdateTestScenarioHandler(_scenarios, _specifications, _connections, new FakeTestRunRepository(), new CronSchedule(), BrokerAdapters.Registry());
 
         var first = await create.Handle(new CreateTestScenario("  Get pets  ", _specificationId, _httpEndpointId, _httpConnectionId, null), cancellationToken);
         var second = await create.Handle(new CreateTestScenario("Get pets again", _specificationId, _httpEndpointId, _httpConnectionId, null), cancellationToken);
@@ -54,8 +54,8 @@ public sealed class UniqueNamesTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await ArrangeAsync();
-        var create = new CreatePublisherHandler(_publishers, _specifications, _connections);
-        var update = new UpdatePublisherHandler(_publishers, _specifications, _connections);
+        var create = new CreatePublisherHandler(_publishers, _specifications, _connections, BrokerAdapters.Registry());
+        var update = new UpdatePublisherHandler(_publishers, _specifications, _connections, BrokerAdapters.Registry());
 
         var first = await create.Handle(new CreatePublisher("Orders", _specificationId, _channelEndpointId, _natsConnectionId, null, 5), cancellationToken);
         var second = await create.Handle(new CreatePublisher("Orders fast", _specificationId, _channelEndpointId, _natsConnectionId, null, 1), cancellationToken);

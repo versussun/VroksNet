@@ -56,7 +56,7 @@ public sealed class PublisherRepository(
                     .SetProperty(p => p.MockEndpointId, publisher.MockEndpointId)
                     .SetProperty(p => p.ConnectionId, publisher.ConnectionId)
                     .SetProperty(p => p.PayloadOverride, publisher.PayloadOverride)
-                    .SetProperty(p => p.Exchange, publisher.Exchange)
+                    .SetProperty(p => p.BrokerOptions, publisher.BrokerOptions)
                     .SetProperty(p => p.IntervalSeconds, publisher.IntervalSeconds)
                     .SetProperty(p => p.UpdatedAt, publisher.UpdatedAt), ct);
 

@@ -94,7 +94,7 @@ public sealed class TestScenarioExecutor(
     private async Task<RunOutcome> SendAsync(TestScenario scenario, MockEndpoint endpoint, Connection connection, CancellationToken cancellationToken)
     {
         var payload = scenario.PayloadOverride ?? endpoint.ExampleTemplate;
-        var result = await sender.SendAsync(connection, endpoint.OperationKey, payload, scenario.Exchange, cancellationToken);
+        var result = await sender.SendAsync(connection, endpoint.OperationKey, payload, scenario.BrokerOptions, cancellationToken);
 
         var isHttp = ServiceTypeTraits.Find(connection.ServiceType)?.IsHttp == true;
         var validation = result.Success && isHttp
@@ -121,8 +121,7 @@ public sealed class TestScenarioExecutor(
     private async Task<RunOutcome> ListenAsync(TestScenario scenario, MockEndpoint endpoint, Connection connection, Action? onListening, CancellationToken cancellationToken)
     {
         var timeout = TimeSpan.FromSeconds(scenario.ListenTimeoutSeconds ?? TestScenarioListening.DefaultTimeoutSeconds);
-        var exchange = scenario.Exchange ?? TestScenarioListening.DefaultRabbitMqExchange;
-        var result = await listener.ListenAsync(connection, endpoint.OperationKey, timeout, exchange, cancellationToken, onListening);
+        var result = await listener.ListenAsync(connection, endpoint.OperationKey, timeout, scenario.BrokerOptions, cancellationToken, onListening);
 
         SchemaValidationResult? validation = null;
         if (result.Received && endpoint.ResponseSchema is { } schema)

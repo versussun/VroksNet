@@ -144,6 +144,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IBrokerAdapter, NatsBrokerAdapter>();
         services.AddSingleton<IBrokerAdapter, KafkaBrokerAdapter>();
         services.AddSingleton<BrokerAdapterRegistry>();
+        services.AddSingleton<IBrokerRules>(provider => provider.GetRequiredService<BrokerAdapterRegistry>());
         return services;
     }
 

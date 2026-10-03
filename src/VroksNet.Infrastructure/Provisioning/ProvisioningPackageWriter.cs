@@ -93,6 +93,7 @@ public sealed class ProvisioningPackageWriter : IProvisioningPackageWriter
             item.Add("connection", Quote(publisher.Connection));
             item.Add("intervalSeconds", publisher.IntervalSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
             item.AddIfSet("exchange", publisher.Exchange);
+            AddBrokerOptions(item, publisher.BrokerOptions);
             item.AddIfSet("payloadOverride", publisher.PayloadOverride);
             item.Add("enabled", Bool(publisher.Enabled));
         });
@@ -114,6 +115,7 @@ public sealed class ProvisioningPackageWriter : IProvisioningPackageWriter
             }
 
             item.AddIfSet("exchange", scenario.Exchange);
+            AddBrokerOptions(item, scenario.BrokerOptions);
             item.AddIfSet("payloadOverride", scenario.PayloadOverride);
             if (scenario.Schedule is { } cron)
             {
@@ -131,6 +133,16 @@ public sealed class ProvisioningPackageWriter : IProvisioningPackageWriter
         });
 
         return yaml.ToString();
+    }
+
+    /// <summary>A flow map of quoted keys and values, <c>{ "qos": "1" }</c>; nothing when there are no options.</summary>
+    private static void AddBrokerOptions(Item item, IReadOnlyDictionary<string, string?>? options)
+    {
+        var set = options?.Where(option => option.Value is not null).ToList() ?? [];
+        if (set.Count > 0)
+        {
+            item.Add("brokerOptions", $"{{ {string.Join(", ", set.Select(option => $"{Quote(option.Key)}: {Quote(option.Value!)}"))} }}");
+        }
     }
 
     private static void Section<T>(StringBuilder yaml, string key, IReadOnlyList<T> items, Action<Item, T> fill)

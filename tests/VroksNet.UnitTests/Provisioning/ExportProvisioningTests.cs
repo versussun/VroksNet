@@ -35,6 +35,9 @@ public sealed class ExportProvisioningTests : IAsyncLifetime
           - name: Bookstore HTTP
             type: Http
             value: http://bookstore:8080/v1?api-key=secret
+          - name: rabbit
+            type: RabbitMq
+            value: amqp://guest:guest@rabbit:5672
         specifications:
           - title: Bookstore Sample API
             providerMode: true
@@ -47,6 +50,12 @@ public sealed class ExportProvisioningTests : IAsyncLifetime
             intervalSeconds: 60
             payloadOverride: "{\"note\": \"a \\\"quoted\\\" line\\nand another\", \"yes\": true}"
             enabled: false
+          - name: order-created-rabbit
+            specification: Shop Events Kafka Sample
+            operation: "shop.orders.created:send"
+            connection: rabbit
+            intervalSeconds: 30
+            brokerOptions: { exchange: shop }
         testScenarios:
           - name: list-books
             specification: Bookstore Sample API
@@ -58,6 +67,11 @@ public sealed class ExportProvisioningTests : IAsyncLifetime
             operation: "shop.payments.{region}.settled:send"
             connection: kafka
             listenTimeoutSeconds: 120
+          - name: settlements-rabbit
+            specification: Shop Events Kafka Sample
+            operation: "shop.payments.{region}.settled:send"
+            connection: rabbit
+            exchange: shop.events
         testSuites:
           - name: contract
             scenarios: [settlements, list-books]
@@ -109,7 +123,8 @@ public sealed class ExportProvisioningTests : IAsyncLifetime
         var copy = await StartAsync(exported, new()
         {
             ["ConnectionStrings:kafka"] = "broker:9092",
-            ["ConnectionStrings:Bookstore_HTTP"] = "http://bookstore:8080/v1?api-key=secret"
+            ["ConnectionStrings:Bookstore_HTTP"] = "http://bookstore:8080/v1?api-key=secret",
+            ["ConnectionStrings:rabbit"] = "amqp://guest:guest@rabbit:5672"
         });
         var report = await copy.Send(new ApplyProvisioning());
 
@@ -131,6 +146,13 @@ public sealed class ExportProvisioningTests : IAsyncLifetime
         Assert.Equal(("0 9 * * 1-5", "Europe/Kyiv", TestScenarioKind.Send), (listBooks!.Schedule, listBooks.ScheduleTimeZone, listBooks.Kind));
         var settlements = await copy.Get<ITestScenarioRepository>().FindByNameAsync("settlements", cancellationToken);
         Assert.Equal((TestScenarioKind.Listen, 120), (settlements!.Kind, settlements.ListenTimeoutSeconds));
+
+        // brokerOptions and the deprecated exchange both come back; the export writes the v1
+        // "exchange" field, so the file stays readable by older images (ADR 0003).
+        Assert.Contains("exchange: \"shop\"", manifest);
+        Assert.Contains("exchange: \"shop.events\"", manifest);
+        Assert.Equal("shop", (await copy.Get<IPublisherRepository>().FindByNameAsync("order-created-rabbit", cancellationToken))!.BrokerOptions?["exchange"]);
+        Assert.Equal("shop.events", (await copy.Get<ITestScenarioRepository>().FindByNameAsync("settlements-rabbit", cancellationToken))!.BrokerOptions?["exchange"]);
 
         var suite = await copy.Get<ITestSuiteRepository>().FindByNameAsync("contract", cancellationToken);
         Assert.True(suite!.RunOnStartup);
@@ -158,7 +180,7 @@ public sealed class ExportProvisioningTests : IAsyncLifetime
         // What's left still provisions cleanly.
         var report = await (await StartAsync(exported, [])).Send(new ApplyProvisioning());
         Assert.True(report.Status == ProvisioningStatus.Applied, string.Join("\n", report.Errors.Select(e => $"{e.Source}: {e.Message}")));
-        Assert.Equal(new ProvisioningCounts(2, 1, 0, 1, 1), report.Counts);
+        Assert.Equal(new ProvisioningCounts(2, 2, 1, 2, 1), report.Counts); // the RabbitMQ connection and what uses it are still there
     }
 
     private async Task<Instance> StartAsync(string provisioningPath, Dictionary<string, string?> settings)

@@ -74,7 +74,7 @@ public sealed class PublisherTests
 
         var stored = await _publishers.FindByIdAsync(id, TestContext.Current.CancellationToken);
         Assert.Equal("Orders", stored!.Name);
-        Assert.Equal("amq.topic", stored.Exchange);
+        Assert.Equal("amq.topic", stored.BrokerOptions?["exchange"]);
         Assert.Equal(5, stored.IntervalSeconds);
         Assert.True(stored.IsEnabled);
     }
@@ -88,7 +88,7 @@ public sealed class PublisherTests
             new CreatePublisher("Orders", _specificationId, _brokerEndpointId, _natsConnectionId, null, 5, "amq.topic"),
             TestContext.Current.CancellationToken);
 
-        Assert.Null((await _publishers.FindByIdAsync(id, TestContext.Current.CancellationToken))!.Exchange);
+        Assert.Null((await _publishers.FindByIdAsync(id, TestContext.Current.CancellationToken))!.BrokerOptions?["exchange"]);
     }
 
     [Theory]
@@ -112,7 +112,7 @@ public sealed class PublisherTests
     {
         await ArrangeAsync();
 
-        var found = await new UpdatePublisherHandler(_publishers, _specifications, _connections).Handle(
+        var found = await new UpdatePublisherHandler(_publishers, _specifications, _connections, BrokerAdapters.Registry()).Handle(
             new UpdatePublisher(Guid.NewGuid(), "Orders", _specificationId, _brokerEndpointId, _rabbitConnectionId, null, 5),
             TestContext.Current.CancellationToken);
 
@@ -205,7 +205,7 @@ public sealed class PublisherTests
         Assert.Null(result);
     }
 
-    private CreatePublisherHandler CreateHandler => new(_publishers, _specifications, _connections);
+    private CreatePublisherHandler CreateHandler => new(_publishers, _specifications, _connections, BrokerAdapters.Registry());
 
     private PublishNowHandler PublishHandler(FakeMessageSender sender) => new(
         _publishers, _specifications, _connections, sender, new ResponseTemplateEngine(TimeProvider.System), new SchemaValidator(), _callRecords);

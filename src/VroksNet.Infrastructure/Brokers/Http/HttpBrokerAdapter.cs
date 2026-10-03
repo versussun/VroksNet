@@ -18,6 +18,8 @@ public sealed class HttpBrokerAdapter(IHttpClientFactory httpClientFactory) : IB
 
     public ConnectionServiceType Type => ConnectionServiceType.Http;
 
+    public IReadOnlyList<BrokerOptionDefinition> Options => [];
+
     public async Task<ConnectionTestResult> TestAsync(Connection connection, CancellationToken cancellationToken)
     {
         if (!Uri.TryCreate(connection.Value, UriKind.Absolute, out var uri))
@@ -42,7 +44,7 @@ public sealed class HttpBrokerAdapter(IHttpClientFactory httpClientFactory) : IB
         }
     }
 
-    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, string? exchange, CancellationToken cancellationToken)
+    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken)
     {
         if (!OperationCompatibility.IsHttpOperation(operationKey))
         {

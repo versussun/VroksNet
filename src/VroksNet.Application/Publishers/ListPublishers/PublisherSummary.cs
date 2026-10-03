@@ -2,7 +2,7 @@ using VroksNet.Domain.Connections;
 
 namespace VroksNet.Application.Publishers.ListPublishers;
 
-/// <summary>A denormalized projection for the list view — display names resolved from whatever the specification/operation/connection currently are, or "(deleted ...)".</summary>
+/// <summary>A denormalized projection for the list view — display names resolved from whatever the specification/operation/connection currently are, or "(deleted ...)". <see cref="Exchange"/> is <c>BrokerOptions["exchange"]</c>, kept for contract v1 (deprecated, ADR 0003).</summary>
 public sealed record PublisherSummary(
     Guid Id,
     string Name,
@@ -15,6 +15,7 @@ public sealed record PublisherSummary(
     ConnectionServiceType ConnectionServiceType,
     string? PayloadOverride,
     string? Exchange,
+    IReadOnlyDictionary<string, string>? BrokerOptions,
     int IntervalSeconds,
     bool IsEnabled,
     DateTimeOffset UpdatedAt,

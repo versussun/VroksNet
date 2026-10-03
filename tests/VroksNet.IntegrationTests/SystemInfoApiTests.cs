@@ -33,7 +33,8 @@ public sealed class SystemInfoApiTests(AppHostFixture fixture)
     {
         var types = await fixture.ApiServiceClient.GetFromJsonAsync<JsonArray>("/api/system/connection-types", TestContext.Current.CancellationToken);
 
-        Assert.Equal(["Http", "RabbitMq", "Nats", "Kafka"], types!.Select(type => type!["type"]!.GetValue<string>()));
+        Assert.NotNull(types);
+        Assert.Equal(["Http", "RabbitMq", "Nats", "Kafka"], types.Select(type => type!["type"]!.GetValue<string>()));
         var http = types[0]!;
         Assert.Equal("HTTP", http["displayName"]!.GetValue<string>());
         Assert.True(http["isHttp"]!.GetValue<bool>());

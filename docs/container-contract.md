@@ -14,6 +14,7 @@ Not covered here: the Admin UI's REST API (`docs/guides/contract-testing/api-ref
 - **Without bumping the version, only additions are allowed:** new optional variables, response fields, manifest keys with safe defaults.
 - **A breaking change bumps the version.** That's a removal or rename, a change of a default or of meaning, or a new required key. The change is recorded in a CHANGELOG, and the package checks the version before starting.
 - **The manifest is versioned separately**, by its `version` field. An image with contract `N` accepts manifests of versions `1..N`.
+- **Deprecated in v1, removed in v2:** the `exchange` field of publishers and test scenarios — in the manifest, the API and the export. Use `brokerOptions.exchange` (ADR 0003). Until v2 both are accepted, and the export keeps writing `exchange` so older images can read it.
 
 ## 2. Image
 

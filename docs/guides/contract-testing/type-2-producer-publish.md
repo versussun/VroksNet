@@ -85,11 +85,11 @@ SCENARIO=$(curl -s -X POST "$API/api/test-scenarios" -H "Content-Type: applicati
   \"connectionId\": \"$CONN\",
   \"payloadOverride\": \"{\\\"orderId\\\":\\\"ord_42\\\",\\\"trackingNumber\\\":\\\"X1\\\"}\",
   \"kind\": \"Send\",
-  \"exchange\": \"amq.topic\"
+  \"brokerOptions\": { \"exchange\": \"amq.topic\" }
 }" | jq -r .id)
 ```
 
-`exchange` is RabbitMQ only; leave it out (`null`) to publish straight into the queue through the default exchange.
+`brokerOptions.exchange` is RabbitMQ's only option; leave it out to publish straight into the queue through the default exchange. (The older top-level `exchange` field still works but is deprecated.)
 
 ## 4. Run it
 

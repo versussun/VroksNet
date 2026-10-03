@@ -9,7 +9,8 @@ public sealed class CreateTestScenarioHandler(
     ITestScenarioRepository repository,
     IApiSpecificationRepository specifications,
     IConnectionRepository connections,
-    ICronSchedule cron) : IRequestHandler<CreateTestScenario, Guid>
+    ICronSchedule cron,
+    IBrokerRules brokerRules) : IRequestHandler<CreateTestScenario, Guid>
 {
     public async ValueTask<Guid> Handle(CreateTestScenario request, CancellationToken cancellationToken)
     {
@@ -18,8 +19,8 @@ public sealed class CreateTestScenarioHandler(
 
         var target = await TestScenarioTargetResolver.ResolveAsync(
             specifications, connections, request.SpecificationId, request.MockEndpointId, request.ConnectionId, cancellationToken);
-        var (listenTimeoutSeconds, exchange) = TestScenarioTargetResolver.ValidateKindSettings(
-            target, request.Kind, request.ListenTimeoutSeconds, request.Exchange);
+        var (listenTimeoutSeconds, brokerOptions) = TestScenarioTargetResolver.ValidateKindSettings(
+            brokerRules, target, request.Kind, request.ListenTimeoutSeconds, request.Exchange, request.BrokerOptions);
         var (schedule, scheduleTimeZone) = TestScenarioSchedules.Normalize(cron, request.Schedule, request.ScheduleTimeZone);
 
         var scenario = new TestScenario
@@ -32,7 +33,7 @@ public sealed class CreateTestScenarioHandler(
             PayloadOverride = request.PayloadOverride,
             Kind = request.Kind,
             ListenTimeoutSeconds = listenTimeoutSeconds,
-            Exchange = exchange,
+            BrokerOptions = brokerOptions,
             Schedule = schedule,
             ScheduleTimeZone = scheduleTimeZone,
             CreatedAt = DateTimeOffset.UtcNow,
