@@ -1,6 +1,6 @@
 # Plan: broker adapters, then new brokers
 
-**Status:** accepted — decisions in ADR 0003 (`docs/adr/0003-broker-adapters.md`). Steps R0–R6 are the refactoring; N1–N5 add brokers on top of it.
+**Status:** accepted — decisions in ADR 0003 (`docs/adr/0003-broker-adapters.md`). Steps R0–R6 are the refactoring; N1–N5 add brokers on top of it. **Progress:** R0–R6 done (R6: the mechanism; its CI matrix job is uncommented with N2, since GitHub rejects an empty matrix).
 **Why:** VroksNet speaks RabbitMQ, NATS and Kafka, and more are wanted (MQTT, Redis, Azure Service Bus, AWS SQS/SNS). Today each broker is a branch in several places, so every new one would touch all of them.
 
 ## Where broker-specific code lives today
@@ -120,6 +120,8 @@ Record the decisions and ask the open questions (see the end):
 - CI: the core brokers stay in the required "Integration tests" job; brokers added later run in a "Broker integration" matrix job. It isn't required for merging until it has proven stable.
 
 **Done when:** adding a broker adds one CI matrix entry, not minutes to every run.
+
+*Implementation note:* AppHost takes `Brokers` (all by default); `AppHostFixtureBase` boots only the brokers it's given, and a family's tests live in `tests/VroksNet.IntegrationTests/Brokers/<Family>`, which the required job skips by namespace. The `broker-integration` matrix job is in `ci.yml`, commented out until N2 adds its first entry. How to add a family: `.claude/rules/integration-tests.md`.
 
 ## New brokers on top (each its own PR, in this order unless ADR 0003 decides otherwise)
 

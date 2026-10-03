@@ -1,9 +1,17 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-var rabbitmq = builder.AddRabbitMQ("rabbitmq");
-var nats = builder.AddNats("nats");
-var kafka = builder.AddKafka("kafka");
-kafka.WithEnvironment("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true");
+// Which broker containers to start: "Brokers" is a comma-separated list of the resource names
+// below, all of them when it isn't set — so local development always gets every broker. The
+// integration tests set it to start only what a test collection needs (step R6 of
+// docs/broker-adapters-plan.md); "--Brokers=" starts none.
+string[] knownBrokers = ["rabbitmq", "nats", "kafka"];
+var brokers = builder.Configuration["Brokers"] is { } configured
+    ? configured.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.OrdinalIgnoreCase)
+    : knownBrokers.ToHashSet(StringComparer.OrdinalIgnoreCase);
+if (brokers.Except(knownBrokers, StringComparer.OrdinalIgnoreCase).ToList() is { Count: > 0 } unknown)
+{
+    throw new InvalidOperationException($"Unknown broker(s) in \"Brokers\": {string.Join(", ", unknown)}. Known: {string.Join(", ", knownBrokers)}.");
+}
 
 // Pinned to a fixed port: under AppHost orchestration, Aspire assigns each project resource a
 // random port every run rather than honoring its launchSettings.json applicationUrl — confirmed
@@ -22,13 +30,26 @@ var apiService = builder.AddProject<Projects.VroksNet_ApiService>("apiservice")
     // CORS on the provider port is off by default; to let a browser front end call the mock, list
     // its origins (or "*"):
     // .WithEnvironment("Provider__CorsOrigins", "http://localhost:5173")
-    .WithHttpHealthCheck("/health")
-    .WithReference(rabbitmq)
-    .WithReference(nats)
-    .WithReference(kafka)
-    .WaitFor(rabbitmq)
-    .WaitFor(nats)
-    .WaitFor(kafka);
+    .WithHttpHealthCheck("/health");
+
+if (brokers.Contains("rabbitmq"))
+{
+    var rabbitmq = builder.AddRabbitMQ("rabbitmq");
+    apiService.WithReference(rabbitmq).WaitFor(rabbitmq);
+}
+
+if (brokers.Contains("nats"))
+{
+    var nats = builder.AddNats("nats");
+    apiService.WithReference(nats).WaitFor(nats);
+}
+
+if (brokers.Contains("kafka"))
+{
+    var kafka = builder.AddKafka("kafka");
+    kafka.WithEnvironment("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true");
+    apiService.WithReference(kafka).WaitFor(kafka);
+}
 
 // VroksNet.Web is a standalone Blazor WebAssembly app (Microsoft.NET.Sdk.BlazorWebAssembly).
 // `dotnet run` on it launches its built-in dev server for local hot reload; in Production it
