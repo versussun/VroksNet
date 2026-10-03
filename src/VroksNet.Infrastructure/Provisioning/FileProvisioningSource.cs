@@ -22,7 +22,12 @@ namespace VroksNet.Infrastructure.Provisioning;
 /// <item><c>vroksnet.yaml</c> (optional) — validated against the embedded
 /// provisioning-manifest.v1 schema, then each connection's <c>valueFrom</c> is read from
 /// configuration (e.g. <c>ConnectionStrings:kafka</c>, set by Aspire's WithReference).</item>
+/// <item>connections declared in configuration, <c>Provisioning:Connections:&lt;i&gt;:Name/Type/Value/ValueFrom</c>
+/// — how the Aspire package passes <c>WithConnection(...)</c> without writing files. They're merged
+/// with the manifest's; the same name in both is an error.</item>
 /// </list>
+/// Provisioning is configured when the directory exists or connections are declared in
+/// configuration; with neither there's nothing to do.
 /// Problems are collected, never thrown, and never quote a connection value.
 /// </summary>
 public sealed class FileProvisioningSource(IConfiguration configuration) : IProvisioningSource
@@ -41,15 +46,74 @@ public sealed class FileProvisioningSource(IConfiguration configuration) : IProv
     public async Task<ProvisioningInput?> LoadAsync(CancellationToken cancellationToken)
     {
         var root = configuration["Provisioning:Path"] is { Length: > 0 } configured ? configured : DefaultPath;
-        if (!Directory.Exists(root))
+        var hasDirectory = Directory.Exists(root);
+        var configuredConnections = configuration.GetSection("Provisioning:Connections").GetChildren().ToList();
+        if (!hasDirectory && configuredConnections.Count == 0)
         {
             return null;
         }
 
         var errors = new List<ProvisioningError>();
-        var specifications = await ReadSpecificationsAsync(root, errors, cancellationToken);
-        var manifest = await ReadManifestAsync(root, errors, cancellationToken);
-        return new ProvisioningInput(root, specifications, manifest, errors);
+        var specifications = hasDirectory ? await ReadSpecificationsAsync(root, errors, cancellationToken) : [];
+        var manifest = hasDirectory ? await ReadManifestAsync(root, errors, cancellationToken) : ProvisioningManifest.Empty;
+
+        var connections = manifest.Connections.ToList();
+        foreach (var connection in ReadConfiguredConnections(configuredConnections, errors))
+        {
+            if (connections.Any(existing => string.Equals(existing.Name.Trim(), connection.Name.Trim(), StringComparison.Ordinal)))
+            {
+                errors.Add(new ProvisioningError($"connections[{connection.Name}]", "Declared both in vroksnet.yaml and in Provisioning__Connections__* — keep one."));
+                continue;
+            }
+
+            connections.Add(connection);
+        }
+
+        var source = hasDirectory ? root : "configuration";
+        return new ProvisioningInput(source, specifications, manifest with { Connections = connections }, errors);
+    }
+
+    /// <summary>
+    /// <c>Provisioning:Connections:&lt;i&gt;</c> entries (docs/container-contract.md §5), in index
+    /// order. Errors name the environment-variable form, which is how they're usually set.
+    /// </summary>
+    private IEnumerable<ManifestConnection> ReadConfiguredConnections(List<IConfigurationSection> sections, List<ProvisioningError> errors)
+    {
+        foreach (var section in sections.OrderBy(section => int.TryParse(section.Key, out var index) ? index : int.MaxValue).ThenBy(section => section.Key, StringComparer.Ordinal))
+        {
+            var source = $"Provisioning__Connections__{section.Key}";
+            var name = section["Name"];
+            var type = section["Type"];
+            var value = section["Value"];
+            var valueFrom = section["ValueFrom"];
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                errors.Add(new ProvisioningError(source, "Name is required."));
+                continue;
+            }
+
+            if (!Enum.TryParse<ConnectionServiceType>(type, ignoreCase: true, out var serviceType) || !Enum.IsDefined(serviceType))
+            {
+                errors.Add(new ProvisioningError(source, $"Type must be one of {string.Join(", ", Enum.GetNames<ConnectionServiceType>())}."));
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(value) == string.IsNullOrEmpty(valueFrom))
+            {
+                errors.Add(new ProvisioningError(source, "Set exactly one of Value and ValueFrom."));
+                continue;
+            }
+
+            var resolved = string.IsNullOrEmpty(value) ? configuration[valueFrom!] : value;
+            if (string.IsNullOrWhiteSpace(resolved))
+            {
+                errors.Add(new ProvisioningError(source, $"ValueFrom \"{valueFrom}\" isn't set in the configuration."));
+                continue;
+            }
+
+            yield return new ManifestConnection(name, serviceType, resolved);
+        }
     }
 
     private static async Task<List<ProvisioningSpecFile>> ReadSpecificationsAsync(string root, List<ProvisioningError> errors, CancellationToken cancellationToken)

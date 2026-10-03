@@ -1,12 +1,13 @@
 using Mediator;
 using VroksNet.Application.System.GetProviderInfo;
 using VroksNet.Application.System.GetStorageStatus;
+using VroksNet.Application.System.GetSystemInfo;
 
 namespace VroksNet.ApiService.Endpoints;
 
 /// <summary>
-/// Read-only system/environment info for the Admin UI — currently just the storage mode (see
-/// IStorageStatusProvider). No logic lives here, per .claude/CLAUDE.md.
+/// Read-only system/environment info for the Admin UI and for tooling (the Aspire hosting package):
+/// storage mode, provider mode, and version + provisioning state. No logic lives here, per .claude/CLAUDE.md.
 /// </summary>
 public static class SystemEndpoints
 {
@@ -26,6 +27,14 @@ public static class SystemEndpoints
             return Results.Ok(info);
         })
         .WithName("GetProviderInfo");
+
+        // Version, container-contract version and provisioning's report (docs/container-contract.md §6).
+        app.MapGet("/api/system/info", async (IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            var info = await mediator.Send(new GetSystemInfo(), cancellationToken);
+            return Results.Ok(info);
+        })
+        .WithName("GetSystemInfo");
 
         return app;
     }

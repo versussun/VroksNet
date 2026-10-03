@@ -46,7 +46,7 @@ public sealed class ProvisioningHostedService(
         switch (report.Status)
         {
             case ProvisioningStatus.NotConfigured:
-                logger.LogInformation("No provisioning directory; nothing to provision.");
+                logger.LogInformation("No provisioning directory and no Provisioning__Connections__*; nothing to provision.");
                 return;
             case ProvisioningStatus.Applied:
                 logger.LogInformation(
@@ -65,11 +65,29 @@ public sealed class ProvisioningHostedService(
             logger.LogCritical("Provisioning failed with {Count} error(s); stopping (exit code {ExitCode}). Set Provisioning__FailOnError=false to keep running with what applied.",
                 report.Errors.Count, FailedExitCode);
             Environment.ExitCode = FailedExitCode;
-            lifetime.StopApplication();
+            await StopAfterStartupAsync(stoppingToken);
         }
         else
         {
             logger.LogWarning("Provisioning failed with {Count} error(s); running with what applied (Provisioning:FailOnError is false).", report.Errors.Count);
         }
+    }
+
+    /// <summary>
+    /// Stops the app once the host has finished starting. Provisioning can fail before that (with
+    /// only <c>Provisioning__Connections__*</c> there's no file I/O to wait on), and a
+    /// <c>StopApplication</c> during startup stalls shutdown for the host's whole shutdown timeout
+    /// (30 s) instead of exiting at once.
+    /// </summary>
+    private async Task StopAfterStartupAsync(CancellationToken stoppingToken)
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using (lifetime.ApplicationStarted.Register(() => started.TrySetResult()))
+        using (stoppingToken.Register(() => started.TrySetResult()))
+        {
+            await started.Task;
+        }
+
+        lifetime.StopApplication();
     }
 }

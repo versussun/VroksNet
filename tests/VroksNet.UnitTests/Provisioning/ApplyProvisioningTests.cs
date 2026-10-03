@@ -23,13 +23,14 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"vroksnet-provisioning-{Guid.NewGuid():N}");
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"vroksnet-provisioning-{Guid.NewGuid():N}.db");
+    private IConfigurationRoot _configuration = null!;
     private ServiceProvider _services = null!;
     private IHostedService _writeService = null!;
 
     public async ValueTask InitializeAsync()
     {
         Directory.CreateDirectory(Path.Combine(_root, "specs", "events"));
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        var configuration = _configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["ConnectionStrings:VroksNetDb"] = $"Data Source={_dbPath}",
             ["Provisioning:Path"] = _root,
@@ -168,6 +169,76 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
         Directory.CreateDirectory(_root); // for DisposeAsync
     }
 
+    [Fact]
+    public async Task Apply_ConnectionsFromConfigurationOnly_AreAppliedWithoutTheDirectory()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        Directory.Delete(_root, recursive: true);
+        SetConnection(0, "Name", "orders-http", "Type", "Http", "Value", "http://orders:8080");
+        SetConnection(1, "Name", "kafka", "Type", "kafka", "ValueFrom", "ConnectionStrings:kafka");
+
+        var report = await ApplyAsync();
+
+        Assert.True(report.Status == ProvisioningStatus.Applied, string.Join("\n", report.Errors.Select(e => $"{e.Source}: {e.Message}")));
+        Assert.Equal("configuration", report.Source);
+        Assert.Equal(new ProvisioningCounts(0, 2, 0, 0), report.Counts);
+        var connections = Get<IConnectionRepository>();
+        Assert.Equal("http://orders:8080", (await connections.FindByNameAsync("orders-http", cancellationToken))!.Value);
+        var kafka = await connections.FindByNameAsync("kafka", cancellationToken);
+        Assert.Equal("localhost:9092", kafka!.Value);
+        Assert.NotNull(kafka.ProvisionedAt);
+        Directory.CreateDirectory(_root); // for DisposeAsync
+    }
+
+    [Fact]
+    public async Task Apply_ConnectionsFromConfiguration_MergeWithTheManifest_AndScenariosCanUseThem()
+    {
+        CopySample("bookstore-openapi.yaml", "specs/bookstore-openapi.yaml");
+        WriteManifest("""
+            version: 1
+            testScenarios:
+              - name: list-books
+                specification: Bookstore Sample API
+                operation: "GET /books"
+                connection: bookstore-http
+            """);
+        SetConnection(0, "Name", "bookstore-http", "Type", "Http", "Value", "http://bookstore:8080");
+
+        var report = await ApplyAsync();
+
+        Assert.True(report.Status == ProvisioningStatus.Applied, string.Join("\n", report.Errors.Select(e => $"{e.Source}: {e.Message}")));
+        Assert.Equal(_root, report.Source);
+        Assert.Equal(new ProvisioningCounts(1, 1, 0, 1), report.Counts);
+    }
+
+    [Fact]
+    public async Task Apply_BadConnectionsInConfiguration_AreReportedByTheirVariable()
+    {
+        WriteManifest("""
+            version: 1
+            connections:
+              - name: kafka
+                type: Kafka
+                valueFrom: ConnectionStrings:kafka
+            """);
+        SetConnection(0, "Name", "kafka", "Type", "Kafka", "Value", "other:9092");      // also in the manifest
+        SetConnection(1, "Type", "Http", "Value", "http://x");                          // no name
+        SetConnection(2, "Name", "bad-type", "Type", "Ftp", "Value", "ftp://x");        // unknown type
+        SetConnection(3, "Name", "both", "Type", "Http", "Value", "http://x", "ValueFrom", "ConnectionStrings:kafka");
+        SetConnection(4, "Name", "missing", "Type", "Nats", "ValueFrom", "ConnectionStrings:nats");
+        SetConnection(5, "Name", "fine", "Type", "Http", "Value", "http://fine");
+
+        var report = await ApplyAsync();
+
+        Assert.Equal(ProvisioningStatus.Failed, report.Status);
+        Assert.Equal(
+            ["Provisioning__Connections__1", "Provisioning__Connections__2", "Provisioning__Connections__3", "Provisioning__Connections__4", "connections[kafka]"],
+            report.Errors.Select(e => e.Source).Order(StringComparer.Ordinal));
+        Assert.Contains("ConnectionStrings:nats", report.Errors.Single(e => e.Source == "Provisioning__Connections__4").Message);
+        Assert.Equal(2, report.Counts.Connections); // the manifest's kafka and "fine"
+        Assert.Equal("localhost:9092", (await Get<IConnectionRepository>().FindByNameAsync("kafka", TestContext.Current.CancellationToken))!.Value);
+    }
+
     private const string ValidManifest = """
         version: 1
         connections:
@@ -211,6 +282,18 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
 
     private void CopySample(string sample, string relativePath)
         => File.Copy(Path.Combine(AppContext.BaseDirectory, "Samples", sample), Path.Combine(_root, relativePath));
+
+    /// <summary>
+    /// Sets <c>Provisioning:Connections:{index}</c>'s keys from key/value pairs — through the
+    /// configuration root, which FileProvisioningSource reads on every apply.
+    /// </summary>
+    private void SetConnection(int index, params string[] pairs)
+    {
+        for (var i = 0; i < pairs.Length; i += 2)
+        {
+            _configuration[$"Provisioning:Connections:{index}:{pairs[i]}"] = pairs[i + 1];
+        }
+    }
 
     private void WriteManifest(string yaml) => File.WriteAllText(Path.Combine(_root, "vroksnet.yaml"), yaml);
 }

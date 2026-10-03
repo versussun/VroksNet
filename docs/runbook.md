@@ -42,6 +42,7 @@ Check it's up:
 curl -s http://<host>:8080/health               # → Healthy
 curl -s http://<host>:8080/api/system/storage   # → {"isInMemory":false,"filePath":"/app/data/vroksnet.db"}
 curl -s http://<host>:8080/api/system/provider  # → {"enabled":true,"port":7353,"publicUrl":…,"corsOrigins":[]}
+curl -s http://<host>:8080/api/system/info      # → {"version":"0.2.0","contractVersion":1,"provisioning":{"status":"Applied",…}}
 ```
 
 **Health checks** (port `8080`, plain-text body, no details):
@@ -106,6 +107,8 @@ docker run -d --name vroksnet -p 8080:8080 -p 7353:7353 \
 - **Readiness:** `/health` answers `503` until provisioning has been applied.
 - **Errors stop the container** with exit code `3`, after logging each one with its file or manifest entry (`docker logs vroksnet`). With `-e Provisioning__FailOnError=false` it keeps running with whatever did apply, and `/health` reports `Degraded` (still `200`).
 - A different directory: `Provisioning__Path`.
+- **Connections without files:** `-e Provisioning__Connections__0__Name=kafka -e Provisioning__Connections__0__Type=Kafka -e Provisioning__Connections__0__Value=broker:9092` (or `__ValueFrom=ConnectionStrings:kafka` instead of `__Value`). Indexes start at 0. These merge with the manifest's connections; the same name in both is an error. Variables alone, with no directory, are enough to provision.
+- **What was applied:** `GET /api/system/info` returns the version, the contract version and the provisioning report — status, counts and each error with its file, manifest entry or variable.
 
 ## Backup and restore
 
