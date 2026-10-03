@@ -78,6 +78,14 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
 - **EF's SQL command logging is at Warning** (`Microsoft.EntityFrameworkCore.Database.Command` in ApiService's `appsettings.json`). The worker reads the publishers every second, and at Information that would log a SELECT every second. To see SQL while debugging, lower it locally rather than in the checked-in config.
 - **`Publisher.LastPublishedAt` is the schedule's anchor** and is set to when the publish *started*. Failures set it too, so a broken publisher retries once per interval. `PublisherSchedule.IsDue` filters in memory on purpose: there are only a handful of publishers, so no SQL ordering on a `DateTimeOffset` is needed.
 
+### Provisioning (ADR 0001, `Infrastructure/Provisioning`)
+
+- **`FileProvisioningSource` reads `Provisioning:Path`** (default `/app/provisioning`; no directory means `NotConfigured`). Spec kind comes from the document's root key (`openapi`/`swagger`/`asyncapi`). The manifest is validated against the schema **embedded from `docs/schemas/provisioning-manifest.v1.schema.json`** — one file, shared with the Aspire package's repository. That's why `.dockerignore` re-includes `docs/schemas/` and the Dockerfile copies it into the build. Change the schema there, never in a copy.
+- **Report only the schema errors that matter:** walk the hierarchical evaluation and skip subschemas that passed. A passing `oneOf` still carries its failed branches, which read like real errors.
+- **`valueFrom` is resolved here, from `IConfiguration`,** so Application only ever sees values. Errors and logs name the key, never the value.
+- **`ProvisioningHostedService` runs `ApplyProvisioning` once at startup,** registered right after `DbWriteBackgroundService`. On failure with `Provisioning:FailOnError` (default true) it logs every error, sets `Environment.ExitCode = 3` and stops the app. `ProvisioningHealthCheck` is part of `/health`: Unhealthy until it has run, Degraded when it failed and the app kept running.
+- **YAML → JSON goes through `Yaml/YamlJson`,** shared with `AsyncApiSpecificationParser`. A plain `null`/`~`/empty scalar is JSON null.
+
 ### Test runs (background worker)
 
 - **`TestRunBackgroundService` (`Infrastructure/TestRuns`) only schedules,** like the Publishers worker: `ListDueTestRuns` every second, then `ExecuteTestRun` per run. Unlike it, a tick **doesn't wait** for the runs it started (a Listen can last 30 minutes); it tracks them itself, starting at most one per scenario and at most `TestRuns:MaxConcurrency` (4) in all.

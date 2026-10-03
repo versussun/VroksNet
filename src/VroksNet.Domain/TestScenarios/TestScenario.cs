@@ -42,6 +42,13 @@ public sealed class TestScenario
 
     public DateTimeOffset UpdatedAt { get; set; }
 
+    /// <summary>
+    /// When provisioning (ADR 0001) last brought this scenario in line with the manifest or the specs
+    /// folder; null for one created in the UI or the API. A provisioned object is overwritten on
+    /// every start — UI edits to it don't stick.
+    /// </summary>
+    public DateTimeOffset? ProvisionedAt { get; set; }
+
     /// <summary>When this scenario was last <c>Run</c>, and with what result — null until the first run. Distinct from <see cref="UpdatedAt"/>, which tracks edits to the scenario's own definition, not runs of it.</summary>
     public DateTimeOffset? LastRunAt { get; set; }
 

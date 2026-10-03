@@ -79,7 +79,15 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Part of /health (see ServiceDefaults' MapDefaultEndpoints) — not of /alive: an unreachable
         // database makes the app not ready, but restarting it wouldn't fix a full or read-only disk.
-        services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
+        services.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheck>("database")
+            // Not ready until provisioning has run (ADR 0001); healthy when there's nothing to provision.
+            .AddCheck<Provisioning.ProvisioningHealthCheck>("provisioning");
+
+        services.AddSingleton<IProvisioningSource, Provisioning.FileProvisioningSource>();
+        services.AddScoped<IProvisionedMarker, Provisioning.ProvisionedMarker>();
+        // Right after the write queue's consumer, so provisioning's writes are drained.
+        services.AddHostedService<Provisioning.ProvisioningHostedService>();
 
         services.AddScoped<IApiSpecificationRepository, ApiSpecificationRepository>();
         services.AddScoped<IConnectionRepository, ConnectionRepository>();

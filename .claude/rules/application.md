@@ -68,6 +68,11 @@ public sealed class CreateOrderHandler(IOrderRepository repository) : IRequestHa
   - Every create/update handler goes through `UniqueNames`: `Normalize` (required, stored trimmed) and `EnsureFree` (the holder found by `FindByNameAsync` must be the object itself). A taken name is an `ArgumentException`, a 400 at the endpoint.
   - A unique index backs each (`VroksNetDbContext`), so a race between two creates still can't produce duplicates; the loser gets a 500, which is acceptable for an admin action.
   - Comparison is exact (case-sensitive), like SQLite's default collation on the index.
+- **Provisioning** (`Application/Provisioning/*`, ADR 0001): `ApplyProvisioning` applies specs, connections, spec settings, Publishers, then test scenarios.
+  - **Everything goes through the existing use cases over Mediator** (`ImportOpenApiSpec`, `CreateConnection`/`UpdateConnection`, `SetEndpointEnabled`, `SetSpecificationProviderMode`, `CreatePublisher`/`UpdatePublisher`, …), so provisioning validates exactly like the UI. Don't write to repositories directly from it, except `IProvisionedMarker` for `ProvisionedAt`.
+  - **Objects are matched by name** (specs by title); applying the same input twice changes nothing. Removed manifest entries are left in place — provisioning never deletes.
+  - **One broken entry doesn't stop the rest:** each failure becomes a `ProvisioningError` with its source (`specs/x.yaml`, `publishers[name]`), and the status is `Failed`. Whether that stops the app is Infrastructure's call.
+  - `ProvisioningState` (singleton) holds the latest `ProvisioningReport` for the health check and, in A4, `GET /api/system/info`.
 - **Test runs** (`TestRun` entity, `Application/TestRuns/*`, `/api/test-runs`, `POST /api/test-scenarios/{id}/runs`; ADR 0002).
   - **One run logic: `TestScenarioExecutor`.** The synchronous `RunTestScenarioHandler` and the background `ExecuteTestRunHandler` both call it and only own the `TestRun` around it. Don't put run logic back into either handler. Every `CallRecord` it writes carries the `TestRunId`.
   - **Every run is a `TestRun`,** synchronous ones included (`Trigger = Manual`). A run must never stay `Running`: both handlers complete it on success, failure, cancellation and unexpected exceptions, writing with `CancellationToken.None`.

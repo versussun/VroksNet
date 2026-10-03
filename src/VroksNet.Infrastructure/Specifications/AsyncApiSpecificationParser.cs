@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using SharpYaml;
 using SharpYaml.Serialization;
 using VroksNet.Application.Abstractions;
+using VroksNet.Infrastructure.Yaml;
 
 namespace VroksNet.Infrastructure.Specifications;
 
@@ -56,26 +57,7 @@ public sealed class AsyncApiSpecificationParser : IAsyncApiSpecificationParser
         return Task.FromResult(new ParsedSpecification(title, operations));
     }
 
-    private static YamlMappingNode LoadRoot(string rawContent)
-    {
-        var stream = new YamlStream();
-        try
-        {
-            using var reader = new StringReader(rawContent);
-            stream.Load(reader);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw new InvalidOperationException($"Failed to parse AsyncAPI document: {ex.Message}", ex);
-        }
-
-        if (stream.Documents.Count == 0 || stream.Documents[0].RootNode is not YamlMappingNode root)
-        {
-            throw new InvalidOperationException("Failed to parse AsyncAPI document: empty document, or its root isn't a mapping.");
-        }
-
-        return root;
-    }
+    private static YamlMappingNode LoadRoot(string rawContent) => YamlJson.LoadMapping(rawContent, "AsyncAPI document");
 
     private static ParsedOperation? ParseOperation(YamlMappingNode root, YamlMappingNode operation)
     {
@@ -120,7 +102,7 @@ public sealed class AsyncApiSpecificationParser : IAsyncApiSpecificationParser
             .Select(example => example.Child("payload"))
             .FirstOrDefault(payload => payload is not null);
 
-        return ToJson(examplePayload)?.ToJsonString(ExampleJsonOptions);
+        return YamlJson.ToJson(examplePayload)?.ToJsonString(ExampleJsonOptions);
     }
 
     /// <summary>The message's payload schema — resolving one more $ref hop if "payload" is itself just a reference into components.schemas.*, so the extracted schema is self-contained.</summary>
@@ -132,7 +114,7 @@ public sealed class AsyncApiSpecificationParser : IAsyncApiSpecificationParser
             payload = Resolve(root, schemaRef);
         }
 
-        return ToJson(payload)?.ToJsonString(ExampleJsonOptions);
+        return YamlJson.ToJson(payload)?.ToJsonString(ExampleJsonOptions);
     }
 
     /// <summary>Resolves a local JSON-Reference pointer like "#/channels/orderCreated" against the document root.</summary>
@@ -150,51 +132,6 @@ public sealed class AsyncApiSpecificationParser : IAsyncApiSpecificationParser
         }
 
         return current;
-    }
-
-    private static JsonNode? ToJson(YamlNode? node) => node switch
-    {
-        null => null,
-        YamlScalarNode scalar => ScalarToJson(scalar),
-        YamlSequenceNode sequence => new JsonArray(sequence.Children.Select(ToJson).ToArray()),
-        YamlMappingNode mapping => new JsonObject(mapping.Children
-            .Where(pair => pair.Key is YamlScalarNode)
-            .Select(pair => KeyValuePair.Create(((YamlScalarNode)pair.Key).Value ?? string.Empty, ToJson(pair.Value)))),
-        _ => null
-    };
-
-    /// <summary>
-    /// A plain (unquoted) scalar carries no type tag in SharpYaml's representation model, so infer
-    /// it the way YAML's core schema would; a quoted scalar (<see cref="ScalarStyle.Plain"/> would
-    /// be false) always stays a string, matching how the source YAML actually wrote it.
-    /// </summary>
-    private static JsonNode? ScalarToJson(YamlScalarNode scalar)
-    {
-        var value = scalar.Value;
-        if (value is null)
-        {
-            return null;
-        }
-
-        if (scalar.Style == ScalarStyle.Plain)
-        {
-            if (bool.TryParse(value, out var boolValue))
-            {
-                return JsonValue.Create(boolValue);
-            }
-
-            if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var longValue))
-            {
-                return JsonValue.Create(longValue);
-            }
-
-            if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var doubleValue))
-            {
-                return JsonValue.Create(doubleValue);
-            }
-        }
-
-        return JsonValue.Create(value);
     }
 }
 

@@ -36,6 +36,13 @@ public sealed class Publisher
 
     public DateTimeOffset UpdatedAt { get; set; }
 
+    /// <summary>
+    /// When provisioning (ADR 0001) last brought this publisher in line with the manifest or the specs
+    /// folder; null for one created in the UI or the API. A provisioned object is overwritten on
+    /// every start — UI edits to it don't stick.
+    /// </summary>
+    public DateTimeOffset? ProvisionedAt { get; set; }
+
     /// <summary>When the last publish (scheduled or on demand) started — the schedule counts the next one from here. Null until the first.</summary>
     public DateTimeOffset? LastPublishedAt { get; set; }
 

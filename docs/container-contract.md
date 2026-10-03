@@ -41,9 +41,9 @@ The container speaks only HTTP. TLS is the job of a proxy or the orchestrator.
 | Path | Mode | What | Status |
 |---|---|---|---|
 | `/app/data` | read-write, `VOLUME` | SQLite (`vroksnet.db`). Without a mounted volume, data lives until the container is recreated — which is what tests want | exists |
-| `/app/provisioning` | read-only | the provisioning root (`Provisioning:Path`). No directory — no provisioning | to add |
-| `/app/provisioning/specs/**` | read-only | specs: `*.yaml`, `*.yml`, `*.json`, nested directories allowed. The kind is detected by the root key (`openapi` / `swagger` / `asyncapi`), not by the file name | to add |
-| `/app/provisioning/vroksnet.yaml` | read-only | the manifest, optional. Schema: `docs/schemas/provisioning-manifest.v1.schema.json`; a copy ships in the image at `/app/provisioning-manifest.v1.schema.json` | to add |
+| `/app/provisioning` | read-only | the provisioning root (`Provisioning:Path`). No directory — no provisioning | exists |
+| `/app/provisioning/specs/**` | read-only | specs: `*.yaml`, `*.yml`, `*.json`, nested directories allowed. The kind is detected by the root key (`openapi` / `swagger` / `asyncapi`), not by the file name | exists |
+| `/app/provisioning/vroksnet.yaml` | read-only | the manifest, optional. Schema: `docs/schemas/provisioning-manifest.v1.schema.json`; a copy ships in the image at `/app/provisioning-manifest.v1.schema.json` | exists |
 
 The package mounts the specs and the manifest **separately** (a bind mount of a file or a directory). So `specs/` and `vroksnet.yaml` must work independently of each other.
 
@@ -61,13 +61,13 @@ Names are given in .NET environment-variable form (`:` → `__`).
 | `Provider__PublicUrl` | — | the provider port's address **as the user sees it** (the Admin UI shows it in hints). The package passes the external URL of the `provider` endpoint here |
 | `Provider__CorsOrigins` | — (CORS off) | comma-separated origins, or `*`, for browser frontends calling the mock |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` and other `OTEL_*` | — | exporting logs, traces and metrics (ServiceDefaults). The package calls `WithOtlpExporter()`, and the telemetry shows up in the Aspire dashboard |
+| `Provisioning__Path` | `/app/provisioning` | the provisioning root |
+| `Provisioning__FailOnError` | `true` | a provisioning error stops the process (§7). `false` — log it, report `Failed` (and `/health` `Degraded`, still 200), keep running with what applied |
 
 ### To add
 
 | Variable | Default | What |
 |---|---|---|
-| `Provisioning__Path` | `/app/provisioning` | the provisioning root |
-| `Provisioning__FailOnError` | `true` | a provisioning error stops the process (§7). `false` — log it, report `Failed` in `/api/system/info`, keep running |
 | `Provisioning__Connections__<i>__Name` | — | a connection declared **without a manifest**, where `<i>` = 0, 1, …. This is how the package passes `WithConnection(...)` without generating files. Indexes rather than names in the key: a connection name may contain `-`, which isn't valid in an environment variable name for POSIX shells |
 | `Provisioning__Connections__<i>__Type` | — | `Http` / `RabbitMq` / `Nats` / `Kafka` |
 | `Provisioning__Connections__<i>__Value` | — | the connection value as-is |
@@ -81,7 +81,7 @@ Names are given in .NET environment-variable form (`:` → `__`).
 | Endpoint | Response | Purpose | Status |
 |---|---|---|---|
 | `GET /alive` | `200` / `503` | liveness: the process is alive | exists |
-| `GET /health` | `200 Healthy` / `503 Unhealthy` | readiness. **Once extended**, Unhealthy until provisioning has been applied. This is what `WaitFor(mocks)` waits for | exists; behavior to add |
+| `GET /health` | `200 Healthy` / `503 Unhealthy` | readiness: Unhealthy until provisioning has been applied (Healthy at once when there's no provisioning directory; `Degraded`, still 200, when it failed with `FailOnError=false`). This is what `WaitFor(mocks)` waits for | exists |
 | `GET /api/system/info` | see below | version, contract, provisioning state. The package shows it in the dashboard; consumers' tests wait on it | to add |
 | `GET /api/system/provider` | `{ enabled, port, publicUrl, corsOrigins }` | provider mode settings | exists |
 
@@ -113,13 +113,13 @@ Startup order:
 
 The API answers already during step 3, but `/health` returns `503` until provisioning finishes.
 
-| Code | When |
-|---|---|
-| `0` | normal shutdown (`SIGTERM`) |
-| `3` | provisioning failed with `Provisioning__FailOnError=true`. Every error is logged with its file and key. **To add** |
-| `134` | an unhandled exception (`SIGABRT` through `tini`) |
+| Code | When | Status |
+|---|---|---|
+| `0` | normal shutdown (`SIGTERM`) | exists |
+| `3` | provisioning failed with `Provisioning__FailOnError=true`. Every error is logged with its file or manifest entry | exists |
+| `134` | an unhandled exception (`SIGABRT` through `tini`) | exists |
 
-Starting again with the same contents of `/app/provisioning` creates no duplicates. Provisioned objects are brought in line with the manifest; objects created in the UI aren't touched (ADR 0001).
+Starting again with the same contents of `/app/provisioning` creates no duplicates. Provisioned objects are brought in line with the manifest; objects created in the UI aren't touched (ADR 0001). An object removed from the manifest is left in place — provisioning never deletes.
 
 ## 8. How the Aspire package uses this (for reference)
 

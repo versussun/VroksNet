@@ -5,5 +5,8 @@
 **/.claude/
 Dockerfile
 .dockerignore
-docs/
+# The docs aren't needed in the image, except the provisioning manifest schema, which
+# VroksNet.Infrastructure embeds (and the image ships at /app/provisioning-manifest.v1.schema.json).
+docs/*
+!docs/schemas/
 *.md
