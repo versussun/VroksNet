@@ -1,5 +1,6 @@
 using VroksNet.Application.Abstractions;
 using VroksNet.Domain.Connections;
+using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Infrastructure.Brokers;
 
@@ -10,13 +11,14 @@ namespace VroksNet.Infrastructure.Brokers;
 /// </summary>
 public interface IListeningBrokerAdapter : IBrokerAdapter
 {
-    /// <param name="subscriptionPattern">
-    /// The channel address with whole-segment parameters turned into "*"
-    /// (<see cref="Domain.TestScenarios.TestScenarioListening.SubscriptionPatternOf"/>).
+    /// <param name="channel">
+    /// The channel to subscribe to. The adapter renders it in its broker's own wildcard syntax, and
+    /// fails readably if its broker can't match it (e.g. a parameter between "/"-separated segments
+    /// where wildcards only exist for "."-separated ones).
     /// </param>
     /// <param name="exchange">RabbitMQ only: the exchange to bind a temporary queue to.</param>
     /// <param name="onListening">
     /// Called exactly when the subscription is in place — see <see cref="IMessageListener"/>.
     /// </param>
-    Task<MessageListenResult> ListenAsync(Connection connection, string subscriptionPattern, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null);
+    Task<MessageListenResult> ListenAsync(Connection connection, ChannelPattern channel, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null);
 }

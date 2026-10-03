@@ -66,7 +66,7 @@ public static class TestScenarioTargetResolver
         {
             throw new ArgumentException(OperationCompatibility.IsHttpOperation(target.Endpoint.OperationKey)
                 ? $"Operation \"{target.Endpoint.OperationKey}\" isn't a broker channel, so it can't be listened to."
-                : $"Operation \"{target.Endpoint.OperationKey}\" has a channel parameter that isn't a whole \".\"-separated segment, so it can't be subscribed to.");
+                : $"Operation \"{target.Endpoint.OperationKey}\" has a channel parameter that is only part of a segment, so it can't be subscribed to.");
         }
 
         if (ServiceTypeTraits.Find(target.Connection.ServiceType) is { CanListen: false, ListenNote: var note })

@@ -12,7 +12,7 @@
 | `Infrastructure/Connections/ConnectionTester.cs` | `switch`: one reachability check per type |
 | `Infrastructure/Connections/KafkaClients.cs`, `RabbitMqConnections.cs` | client setup shared by the three classes above |
 | `Domain/TestScenarios/OperationCompatibility.cs` | "HTTP operation ⇔ `Http` connection, AsyncAPI operation ⇔ any broker" |
-| `Domain/TestScenarios/TestScenarioListening.cs` | one subscription pattern (`.`-separated segments, `*` for a parameter) shared by all brokers; Kafka turns it into a regex in `KafkaClients.TopicRegexOf` |
+| `Domain/TestScenarios/TestScenarioListening.cs` (before R3) | one subscription pattern (`.`-separated segments, `*` for a parameter) shared by all brokers; Kafka turns it into a regex in `KafkaClients.TopicRegexOf` |
 | `TestScenario.Exchange`, `Publisher.Exchange` | a RabbitMQ-only field carried through the entities, DTOs, endpoints, Web forms, the manifest (`exchange`) and the export |
 | `Web/Components/Pages/Settings.razor` | the list of types and each type's value hint, written out by hand |
 | `docs/schemas/provisioning-manifest.v1.schema.json` | the `type` enum |

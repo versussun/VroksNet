@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Confluent.Kafka;
 
 namespace VroksNet.Infrastructure.Brokers.Kafka;
@@ -81,15 +80,6 @@ internal static class KafkaClients
             .SetErrorHandler((_, _) => { })
             .Build();
     }
-
-    /// <summary>
-    /// The topic regex for a subscription pattern from
-    /// <see cref="Domain.TestScenarios.TestScenarioListening.SubscriptionPatternOf"/>: each "*"
-    /// segment matches one "."-separated segment, everything else literally ("orders.*.created" →
-    /// ^orders\.[^.]+\.created$).
-    /// </summary>
-    public static Regex TopicRegexOf(string subscriptionPattern)
-        => new("^" + string.Join(@"\.", subscriptionPattern.Split('.').Select(segment => segment == "*" ? "[^.]+" : Regex.Escape(segment))) + "$");
 
     private static Dictionary<string, string> WithTimeouts(Dictionary<string, string> config, TimeSpan timeout)
     {
