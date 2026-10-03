@@ -99,10 +99,10 @@ public sealed class PublishersPageTests(AppHostFixture fixture) : PageTestBase(f
     {
         var suffix = Guid.NewGuid();
         var kafkaSpec = $"E2E Kafka Servers {suffix}";
-        var mqttSpec = $"E2E MQTT Servers {suffix}";
+        var stompSpec = $"E2E STOMP Servers {suffix}";
 
         await ImportAsync(kafkaSpec, "kafka", suffix);
-        await ImportAsync(mqttSpec, "mqtt", suffix);
+        await ImportAsync(stompSpec, "stomp", suffix);
         // Any broker value will do: nothing is sent. The NATS one is added first, so ordering by name or age can't pass the test.
         await AddConnectionAsync($"E2E Servers NATS {suffix}", "Nats", "nats://localhost:4222");
         await AddConnectionAsync($"E2E Servers Kafka {suffix}", "Kafka", "localhost:9092");
@@ -115,8 +115,8 @@ public sealed class PublishersPageTests(AppHostFixture fixture) : PageTestBase(f
         await Expect(connections.Nth(1)).ToContainTextAsync("(Kafka)"); // after "Select a broker connection…"
         await Expect(Page.GetByRole(AriaRole.Note)).Not.ToBeVisibleAsync();
 
-        await Page.GetByLabel("Specification").SelectOptionAsync(new SelectOptionValue { Label = mqttSpec });
-        await Expect(Page.GetByRole(AriaRole.Note)).ToContainTextAsync("use mqtt, which VroksNet has no connection type for");
+        await Page.GetByLabel("Specification").SelectOptionAsync(new SelectOptionValue { Label = stompSpec });
+        await Expect(Page.GetByRole(AriaRole.Note)).ToContainTextAsync("use stomp, which VroksNet has no connection type for");
     }
 
     private async Task ImportAsync(string title, string protocol, Guid suffix)

@@ -4,7 +4,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 // below, all of them when it isn't set — so local development always gets every broker. The
 // integration tests set it to start only what a test collection needs (step R6 of
 // docs/broker-adapters-plan.md); "--Brokers=" starts none.
-string[] knownBrokers = ["rabbitmq", "nats", "kafka"];
+string[] knownBrokers = ["rabbitmq", "nats", "kafka", "mqtt"];
 var brokers = builder.Configuration["Brokers"] is { } configured
     ? configured.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.OrdinalIgnoreCase)
     : knownBrokers.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -49,6 +49,16 @@ if (brokers.Contains("kafka"))
     var kafka = builder.AddKafka("kafka");
     kafka.WithEnvironment("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "true");
     apiService.WithReference(kafka).WaitFor(kafka);
+}
+
+if (brokers.Contains("mqtt"))
+{
+    // No Aspire hosting integration for MQTT: a plain Mosquitto container, anonymous, on its
+    // "mqtt" endpoint. apiservice only waits for it — it reaches MQTT through user Connections.
+    var mqtt = builder.AddContainer("mqtt", "eclipse-mosquitto", "2")
+        .WithArgs("mosquitto", "-c", "/mosquitto-no-auth.conf")
+        .WithEndpoint(targetPort: 1883, name: "mqtt", scheme: "tcp");
+    apiService.WaitFor(mqtt);
 }
 
 // VroksNet.Web is a standalone Blazor WebAssembly app (Microsoft.NET.Sdk.BlazorWebAssembly).

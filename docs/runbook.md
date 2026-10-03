@@ -10,7 +10,7 @@ How to deploy, configure, back up, upgrade and troubleshoot a VroksNet instance.
 | Ports | `8080`: API, Admin UI and `/mock/…`. `7353`: provider port (mocks at their real paths). Both plain HTTP |
 | State | One SQLite file, `/app/data/vroksnet.db`, on the `/app/data` volume |
 | Background work | Publisher worker (publishes due async mocks once a second) and the single database writer |
-| External dependencies | None to start. RabbitMQ, NATS, Kafka and HTTP services are only reached through connections created on the **Settings** page |
+| External dependencies | None to start. RabbitMQ, NATS, Kafka, MQTT and HTTP services are only reached through connections created on the **Settings** page |
 | Authentication | None. Anyone who can reach the ports can change everything |
 | Instances | Exactly one. See [Constraints](#constraints) |
 
@@ -249,7 +249,7 @@ CORS is off by default. Set `Provider__CorsOrigins` and restart. `GET /api/syste
 
 - **One instance only.** SQLite is a local file, and the publisher worker has no coordination between instances: two instances would publish every publisher twice. Don't scale out or run two containers on one volume.
 - **No authentication.** Keep both ports on an internal network. The provider port listens on all interfaces in the container, like `8080`.
-- **Brokers aren't included.** The image has no RabbitMQ, NATS or Kafka. Point connections at your own.
+- **Brokers aren't included.** The image has no RabbitMQ, NATS, Kafka or MQTT broker. Point connections at your own.
 
 ## Local development (Aspire)
 
@@ -257,7 +257,7 @@ CORS is off by default. Set `Provider__CorsOrigins` and restart. `GET /api/syste
 dotnet run --project src/VroksNet.AppHost
 ```
 
-Needs Docker running (RabbitMQ, NATS and Kafka start as containers) and a trusted dev certificate (`dotnet dev-certs https --trust`).
+Needs Docker running (RabbitMQ, NATS, Kafka and Mosquitto for MQTT start as containers) and a trusted dev certificate (`dotnet dev-certs https --trust`).
 
 | Symptom | Cause |
 |---|---|

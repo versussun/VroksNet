@@ -11,6 +11,7 @@ namespace VroksNet.Application.Abstractions;
 /// <param name="ListenDescription">What it does for a Listen scenario; null if it doesn't apply to Listen.</param>
 /// <param name="ListenPlaceholder">What a blank input shows for a Listen; null if it doesn't apply to Listen.</param>
 /// <param name="SuggestedValue">What a new Test Scenario's input starts with, if anything.</param>
+/// <param name="AllowedValues">The only values it takes (matched case-insensitively, stored as listed); null for any value.</param>
 public sealed record BrokerOptionDefinition(
     string Name,
     string Label,
@@ -18,4 +19,5 @@ public sealed record BrokerOptionDefinition(
     string SendPlaceholder,
     string? ListenDescription = null,
     string? ListenPlaceholder = null,
-    string? SuggestedValue = null);
+    string? SuggestedValue = null,
+    IReadOnlyList<string>? AllowedValues = null);

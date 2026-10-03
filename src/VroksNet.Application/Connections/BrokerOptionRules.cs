@@ -17,7 +17,8 @@ internal static class BrokerOptionRules
     /// checks the result against what <paramref name="type"/> accepts: names are matched
     /// case-insensitively and stored as the adapter spells them, blank values mean "the default".
     /// <paramref name="exchange"/> is dropped, as it always was, for a type that has no such option.
-    /// Throws <see cref="ArgumentException"/> on an option the type doesn't know, or when
+    /// Throws <see cref="ArgumentException"/> on an option the type doesn't know, a value outside its
+    /// <see cref="BrokerOptionDefinition.AllowedValues"/> (stored as listed), or when
     /// <paramref name="exchange"/> and <c>brokerOptions.exchange</c> disagree.
     /// </summary>
     public static BrokerOptions? Normalize(IBrokerRules rules, ConnectionServiceType type, string? exchange, IReadOnlyDictionary<string, string?>? brokerOptions)
@@ -32,7 +33,7 @@ internal static class BrokerOptionRules
                 ?? throw new ArgumentException(definitions.Count == 0
                     ? $"A {type} connection takes no broker options, but \"{name}\" was given."
                     : $"Unknown broker option \"{name}\" for a {type} connection — it accepts {string.Join(", ", definitions.Select(option => $"\"{option.Name}\""))}.");
-            values[definition.Name] = value;
+            values[definition.Name] = AllowedValueOf(definition, value, type);
         }
 
         if (!string.IsNullOrWhiteSpace(exchange)
@@ -48,5 +49,16 @@ internal static class BrokerOptionRules
         }
 
         return BrokerOptions.From(values);
+    }
+
+    private static string AllowedValueOf(BrokerOptionDefinition definition, string value, ConnectionServiceType type)
+    {
+        if (definition.AllowedValues is not { } allowed)
+        {
+            return value;
+        }
+
+        return allowed.FirstOrDefault(candidate => string.Equals(candidate, value, StringComparison.OrdinalIgnoreCase))
+            ?? throw new ArgumentException($"Broker option \"{definition.Name}\" of a {type} connection can't be \"{value}\" — it takes {string.Join(", ", allowed.Select(candidate => $"\"{candidate}\""))}.");
     }
 }

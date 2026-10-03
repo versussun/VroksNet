@@ -47,12 +47,13 @@ curl -k -X POST https://localhost:7352/mock/books -H "X-Request-Id: r-1" \
 ```
 
 **Async mocks.** Add a connection on **Settings** (the dev brokers' connection strings are in the
-Aspire dashboard: `rabbitmq`, `nats`, `kafka`), then:
+Aspire dashboard: `rabbitmq`, `nats`, `kafka`; MQTT is `mqtt://localhost:<port>` of the `mqtt` resource), then:
 
 | Sample | Publisher / Send scenario | Listen scenario |
 |---|---|---|
 | Kafka | `shop.orders.created:send` every 5s | `shop.payments.{region}.settled:send` hears every region's topic (the topics must exist) |
 | NATS | `devices.sim-001.telemetry:send` simulates a device | `devices.{deviceId}.telemetry:send` hears all devices |
+| MQTT | `home/kitchen/temperature:send` simulates a sensor | `home/{room}/temperature:send` hears every room (`home/+/temperature`) |
 | RabbitMQ | `notify.email.requested:receive` with exchange `notifications` | `notify.{channel}.delivered:send` on exchange `notifications` |
 
 A Listen and a Send scenario on the same broker meet, so you can check a whole round trip

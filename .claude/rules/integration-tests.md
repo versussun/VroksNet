@@ -14,7 +14,8 @@ Aspire integration tests. They boot the *real* distributed-application graph (`A
 - **A broker family added after the core three gets its own graph and CI job** (step R6 of `docs/broker-adapters-plan.md`), so it doesn't add minutes to every run:
   - AppHost: add its resource to `knownBrokers` and wire it like the others, inside `if (brokers.Contains("<name>"))`.
   - Tests: everything for it lives in `Brokers/<Family>/` (namespace `VroksNet.IntegrationTests.Brokers.<Family>`): a `sealed class <Family>AppHostFixture() : AppHostFixtureBase(["<name>"])`, its `[CollectionDefinition("AppHost.<Family>")]`, and the test classes — Send, Listen, and a suite whose Send is caught by its Listen.
-  - CI: the required "Integration tests" job skips `VroksNet.IntegrationTests.Brokers.*`; add `<Family>` to the `broker-integration` matrix in `.github/workflows/ci.yml` (commented out until the first family).
+  - CI: the required "Integration tests" job skips `VroksNet.IntegrationTests.Brokers.*`; add `<Family>` to the `broker-integration` matrix in `.github/workflows/ci.yml`.
+  - The first family is `Brokers/Mqtt` (N2) — copy its fixture, collection and `MqttApiTests` for the next one.
   - Locally: `dotnet tests/VroksNet.IntegrationTests/bin/Debug/net10.0/VroksNet.IntegrationTests.dll --filter-namespace "VroksNet.IntegrationTests.Brokers.<Family>"`. A graph with no core brokers boots: `apiservice` doesn't need them (verified while adding this).
 - **Don't assume isolated state between tests.** The collection runs sequentially against one `apiservice` process and its single-writer SQLite queue (see `.claude/rules/infrastructure.md`).
 - **Use GUID-suffixed values for anything with a unique constraint** (e.g. `Connection.Name`), even though the DB is fresh each run. That keeps tests safe against a *persisted* DB if `ConnectionStrings__VroksNetDb` is set for debugging. Specification imports are safe to repeat either way (`UpsertAsync` replaces by `Title`).
