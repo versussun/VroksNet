@@ -81,15 +81,15 @@ public sealed class TestScenariosApiTests(AppHostFixture fixture)
             cancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, updateResponse.StatusCode);
 
-        // Updating with a mismatched operation/connection type 500s (ArgumentException — same
-        // validation-error convention as CreateConnectionHandler's blank-name check; see
-        // .claude/CLAUDE.md).
+        // Updating with a mismatched operation/connection type is invalid input: a 400 with the reason.
         var mismatchedConnectionId = await CreateConnectionAsync(client, Guid.NewGuid(), "amqp://localhost", cancellationToken, serviceType: "RabbitMq");
         var mismatchedUpdateResponse = await client.PutAsJsonAsync(
             $"/api/test-scenarios/{scenarioId}",
             new { Id = scenarioId, Name = name, SpecificationId = specificationId, MockEndpointId = endpointId, ConnectionId = mismatchedConnectionId, PayloadOverride = (string?)null },
             cancellationToken);
-        Assert.Equal(HttpStatusCode.InternalServerError, mismatchedUpdateResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, mismatchedUpdateResponse.StatusCode);
+        var problem = await mismatchedUpdateResponse.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+        Assert.Contains("can't be sent through a RabbitMq connection", problem!["detail"]!.GetValue<string>());
 
         // Delete
         var deleteResponse = await client.DeleteAsync($"/api/test-scenarios/{scenarioId}", cancellationToken);

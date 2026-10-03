@@ -17,6 +17,14 @@ public sealed class ConnectionRepository(
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<Connection?> FindByNameAsync(string name, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Connections
+            .AsNoTracking()
+            .FirstOrDefaultAsync(connection => connection.Name == name, cancellationToken);
+    }
+
     public async Task<Connection?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);

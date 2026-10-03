@@ -38,18 +38,34 @@ public static class TestScenarioEndpoints
         })
         .WithName("GetTestScenario");
 
+        // Invalid input (the handler's ArgumentException) — a blank or taken name, an incompatible
+        // operation/connection pair — is a 400 with the reason.
         group.MapPost("/", async (CreateTestScenario request, IMediator mediator, CancellationToken cancellationToken) =>
         {
-            var id = await mediator.Send(request, cancellationToken);
-            return Results.Ok(new CreateTestScenarioResult(id));
+            try
+            {
+                var id = await mediator.Send(request, cancellationToken);
+                return Results.Ok(new CreateTestScenarioResult(id));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex);
+            }
         })
         .WithName("CreateTestScenario");
 
         group.MapPut("/{id:guid}", async (Guid id, UpdateTestScenario body, IMediator mediator, CancellationToken cancellationToken) =>
         {
-            // The route's id is authoritative — the body's own Id (if any) is ignored.
-            var found = await mediator.Send(body with { Id = id }, cancellationToken);
-            return found ? Results.NoContent() : Results.NotFound();
+            try
+            {
+                // The route's id is authoritative — the body's own Id (if any) is ignored.
+                var found = await mediator.Send(body with { Id = id }, cancellationToken);
+                return found ? Results.NoContent() : Results.NotFound();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex);
+            }
         })
         .WithName("UpdateTestScenario");
 
@@ -80,4 +96,6 @@ public static class TestScenarioEndpoints
 
         return app;
     }
+
+    private static IResult BadRequest(ArgumentException ex) => Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
 }

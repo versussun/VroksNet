@@ -14,6 +14,9 @@ internal sealed class FakeConnectionRepository : IConnectionRepository
     public Task<Connection?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
         => Task.FromResult(_connections.FirstOrDefault(c => c.Id == id));
 
+    public Task<Connection?> FindByNameAsync(string name, CancellationToken cancellationToken)
+        => Task.FromResult(_connections.FirstOrDefault(c => c.Name == name));
+
     public Task InsertAsync(Connection connection, CancellationToken cancellationToken)
     {
         _connections.Add(connection);

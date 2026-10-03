@@ -8,6 +8,9 @@ public interface ITestScenarioRepository
 
     Task<TestScenario?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The one with exactly this name (names are unique, compared as stored — trimmed, case-sensitive); null if none.</summary>
+    Task<TestScenario?> FindByNameAsync(string name, CancellationToken cancellationToken);
+
     Task InsertAsync(TestScenario scenario, CancellationToken cancellationToken);
 
     /// <returns>False if no scenario with <see cref="TestScenario.Id"/> exists.</returns>

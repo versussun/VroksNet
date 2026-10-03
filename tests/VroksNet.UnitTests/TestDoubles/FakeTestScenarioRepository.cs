@@ -13,6 +13,9 @@ internal sealed class FakeTestScenarioRepository : ITestScenarioRepository
     public Task<TestScenario?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
         => Task.FromResult(_scenarios.FirstOrDefault(s => s.Id == id));
 
+    public Task<TestScenario?> FindByNameAsync(string name, CancellationToken cancellationToken)
+        => Task.FromResult(_scenarios.FirstOrDefault(s => s.Name == name));
+
     public Task InsertAsync(TestScenario scenario, CancellationToken cancellationToken)
     {
         _scenarios.Add(scenario);

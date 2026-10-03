@@ -22,6 +22,7 @@ public sealed class ConnectionApiClient(HttpClient httpClient)
     public async Task<Guid> CreateAsync(string name, ConnectionServiceType serviceType, string value, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.PostAsJsonAsync("/api/connections", new { name, serviceType, value }, JsonOptions, cancellationToken);
+        await ThrowIfRejectedAsync(response, cancellationToken);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<CreateConnectionResult>(JsonOptions, cancellationToken);
         return result!.Id;
@@ -35,6 +36,8 @@ public sealed class ConnectionApiClient(HttpClient httpClient)
         {
             return false;
         }
+
+        await ThrowIfRejectedAsync(response, cancellationToken);
 
         response.EnsureSuccessStatusCode();
         return true;
@@ -72,5 +75,15 @@ public sealed class ConnectionApiClient(HttpClient httpClient)
         using var response = await httpClient.PostAsJsonAsync("/api/connections/test", new { serviceType, value }, JsonOptions, cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<ConnectionTestResult>(JsonOptions, cancellationToken))!;
+    }
+
+    /// <summary>A 400 carries the reason (a blank or taken name, an incompatible operation/connection, ...) — surface it instead of a bare status code.</summary>
+    private static async Task ThrowIfRejectedAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemResponse>(JsonOptions, cancellationToken);
+            throw new InvalidOperationException(problem?.Detail ?? "The server rejected the connection.");
+        }
     }
 }

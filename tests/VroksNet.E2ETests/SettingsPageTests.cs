@@ -46,4 +46,26 @@ public sealed class SettingsPageTests(AppHostFixture fixture) : PageTestBase(fix
         await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Delete" }).ClickAsync();
         await Expect(row).Not.ToBeVisibleAsync();
     }
+
+    [Fact]
+    public async Task AddingAConnectionWithATakenName_ShowsWhy()
+    {
+        var name = $"E2E Duplicate Connection {Guid.NewGuid()}";
+        await Page.GotoAsync("/settings");
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add connection" }).ClickAsync();
+            await Page.GetByLabel("Name").FillAsync(name);
+            await Page.GetByLabel("URL").FillAsync("https://api.example.com");
+            await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
+            if (attempt == 0)
+            {
+                await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = name })).ToBeVisibleAsync();
+            }
+        }
+
+        await Expect(Page.GetByText($"A connection named \"{name}\" already exists.")).ToBeVisibleAsync();
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = name })).ToHaveCountAsync(1);
+    }
 }

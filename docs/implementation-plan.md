@@ -1,6 +1,6 @@
 # Implementation plan — ADRs 0001 and 0002
 
-**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), B1 (background runs and history).
+**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), A2 (unique names), B1 (background runs and history).
 **Covers:** ADR 0001 (`docs/adr/0001-aspire-integration-and-provisioning.md`) and ADR 0002 (`docs/adr/0002-background-and-scheduled-test-runs.md`). The ADRs hold the decisions and their reasoning; this document only orders the work.
 
 Each step is one pull request that can be merged and shown on its own. Sizes: **S** — a day or so, **M** — a few days, **L** — a week or more.
@@ -22,7 +22,7 @@ Every later step needs an automatic safety net; today there's no `.github` direc
 - **Done when:** `docker pull ghcr.io/versussun/vroksnet` works, the container runs as non-root, and data on the volume persists.
 - **Risk:** existing volumes are owned by root. The runbook needs a note on fixing ownership when upgrading.
 
-### A2. Unique names for Publishers and Test Scenarios (S) — independent
+### A2. Unique names for Publishers and Test Scenarios (S) — ✅ done
 
 - A migration adding unique indexes. Existing duplicates are renamed with a ` (2)` suffix before the index is created.
 - Create/update validation: a taken name is a clear 400.

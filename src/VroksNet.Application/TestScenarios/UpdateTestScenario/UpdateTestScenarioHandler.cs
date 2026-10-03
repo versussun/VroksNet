@@ -11,7 +11,7 @@ public sealed class UpdateTestScenarioHandler(
 {
     public async ValueTask<bool> Handle(UpdateTestScenario request, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Name);
+        var name = UniqueNames.Normalize(request.Name, "test scenario");
 
         var scenario = await repository.FindByIdAsync(request.Id, cancellationToken);
         if (scenario is null)
@@ -19,12 +19,14 @@ public sealed class UpdateTestScenarioHandler(
             return false;
         }
 
+        UniqueNames.EnsureFree((await repository.FindByNameAsync(name, cancellationToken))?.Id, scenario.Id, "test scenario", name);
+
         var target = await TestScenarioTargetResolver.ResolveAsync(
             specifications, connections, request.SpecificationId, request.MockEndpointId, request.ConnectionId, cancellationToken);
         var (listenTimeoutSeconds, exchange) = TestScenarioTargetResolver.ValidateKindSettings(
             target, request.Kind, request.ListenTimeoutSeconds, request.Exchange);
 
-        scenario.Name = request.Name;
+        scenario.Name = name;
         scenario.SpecificationId = request.SpecificationId;
         scenario.MockEndpointId = request.MockEndpointId;
         scenario.ConnectionId = request.ConnectionId;

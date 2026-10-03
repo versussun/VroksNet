@@ -7,7 +7,7 @@ public sealed class UpdateConnectionHandler(IConnectionRepository repository) : 
 {
     public async ValueTask<bool> Handle(UpdateConnection request, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Name);
+        var name = UniqueNames.Normalize(request.Name, "connection");
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Value);
 
         var connection = await repository.FindByIdAsync(request.Id, cancellationToken);
@@ -16,7 +16,9 @@ public sealed class UpdateConnectionHandler(IConnectionRepository repository) : 
             return false;
         }
 
-        connection.Name = request.Name;
+        UniqueNames.EnsureFree((await repository.FindByNameAsync(name, cancellationToken))?.Id, connection.Id, "connection", name);
+
+        connection.Name = name;
         connection.ServiceType = request.ServiceType;
         connection.Value = request.Value;
         connection.UpdatedAt = DateTimeOffset.UtcNow;

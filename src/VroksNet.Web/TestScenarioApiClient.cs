@@ -39,6 +39,7 @@ public sealed class TestScenarioApiClient(HttpClient httpClient)
             form,
             JsonOptions,
             cancellationToken);
+        await ThrowIfRejectedAsync(response, cancellationToken);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<CreateTestScenarioResult>(JsonOptions, cancellationToken);
         return result!.Id;
@@ -56,6 +57,8 @@ public sealed class TestScenarioApiClient(HttpClient httpClient)
         {
             return false;
         }
+
+        await ThrowIfRejectedAsync(response, cancellationToken);
 
         response.EnsureSuccessStatusCode();
         return true;
@@ -125,5 +128,15 @@ public sealed class TestScenarioApiClient(HttpClient httpClient)
     {
         using var response = await httpClient.PostAsync($"/api/test-runs/{runId}/cancel", null, cancellationToken);
         return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>A 400 carries the reason (a blank or taken name, an incompatible operation/connection, ...) — surface it instead of a bare status code.</summary>
+    private static async Task ThrowIfRejectedAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemResponse>(JsonOptions, cancellationToken);
+            throw new InvalidOperationException(problem?.Detail ?? "The server rejected the test scenario.");
+        }
     }
 }

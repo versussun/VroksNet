@@ -14,6 +14,7 @@ public sealed class MigrationTests : IAsyncLifetime
 {
     private const string MigrationBeforeResponseSchemasByStatus = "20260909113627_AddTestScenarioLastRun";
     private const string MigrationBeforeCallHistory = "20261001221321_AddResponseSchemasByStatusAndCallRecordContract";
+    private const string MigrationBeforeUniqueNames = "20261003110717_AddTestRuns";
 
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"vroksnet-migration-test-{Guid.NewGuid():N}.db");
 
@@ -78,4 +79,59 @@ public sealed class MigrationTests : IAsyncLifetime
 
     private static void AssertClose(DateTimeOffset expected, DateTimeOffset actual)
         => Assert.True((expected - actual).Duration() < TimeSpan.FromMilliseconds(1), $"Expected {expected:O}, got {actual:O}.");
+
+    [Theory]
+    [InlineData("TestScenarios")]
+    [InlineData("Publishers")]
+    public async Task AddUniqueNames_RenamesExistingDuplicates_SoTheIndexCanBeCreated(string table)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var context = new VroksNetDbContext(new DbContextOptionsBuilder<VroksNetDbContext>().UseSqlite($"Data Source={_dbPath}").Options);
+        var migrator = context.GetService<IMigrator>();
+        await migrator.MigrateAsync(MigrationBeforeUniqueNames, cancellationToken: cancellationToken);
+
+        // Three "Orders" in creation order, an existing "Orders (2)" a rename would collide with,
+        // and a name that only differs by surrounding spaces.
+        string[] rows =
+        [
+            "('00000000-0000-0000-0000-000000000001', 'Orders', '2026-09-01 00:00:00+00:00')",
+            "('00000000-0000-0000-0000-000000000002', 'Orders', '2026-09-02 00:00:00+00:00')",
+            "('00000000-0000-0000-0000-000000000003', 'Orders', '2026-09-03 00:00:00+00:00')",
+            "('00000000-0000-0000-0000-000000000004', 'Orders (2)', '2026-08-01 00:00:00+00:00')",
+            "('00000000-0000-0000-0000-000000000005', ' Payments ', '2026-09-01 00:00:00+00:00')",
+            "('00000000-0000-0000-0000-000000000006', 'Payments', '2026-09-02 00:00:00+00:00')"
+        ];
+        var extraColumns = table == "Publishers" ? ", IntervalSeconds, IsEnabled" : ", Kind";
+        var extraValues = table == "Publishers" ? ", 5, 0" : ", 0";
+        foreach (var row in rows)
+        {
+            var values = row.TrimEnd(')') + $", '{Guid.Empty}', '{Guid.Empty}', '{Guid.Empty}', '2026-09-01 00:00:00+00:00'{extraValues})";
+            await context.Database.ExecuteSqlRawAsync(
+                $"INSERT INTO {table} (Id, Name, CreatedAt, SpecificationId, MockEndpointId, ConnectionId, UpdatedAt{extraColumns}) VALUES {values};",
+                cancellationToken);
+        }
+
+        await migrator.MigrateAsync(cancellationToken: cancellationToken);
+
+        var connection = context.Database.GetDbConnection();
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT Id, Name FROM {table} ORDER BY Id";
+        var names = new Dictionary<string, string>();
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                names[reader.GetString(0)[^1..]] = reader.GetString(1);
+            }
+        }
+
+        Assert.Equal("Orders", names["1"]);
+        Assert.StartsWith("Orders (2) [", names["2"]); // "Orders (2)" was taken by row 4
+        Assert.Equal("Orders (3)", names["3"]);
+        Assert.Equal("Orders (2)", names["4"]);
+        Assert.Equal("Payments", names["5"]);
+        Assert.Equal("Payments (2)", names["6"]);
+        Assert.Equal(names.Count, names.Values.Distinct().Count());
+    }
 }

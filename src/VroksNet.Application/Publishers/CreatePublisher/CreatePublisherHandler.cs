@@ -13,7 +13,7 @@ public sealed class CreatePublisherHandler(
     public async ValueTask<Guid> Handle(CreatePublisher request, CancellationToken cancellationToken)
     {
         var exchange = await PublisherRules.ValidateAsync(
-            specifications, connections, request.Name, request.SpecificationId, request.MockEndpointId, request.ConnectionId,
+            publishers, specifications, connections, null, request.Name, request.SpecificationId, request.MockEndpointId, request.ConnectionId,
             request.IntervalSeconds, request.Exchange, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
