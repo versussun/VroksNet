@@ -138,10 +138,13 @@ public sealed class ProvisioningPackageWriter : IProvisioningPackageWriter
     /// <summary>A flow map of quoted keys and values, <c>{ "qos": "1" }</c>; nothing when there are no options.</summary>
     private static void AddBrokerOptions(Item item, IReadOnlyDictionary<string, string?>? options)
     {
-        var set = options?.Where(option => option.Value is not null).ToList() ?? [];
+        var set = (options ?? new Dictionary<string, string?>())
+            .Where(option => option.Value is not null)
+            .Select(option => $"{Quote(option.Key)}: {Quote(option.Value ?? string.Empty)}")
+            .ToList();
         if (set.Count > 0)
         {
-            item.Add("brokerOptions", $"{{ {string.Join(", ", set.Select(option => $"{Quote(option.Key)}: {Quote(option.Value!)}"))} }}");
+            item.Add("brokerOptions", $"{{ {string.Join(", ", set)} }}");
         }
     }
 

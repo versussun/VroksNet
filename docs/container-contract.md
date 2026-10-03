@@ -82,7 +82,7 @@ Names are given in .NET environment-variable form (`:` → `__`).
 | `GET /health` | `200 Healthy` / `503 Unhealthy` | readiness: Unhealthy until provisioning has been applied (Healthy at once when there's no provisioning directory; `Degraded`, still 200, when it failed with `FailOnError=false`). This is what `WaitFor(mocks)` waits for | exists |
 | `GET /api/system/info` | see below | version, contract, provisioning state. The package shows it in the dashboard; consumers' tests wait on it | exists |
 | `GET /api/system/provider` | `{ enabled, port, publicUrl, corsOrigins }` | provider mode settings | exists |
-| `GET /api/system/connection-types` | `[{ type, displayName, valueLabel, valueHint, isHttp, canListen, listenNote }]` | the connection types this image supports and what each can do (ADR 0003). New types are added to the list, never removed within a contract version | exists |
+| `GET /api/system/connection-types` | `[{ type, displayName, valueLabel, valueHint, isHttp, canListen, listenNote, options: [{ name, label, sendDescription, sendPlaceholder, listenDescription, listenPlaceholder, suggestedValue }] }]` | the connection types this image supports, what each can do, and the `brokerOptions` each accepts (ADR 0003). New types are added to the list, never removed within a contract version | exists |
 
 The `GET /api/system/info` response:
 
