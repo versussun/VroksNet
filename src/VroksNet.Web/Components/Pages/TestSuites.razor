@@ -46,7 +46,13 @@ else
             {
                 var lastRun = _activeRuns.TryGetValue(suite.Id, out var active) ? active : suite.LastRun;
                 <tr>
-                    <td>@suite.Name</td>
+                    <td>
+                        @suite.Name<ProvisionedBadge ProvisionedAt="suite.ProvisionedAt" />
+                        @if (suite.RunOnStartup)
+                        {
+                            <span class="badge bg-light text-dark border ms-1" title="Runs once each time VroksNet starts">on startup</span>
+                        }
+                    </td>
                     <td class="small">@string.Join(", ", suite.Scenarios.Select(scenario => scenario.Name))</td>
                     <td>
                         @if (lastRun is null)
@@ -56,6 +62,10 @@ else
                         else
                         {
                             <span class="badge @StatusBadge(lastRun.Status)">@lastRun.Status</span>
+                            @if (lastRun.Trigger == TestRunTrigger.Startup)
+                            {
+                                <small class="text-muted ms-1">(at startup)</small>
+                            }
                             <br />
                             <small class="text-muted">@((lastRun.StartedAt ?? lastRun.ScheduledFor).ToLocalTime().ToString("g"))</small>
                         }
@@ -163,6 +173,12 @@ else
             }
         </fieldset>
 
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="suite-run-on-startup" @bind="_formRunOnStartup" />
+            <label class="form-check-label" for="suite-run-on-startup">Run on startup</label>
+            <div class="form-text">Once each time VroksNet starts, after provisioning. It doesn't delay readiness.</div>
+        </div>
+
         <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@(_isSaving || !CanSave)">
             @(_isSaving ? "Saving…" : _editingId is null ? "Add" : "Save changes")
         </button>
@@ -183,6 +199,7 @@ else
     private bool _isSaving;
     private Guid? _editingId;
     private string _formName = string.Empty;
+    private bool _formRunOnStartup;
     /// <summary>In the order they were ticked — the suite's order.</summary>
     private readonly List<Guid> _formScenarioIds = [];
 
@@ -203,6 +220,7 @@ else
     {
         _editingId = null;
         _formName = string.Empty;
+        _formRunOnStartup = false;
         _formScenarioIds.Clear();
         errorMessage = null;
         _isPanelOpen = true;
@@ -212,6 +230,7 @@ else
     {
         _editingId = suite.Id;
         _formName = suite.Name;
+        _formRunOnStartup = suite.RunOnStartup;
         _formScenarioIds.Clear();
         _formScenarioIds.AddRange(suite.Scenarios.Select(scenario => scenario.Id));
         errorMessage = null;
@@ -235,7 +254,7 @@ else
         errorMessage = null;
         try
         {
-            var form = new TestSuiteForm(_formName, [.. _formScenarioIds]);
+            var form = new TestSuiteForm(_formName, [.. _formScenarioIds], _formRunOnStartup);
             if (_editingId is { } id)
             {
                 if (!await TestSuiteApi.UpdateAsync(id, form))

@@ -92,13 +92,13 @@ The `GET /api/system/info` response:
     "status": "Applied",
     "appliedAt": "2026-10-02T18:30:00Z",
     "source": "/app/provisioning",
-    "counts": { "specifications": 3, "connections": 2, "publishers": 1, "testScenarios": 1 },
+    "counts": { "specifications": 3, "connections": 2, "publishers": 1, "testScenarios": 1, "testSuites": 1 },
     "errors": []
   }
 }
 ```
 
-`version` is the image's `VERSION` build arg (`0.0.0-dev` for local builds). `status`: `NotConfigured` (no directory and no `Provisioning__Connections__*`) · `Applying` · `Applied` · `Failed`. Each `errors[]` item is `{ "source": "specs/payments.yaml", "message": "…" }`. A connection value never appears in `message`.
+`counts.testSuites` was added with the manifest's `testSuites` (an addition, so still contract 1). `version` is the image's `VERSION` build arg (`0.0.0-dev` for local builds). `status`: `NotConfigured` (no directory and no `Provisioning__Connections__*`) · `Applying` · `Applied` · `Failed`. Each `errors[]` item is `{ "source": "specs/payments.yaml", "message": "…" }`. A connection value never appears in `message`.
 
 ## 7. Startup and exit codes
 
@@ -141,6 +141,7 @@ The package lives in its own repository. The table shows which contract item eac
 1. §2/§3: the `io.vroksnet.contract.version` label equals `ContainerContract.Version` in the code, the OCI labels are set, the user is `1654`, the entry point is `tini`, ports `8080`/`7353` are exposed, `/app/data` is a volume, and the shipped schema matches `docs/schemas/`;
 2. §4–§6: with every `docs/samples/*.yaml` mounted file by file into `/app/provisioning/specs`, `docs/samples/provisioning/vroksnet.yaml` as the manifest and `Provisioning__Connections__0__*`: `/health` reaches 200, `/alive` is 200, `GET /api/system/info` reports `contractVersion`, a version, `status = Applied`, `source`, the expected counts and no errors;
 3. §7: `docker stop` exits `0`; a second container on the same volume creates no duplicates;
+   and the manifest's `runOnStartup` suite (`smoke`) runs after provisioning and passes;
 4. §5: variables alone (no directory) provision, with `source = configuration`; nothing mounted gives `NotConfigured` and a healthy app;
 5. §7: a broken spec stops the container with exit code `3` and the log names the file; so does a connection named in both the manifest and a variable.
 

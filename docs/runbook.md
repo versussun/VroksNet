@@ -108,6 +108,7 @@ docker run -d --name vroksnet -p 8080:8080 -p 7353:7353 \
 - **Errors stop the container** with exit code `3`, after logging each one with its file or manifest entry (`docker logs vroksnet`). With `-e Provisioning__FailOnError=false` it keeps running with whatever did apply, and `/health` reports `Degraded` (still `200`).
 - A different directory: `Provisioning__Path`.
 - **Connections without files:** `-e Provisioning__Connections__0__Name=kafka -e Provisioning__Connections__0__Type=Kafka -e Provisioning__Connections__0__Value=broker:9092` (or `__ValueFrom=ConnectionStrings:kafka` instead of `__Value`). Indexes start at 0. These merge with the manifest's connections; the same name in both is an error. Variables alone, with no directory, are enough to provision.
+- **Test suites** in the manifest (`testSuites: [{ name, scenarios: [names], runOnStartup }]`) are applied after the scenarios. A suite with `runOnStartup: true` runs once after provisioning succeeds — the result is at `GET /api/test-suites/{name}/runs/latest`, and `/health` doesn't wait for it. In CI, wait for it with `scripts/run-test-suite.sh` or poll that endpoint.
 - **What was applied:** `GET /api/system/info` returns the version, the contract version and the provisioning report — status, counts and each error with its file, manifest entry or variable.
 
 ## Backup and restore

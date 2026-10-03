@@ -27,6 +27,11 @@
     "testScenarios": {
       "type": "array",
       "items": { "$ref": "#/$defs/testScenario" }
+    },
+    "testSuites": {
+      "description": "Applied after the test scenarios (ADR 0002, \"Suites\").",
+      "type": "array",
+      "items": { "$ref": "#/$defs/testSuite" }
     }
   },
   "$defs": {
@@ -99,6 +104,22 @@
         "exchange": { "description": "RabbitMQ only; omitted = the default exchange.", "type": "string" },
         "payloadOverride": { "description": "Message to publish instead of the spec's example; {{uuid}}/{{now}} are filled in.", "type": "string" },
         "enabled": { "type": "boolean", "default": true }
+      }
+    },
+    "testSuite": {
+      "type": "object",
+      "required": ["name", "scenarios"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "scenarios": {
+          "description": "Test scenario names, in order: Sends run in this order, after every Listen has subscribed.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "runOnStartup": { "description": "Run the suite once each time the container starts, after provisioning succeeds. It doesn't hold up /health.", "type": "boolean", "default": false }
       }
     },
     "testScenario": {

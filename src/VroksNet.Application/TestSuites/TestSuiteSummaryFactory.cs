@@ -16,6 +16,6 @@ internal static class TestSuiteSummaryFactory
             .ToList();
         var latest = (await suiteRuns.ListAsync(suite.Id, 1, cancellationToken)).FirstOrDefault();
         var lastRun = latest is null ? null : await SuiteRunDetailsFactory.BuildAsync(latest, suite, runs, scenariosById, cancellationToken);
-        return new TestSuiteSummary(suite.Id, suite.Name, scenarios, suite.UpdatedAt, lastRun);
+        return new TestSuiteSummary(suite.Id, suite.Name, scenarios, suite.RunOnStartup, suite.UpdatedAt, suite.ProvisionedAt, lastRun);
     }
 }

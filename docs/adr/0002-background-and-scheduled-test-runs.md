@@ -103,6 +103,11 @@ testSuites:
 
 A startup suite that's still running doesn't affect `/health`: "ready" means "the mocks are loaded", not "the tests passed". The result is collected through the suite API.
 
+(Implementation note, B5:
+- `runOnStartup` is stored on the suite, so a suite created in the UI can run at startup too.
+- `ProvisioningHostedService` queues the startup runs once provisioning is `Applied` or `NotConfigured`, never after `Failed`.
+- A suite-level `schedule` isn't implemented; the schema rejects it rather than ignoring it.)
+
 ### History retention
 
 - **The last N runs per scenario are kept** — `TestRuns:RetentionPerScenario`, default 100. The same worker deletes the rest in the background, through `IDbWriteQueue` (writes must never bypass the queue).

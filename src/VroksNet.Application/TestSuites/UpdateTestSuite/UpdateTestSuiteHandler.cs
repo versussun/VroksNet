@@ -20,6 +20,7 @@ public sealed class UpdateTestSuiteHandler(
         UniqueNames.EnsureFree((await suites.FindByNameAsync(name, cancellationToken))?.Id, suite.Id, "test suite", name);
         suite.TestScenarioIds = await TestSuiteScenarios.ValidateAsync(scenarios, request.TestScenarioIds, cancellationToken);
         suite.Name = name;
+        suite.RunOnStartup = request.RunOnStartup;
         suite.UpdatedAt = timeProvider.GetUtcNow();
         return await suites.UpdateAsync(suite, cancellationToken);
     }

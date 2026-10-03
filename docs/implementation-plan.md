@@ -1,6 +1,6 @@
 # Implementation plan — ADRs 0001 and 0002
 
-**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), A2 (unique names), A3 (provisioning core), A4 (connections from variables, `/api/system/info`), A5 (provisioning badge, example), A6 (contract check in CI), B1 (background runs and history), B2 (cron scheduling), B3 (delayed runs), B4 (test suites).
+**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), A2 (unique names), A3 (provisioning core), A4 (connections from variables, `/api/system/info`), A5 (provisioning badge, example), A6 (contract check in CI), B1 (background runs and history), B2 (cron scheduling), B3 (delayed runs), B4 (test suites), B5 (suites in the manifest, run on startup).
 **Covers:** ADR 0001 (`docs/adr/0001-aspire-integration-and-provisioning.md`) and ADR 0002 (`docs/adr/0002-background-and-scheduled-test-runs.md`). The ADRs hold the decisions and their reasoning; this document only orders the work.
 
 Each step is one pull request that can be merged and shown on its own. Sizes: **S** — a day or so, **M** — a few days, **L** — a week or more.
@@ -99,7 +99,7 @@ The largest step of track A.
 
 - **B3.** Delayed one-off runs (S). ✅ `runAt`/`delaySeconds` on `POST …/runs` (up to 30 days ahead), "Run later" in the UI, and Cancel for waiting runs in the history.
 - **B4.** Suites for CI (M). ✅ `TestSuite`/`SuiteRun`, Listens subscribed before Sends (`IMessageListener`'s `onListening`), `/api/test-suites/{name}/runs/latest`, the Test Suites page and `scripts/run-test-suite.sh`.
-- **B5.** `testSuites` and `runOnStartup` in the manifest (S) — after A3 and B4.
+- **B5.** `testSuites` and `runOnStartup` in the manifest (S) — after A3 and B4. ✅ Also a "Run on startup" checkbox on suites created in the UI, and `counts.testSuites` in `/api/system/info`. A suite `schedule` (in ADR 0002's example) isn't implemented: schedule its scenarios instead, or ask for it as a follow-up.
 
 ## Order
 

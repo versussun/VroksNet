@@ -11,6 +11,8 @@ using VroksNet.Application.Specifications.ImportAsyncApiSpec;
 using VroksNet.Application.Specifications.ImportOpenApiSpec;
 using VroksNet.Application.TestScenarios.CreateTestScenario;
 using VroksNet.Application.TestScenarios.UpdateTestScenario;
+using VroksNet.Application.TestSuites.CreateTestSuite;
+using VroksNet.Application.TestSuites.UpdateTestSuite;
 using VroksNet.Domain.ApiSpecifications;
 using VroksNet.Domain.TestScenarios;
 
@@ -18,7 +20,7 @@ namespace VroksNet.Application.Provisioning.ApplyProvisioning;
 
 /// <summary>
 /// Brings the database in line with the provisioning directory (ADR 0001), in dependency order:
-/// specs, connections, spec settings, Publishers, test scenarios. Everything goes through the same
+/// specs, connections, spec settings, Publishers, test scenarios, test suites. Everything goes through the same
 /// use cases as the UI and the API, so the same validation applies; objects are matched by name
 /// (specs by title), so applying it again changes nothing that already matches — "the file wins".
 /// <para>
@@ -35,6 +37,7 @@ public sealed class ApplyProvisioningHandler(
     IConnectionRepository connections,
     IPublisherRepository publishers,
     ITestScenarioRepository scenarios,
+    ITestSuiteRepository suites,
     IProvisionedMarker marker,
     ProvisioningState state,
     TimeProvider timeProvider) : IRequestHandler<ApplyProvisioning, ProvisioningReport>
@@ -84,11 +87,16 @@ public sealed class ApplyProvisioningHandler(
             await run.TryAsync($"testScenarios[{scenario.Name}]", () => ApplyTestScenarioAsync(scenario, run, cancellationToken));
         }
 
+        foreach (var suite in input.Manifest.TestSuites)
+        {
+            await run.TryAsync($"testSuites[{suite.Name}]", () => ApplyTestSuiteAsync(suite, run, cancellationToken));
+        }
+
         var report = new ProvisioningReport(
             run.Errors.Count == 0 ? ProvisioningStatus.Applied : ProvisioningStatus.Failed,
             input.Source,
             run.At,
-            new ProvisioningCounts(run.Specifications, run.Connections, run.Publishers, run.TestScenarios),
+            new ProvisioningCounts(run.Specifications, run.Connections, run.Publishers, run.TestScenarios, run.TestSuites),
             run.Errors);
         state.Set(report);
         return report;
@@ -227,6 +235,31 @@ public sealed class ApplyProvisioningHandler(
         run.TestScenarios++;
     }
 
+    private async Task ApplyTestSuiteAsync(ManifestTestSuite suite, Run run, CancellationToken cancellationToken)
+    {
+        var scenarioIds = new List<Guid>(suite.Scenarios.Count);
+        foreach (var name in suite.Scenarios)
+        {
+            scenarioIds.Add((await scenarios.FindByNameAsync(name.Trim(), cancellationToken))?.Id
+                ?? throw new InvalidOperationException($"No test scenario named \"{name}\"."));
+        }
+
+        var existing = await suites.FindByNameAsync(suite.Name.Trim(), cancellationToken);
+        Guid id;
+        if (existing is null)
+        {
+            id = await mediator.Send(new CreateTestSuite(suite.Name, scenarioIds, suite.RunOnStartup), cancellationToken);
+        }
+        else
+        {
+            id = existing.Id;
+            await mediator.Send(new UpdateTestSuite(existing.Id, suite.Name, scenarioIds, suite.RunOnStartup), cancellationToken);
+        }
+
+        await marker.MarkAsync(ProvisionedObject.TestSuite, id, run.At, cancellationToken);
+        run.TestSuites++;
+    }
+
     private async Task<ApiSpecification> FindSpecificationAsync(string title, CancellationToken cancellationToken)
         => await specifications.FindByTitleAsync(title, cancellationToken)
             ?? throw new InvalidOperationException($"No specification titled \"{title}\" — is its file in specs/?");
@@ -261,6 +294,8 @@ public sealed class ApplyProvisioningHandler(
         public int Publishers { get; set; }
 
         public int TestScenarios { get; set; }
+
+        public int TestSuites { get; set; }
 
         /// <summary>Runs one entry; a failure is recorded against <paramref name="source"/> and the rest carry on.</summary>
         public async Task TryAsync(string source, Func<Task> apply)

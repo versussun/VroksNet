@@ -28,10 +28,12 @@ public sealed class TestSuitesPageTests(AppHostFixture fixture) : PageTestBase(f
         await Expect(add).ToBeDisabledAsync(); // no scenarios ticked yet
         await Page.GetByLabel(first).CheckAsync();
         await Page.GetByLabel(second).CheckAsync();
+        await Page.GetByLabel("Run on startup").CheckAsync();
         await add.ClickAsync();
 
         var row = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = suiteName });
         await Expect(row).ToContainTextAsync($"{first}, {second}");
+        await Expect(row).ToContainTextAsync("on startup");
         await Expect(row).ToContainTextAsync("Never run");
 
         await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run", Exact = true }).ClickAsync();
@@ -48,7 +50,7 @@ public sealed class TestSuitesPageTests(AppHostFixture fixture) : PageTestBase(f
     private async Task<(string First, string Second)> CreateScenariosAsync(string suffix)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        using var api = fixture.App.CreateHttpClient("apiservice", "http");
+        using var api = Fixture.App.CreateHttpClient("apiservice", "http");
 
         using var import = new HttpRequestMessage(HttpMethod.Post, "/api/specifications/openapi")
         {
@@ -64,7 +66,7 @@ public sealed class TestSuitesPageTests(AppHostFixture fixture) : PageTestBase(f
         };
         var specificationId = (await (await api.SendAsync(import, cancellationToken)).Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!["id"]!.GetValue<Guid>();
         var endpointId = (await api.GetFromJsonAsync<JsonNode>($"/api/specifications/{specificationId}", cancellationToken))!["endpoints"]![0]!["id"]!.GetValue<Guid>();
-        var connectionId = await PostIdAsync(api, "/api/connections", new { Name = $"E2E Suite Self {suffix}", ServiceType = "Http", Value = fixture.ApiServiceHttpAddress.ToString() });
+        var connectionId = await PostIdAsync(api, "/api/connections", new { Name = $"E2E Suite Self {suffix}", ServiceType = "Http", Value = Fixture.ApiServiceHttpAddress.ToString() });
 
         var first = $"E2E Suite First {suffix}";
         var second = $"E2E Suite Second {suffix}";

@@ -6,5 +6,6 @@ public enum ProvisionedObject
     Specification,
     Connection,
     Publisher,
-    TestScenario
+    TestScenario,
+    TestSuite
 }

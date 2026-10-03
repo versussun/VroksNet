@@ -16,7 +16,7 @@ public sealed class CreateTestSuiteHandler(
         var scenarioIds = await TestSuiteScenarios.ValidateAsync(scenarios, request.TestScenarioIds, cancellationToken);
 
         var now = timeProvider.GetUtcNow();
-        var suite = new TestSuite { Id = Guid.NewGuid(), Name = name, TestScenarioIds = scenarioIds, CreatedAt = now, UpdatedAt = now };
+        var suite = new TestSuite { Id = Guid.NewGuid(), Name = name, TestScenarioIds = scenarioIds, RunOnStartup = request.RunOnStartup, CreatedAt = now, UpdatedAt = now };
         await suites.InsertAsync(suite, cancellationToken);
         return suite.Id;
     }

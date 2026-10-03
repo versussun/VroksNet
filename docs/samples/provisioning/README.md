@@ -1,14 +1,14 @@
 # Provisioning example
 
-Starts VroksNet already configured: two sample specs imported, connections, a Publisher and two
-test scenarios created. How provisioning works: [ADR 0001](../../adr/0001-aspire-integration-and-provisioning.md),
+Starts VroksNet already configured: two sample specs imported, connections, a Publisher, two
+test scenarios and a test suite created — and the suite run once at startup. How provisioning works: [ADR 0001](../../adr/0001-aspire-integration-and-provisioning.md),
 [container contract](../../container-contract.md) §4–§7, [runbook](../../runbook.md#provisioning).
 
 | Source | What it gives |
 |---|---|
 | `specs/bookstore-openapi.yaml` | the `Bookstore Sample API` REST mock |
 | `specs/shop-events-kafka-asyncapi.yaml` | the `Shop Events Kafka Sample` events |
-| [`vroksnet.yaml`](vroksnet.yaml) | the `bookstore-http` connection, a disabled operation, the `order-created` Publisher (off), the `list-books` (scheduled every 15 minutes) and `payments-settled` scenarios |
+| [`vroksnet.yaml`](vroksnet.yaml) | the `bookstore-http` connection, a disabled operation, the `order-created` Publisher (off), the `list-books` (scheduled every 15 minutes) and `payments-settled` scenarios, the `smoke` suite (run at startup) |
 | `Provisioning__Connections__0__*` | the `kafka` connection — declared by environment variables, the way the Aspire package passes `WithConnection(...)` |
 
 ## Run it
@@ -33,7 +33,8 @@ whole directory at `/app/provisioning/specs` works as well.
 
 ```bash
 curl -s localhost:8080/health             # 503 while applying, then Healthy
-curl -s localhost:8080/api/system/info    # "status":"Applied", counts 2 / 2 / 1 / 2
+curl -s localhost:8080/api/system/info    # "status":"Applied", counts 2 / 2 / 1 / 2 / 1
+curl -s localhost:8080/api/test-suites/smoke/runs/latest   # the startup run: "status":"Passed"
 ```
 
 In the Admin UI (<http://localhost:8080>) the provisioned objects carry a **Provisioned** badge.

@@ -35,3 +35,9 @@ testScenarios:
     operation: "shop.payments.{region}.settled:send"
     connection: kafka
     listenTimeoutSeconds: 120
+
+testSuites:
+  # Runs once at every start, against the container's own mock — see GET /api/test-suites/smoke/runs/latest.
+  - name: smoke
+    scenarios: [list-books]
+    runOnStartup: true

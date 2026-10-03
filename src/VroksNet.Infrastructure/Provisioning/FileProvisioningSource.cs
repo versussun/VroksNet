@@ -217,7 +217,8 @@ public sealed class FileProvisioningSource(IConfiguration configuration) : IProv
             (document.TestScenarios ?? []).Select(scenario => new ManifestTestScenario(
                 scenario.Name, scenario.Specification, scenario.Operation, scenario.Connection, scenario.Kind,
                 scenario.ListenTimeoutSeconds, scenario.Exchange, scenario.PayloadOverride,
-                scenario.Schedule?.Cron, scenario.Schedule?.TimeZone)).ToList());
+                scenario.Schedule?.Cron, scenario.Schedule?.TimeZone)).ToList(),
+            (document.TestSuites ?? []).Select(suite => new ManifestTestSuite(suite.Name, suite.Scenarios, suite.RunOnStartup ?? false)).ToList());
     }
 
     /// <summary>
@@ -260,7 +261,8 @@ public sealed class FileProvisioningSource(IConfiguration configuration) : IProv
         List<ConnectionEntry>? Connections,
         List<SpecificationEntry>? Specifications,
         List<PublisherEntry>? Publishers,
-        List<TestScenarioEntry>? TestScenarios);
+        List<TestScenarioEntry>? TestScenarios,
+        List<TestSuiteEntry>? TestSuites);
 
     private sealed record ConnectionEntry(string Name, ConnectionServiceType Type, string? Value, string? ValueFrom);
 
@@ -275,4 +277,6 @@ public sealed class FileProvisioningSource(IConfiguration configuration) : IProv
         int? ListenTimeoutSeconds, string? Exchange, string? PayloadOverride, ScheduleEntry? Schedule);
 
     private sealed record ScheduleEntry(string Cron, string? TimeZone);
+
+    private sealed record TestSuiteEntry(string Name, List<string> Scenarios, bool? RunOnStartup);
 }

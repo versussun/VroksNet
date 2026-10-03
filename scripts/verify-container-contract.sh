@@ -113,10 +113,19 @@ expect_eq "contractVersion" "$(jq -r .contractVersion <<<"$INFO")" "$CONTRACT_VE
 expect_eq "provisioning.status" "$(jq -r .provisioning.status <<<"$INFO")" Applied
 expect_eq "provisioning.source" "$(jq -r .provisioning.source <<<"$INFO")" /app/provisioning
 expect_eq "provisioning.counts" "$(jq -c .provisioning.counts <<<"$INFO")" \
-  "{\"specifications\":$SPEC_COUNT,\"connections\":2,\"publishers\":1,\"testScenarios\":2}"
+  "{\"specifications\":$SPEC_COUNT,\"connections\":2,\"publishers\":1,\"testScenarios\":2,\"testSuites\":1}"
 expect_eq "provisioning.errors" "$(jq -c .provisioning.errors <<<"$INFO")" "[]"
 [[ "$(jq -r '.provisioning.appliedAt // ""' <<<"$INFO")" != "" ]] || fail "appliedAt is empty"
 pass "provisioned from $SPEC_COUNT specs, the manifest and Provisioning__Connections__0: /health, /alive, /api/system/info"
+
+# The manifest's runOnStartup suite runs after provisioning, without holding up /health.
+for _ in $(seq 1 "$STARTUP_TIMEOUT"); do
+  SUITE_STATUS="$(curl -s "$URL/api/test-suites/smoke/runs/latest" | jq -r '.status // empty')"
+  [[ "$SUITE_STATUS" =~ ^(Passed|Failed|Cancelled|Interrupted)$ ]] && break
+  sleep 1
+done
+expect_eq "startup suite \"smoke\"" "$SUITE_STATUS" Passed
+pass "runOnStartup suite ran and passed"
 
 # --- §7: SIGTERM is a clean exit ---
 docker stop -t 30 "$CURRENT" >/dev/null
