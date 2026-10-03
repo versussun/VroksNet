@@ -68,10 +68,13 @@ public sealed class MessageSenderApiTests(AppHostFixture fixture)
         var natsConnectionString = await fixture.App.GetConnectionStringAsync("nats", cancellationToken);
         Assert.False(string.IsNullOrWhiteSpace(natsConnectionString));
 
-        // NATS core pub/sub has no queueing — the subscription must be live *before* the publish
-        // happens, so it's opened here and only awaited after kicking off (not finishing) the run.
+        // NATS core pub/sub has no queueing, so the subscription must be registered *before* the
+        // scenario publishes. SubscribeCoreAsync only queues the SUB; the server handles commands in
+        // order, so the PONG proves it's registered. (A SubscribeAsync enumerator doesn't subscribe
+        // until its first MoveNextAsync, which raced the publish and lost on slower CI runners.)
         await using var natsConnection = new NatsConnection(new NatsOpts { Url = natsConnectionString! });
-        await using var enumerator = natsConnection.SubscribeAsync<string>(subject, cancellationToken: cancellationToken).GetAsyncEnumerator(cancellationToken);
+        await using var subscription = await natsConnection.SubscribeCoreAsync<string>(subject, cancellationToken: cancellationToken);
+        await natsConnection.PingAsync(cancellationToken);
 
         var (specificationId, endpointId) = await ImportAsyncApiSpecAsync(client, suffix, subject, cancellationToken);
         var connectionId = await CreateConnectionAsync(client, suffix, "Nats", natsConnectionString!, cancellationToken);
@@ -79,8 +82,12 @@ public sealed class MessageSenderApiTests(AppHostFixture fixture)
 
         var runTask = client.PostAsync($"/api/test-scenarios/{scenarioId}/run", null, cancellationToken);
 
-        Assert.True(await enumerator.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), cancellationToken));
-        Assert.Contains("ord_1", enumerator.Current.Data);
+        // Times out by cancelling the read rather than abandoning it, so nothing is left pending
+        // when the subscription is disposed.
+        using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        receiveCts.CancelAfter(TimeSpan.FromSeconds(30));
+        var message = await subscription.Msgs.ReadAsync(receiveCts.Token);
+        Assert.Contains("ord_1", message.Data);
 
         var runResponse = await runTask;
         Assert.Equal(HttpStatusCode.OK, runResponse.StatusCode);

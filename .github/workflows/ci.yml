@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# A new push to the same PR/branch cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+# Three parallel jobs, so the fast unit tests don't wait for the broker containers the
+# integration and E2E tests boot through the AppHost. Each job builds on its own; the build is
+# quick next to the container start-up.
+#
+# Tests run the built test assembly directly (xUnit v3 on Microsoft.Testing.Platform) rather than
+# through `dotnet test`, which only prints "Failed: N" here and hides which test failed and why.
+jobs:
+  unit:
+    name: Build & unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      - run: dotnet restore VroksNet.slnx
+      - run: dotnet build VroksNet.slnx --no-restore
+      - run: dotnet tests/VroksNet.UnitTests/bin/Debug/net10.0/VroksNet.UnitTests.dll
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      # ApiService serves https with the ASP.NET Core dev certificate, and the tests call it over
+      # https. On Linux, --trust puts the certificate in ~/.aspnet/dev-certs/trust, which OpenSSL
+      # only reads when it's on SSL_CERT_DIR.
+      - name: Trust the dev certificate
+        # Exit code 4 means "trusted by some clients but not others": OpenSSL (what .NET uses)
+        # trusts it, the browsers' NSS store doesn't. That's enough here, so 4 counts as success.
+        run: |
+          dotnet dev-certs https --trust || code=$?
+          if [ "${code:-0}" -ne 0 ] && [ "${code:-0}" -ne 4 ]; then exit "$code"; fi
+          echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs" >> "$GITHUB_ENV"
+
+      - run: dotnet restore VroksNet.slnx
+      - run: dotnet build VroksNet.slnx --no-restore
+      # Boots the real AppHost graph: RabbitMQ, NATS and Kafka run as Docker containers.
+      - run: dotnet tests/VroksNet.IntegrationTests/bin/Debug/net10.0/VroksNet.IntegrationTests.dll
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+
+      # The browser ignores certificate errors (PageTestBase), but ApiService still needs a dev
+      # certificate to serve https at all.
+      - name: Trust the dev certificate
+        # Exit code 4 means "trusted by some clients but not others": OpenSSL (what .NET uses)
+        # trusts it, the browsers' NSS store doesn't. That's enough here, so 4 counts as success.
+        run: |
+          dotnet dev-certs https --trust || code=$?
+          if [ "${code:-0}" -ne 0 ] && [ "${code:-0}" -ne 4 ]; then exit "$code"; fi
+          echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs" >> "$GITHUB_ENV"
+
+      - run: dotnet restore VroksNet.slnx
+      - run: dotnet build VroksNet.slnx --no-restore
+
+      - name: Install Playwright Chromium
+        run: pwsh tests/VroksNet.E2ETests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
+
+      - run: dotnet tests/VroksNet.E2ETests/bin/Debug/net10.0/VroksNet.E2ETests.dll
