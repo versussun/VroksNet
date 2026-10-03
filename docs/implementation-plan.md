@@ -1,6 +1,6 @@
 # Implementation plan — ADRs 0001 and 0002
 
-**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), A2 (unique names), B1 (background runs and history).
+**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), A2 (unique names), A3 (provisioning core), B1 (background runs and history).
 **Covers:** ADR 0001 (`docs/adr/0001-aspire-integration-and-provisioning.md`) and ADR 0002 (`docs/adr/0002-background-and-scheduled-test-runs.md`). The ADRs hold the decisions and their reasoning; this document only orders the work.
 
 Each step is one pull request that can be merged and shown on its own. Sizes: **S** — a day or so, **M** — a few days, **L** — a week or more.
@@ -29,7 +29,7 @@ Every later step needs an automatic safety net; today there's no `.github` direc
 - **Why:** the manifest references objects by name. Prerequisite for A3.
 - **Done when:** the migration succeeds on a database with duplicates (a repository test on real SQLite).
 
-### A3. Provisioning core (L) — after A2
+### A3. Provisioning core (L) — ✅ done
 
 The largest step of track A.
 

@@ -36,6 +36,8 @@ COPY src/VroksNet.Application/ src/VroksNet.Application/
 COPY src/VroksNet.Domain/ src/VroksNet.Domain/
 COPY src/VroksNet.Infrastructure/ src/VroksNet.Infrastructure/
 COPY src/VroksNet.ServiceDefaults/ src/VroksNet.ServiceDefaults/
+# Embedded by VroksNet.Infrastructure: the provisioning manifest schema.
+COPY docs/schemas/ docs/schemas/
 RUN dotnet publish src/VroksNet.ApiService/VroksNet.ApiService.csproj -c Release -o /app/api --no-restore \
     -p:InformationalVersion=$VERSION
 # The portable publish carries native libraries (librdkafka, SQLite) for every OS and CPU under
@@ -76,6 +78,8 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=api-build /app/api .
 COPY --from=web-build /app/web/wwwroot ./wwwroot
+# For tooling outside the container (docs/container-contract.md §4); the app uses its embedded copy.
+COPY docs/schemas/provisioning-manifest.v1.schema.json ./provisioning-manifest.v1.schema.json
 
 # SQLite file lives on a mounted volume so data survives container recreation (see
 # docs/project-brief.md section 3 "Storage: decision"). The directory belongs to the image's

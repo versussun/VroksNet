@@ -11,6 +11,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The provisioning manifest's schema lives with the docs (the Aspire package's repository
+         validates against the same file); FileProvisioningSource reads this embedded copy. -->
+    <EmbeddedResource Include="..\..\docs\schemas\provisioning-manifest.v1.schema.json"
+                      LogicalName="VroksNet.Infrastructure.Provisioning.provisioning-manifest.v1.schema.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="JsonPath.Net" />
     <PackageReference Include="JsonSchema.Net" />

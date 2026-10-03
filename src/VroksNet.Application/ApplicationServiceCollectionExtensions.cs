@@ -27,6 +27,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<TestScenarios.TestScenarioExecutor>();
         // The tokens of the runs executing in this process, so a running one can be cancelled.
         services.AddSingleton<TestRuns.TestRunCancellations>();
+        // The latest provisioning report, read by the health check and the system-info endpoint.
+        services.AddSingleton<Provisioning.ProvisioningState>();
 
         return services;
     }

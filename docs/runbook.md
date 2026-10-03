@@ -82,6 +82,31 @@ Startup fails on purpose (check `docker logs vroksnet`) when:
 - `Provider:Port` isn't between 1 and 65535, or equals one of the API's own ports.
 - `Provider:Port` is set together with `Kestrel:Endpoints` configuration. Use one or the other.
 
+## Provisioning
+
+To start an instance already configured — specs imported, connections, Publishers and test scenarios created — mount a directory at `/app/provisioning`:
+
+```
+provisioning/
+  specs/          OpenAPI / Swagger / AsyncAPI files, any depth; the kind comes from the document itself
+  vroksnet.yaml   optional: connections, spec settings, Publishers, test scenarios
+```
+
+```bash
+docker run -d --name vroksnet -p 8080:8080 -p 7353:7353 \
+  -v vroksnet-data:/app/data \
+  -v "$PWD/provisioning":/app/provisioning:ro \
+  -e ConnectionStrings__orders=amqp://user:pass@rabbit:5672 \
+  ghcr.io/versussun/vroksnet:latest
+```
+
+- **The manifest** follows `docs/schemas/provisioning-manifest.v1.schema.json` (also in the image at `/app/provisioning-manifest.v1.schema.json`); ADR 0001 has a full example. Everything is referenced by name, specs by their `info.title`.
+- **Secrets:** a connection can take its value from configuration instead of the file — `valueFrom: ConnectionStrings:orders` reads the `ConnectionStrings__orders` variable.
+- **Every start applies it again.** Specs are re-imported (an update in place), and provisioned objects are brought back in line with the file — edits made to them in the UI are lost. Objects created in the UI aren't touched. Removing something from the manifest doesn't delete it.
+- **Readiness:** `/health` answers `503` until provisioning has been applied.
+- **Errors stop the container** with exit code `3`, after logging each one with its file or manifest entry (`docker logs vroksnet`). With `-e Provisioning__FailOnError=false` it keeps running with whatever did apply, and `/health` reports `Degraded` (still `200`).
+- A different directory: `Provisioning__Path`.
+
 ## Backup and restore
 
 The database runs in WAL mode, so `vroksnet.db` alone is not a consistent copy while the app is running. The `-wal` and `-shm` files next to it hold recent writes. Stop the container and copy the whole volume:

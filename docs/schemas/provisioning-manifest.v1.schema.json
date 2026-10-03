@@ -114,7 +114,7 @@
           "description": "Defaults as in the Admin UI: Listen for an AsyncAPI \"send\" operation, Send otherwise.",
           "enum": ["Send", "Listen"]
         },
-        "listenTimeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 80 },
+        "listenTimeoutSeconds": { "description": "Up to 30 minutes; over 80 seconds the scenario only runs in the background.", "type": "integer", "minimum": 1, "maximum": 1800 },
         "exchange": { "description": "RabbitMQ only.", "type": "string" },
         "payloadOverride": { "type": "string" }
       }
