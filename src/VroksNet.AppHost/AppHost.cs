@@ -81,4 +81,4 @@ builder.AddProject<Projects.VroksNet_Web>("webfrontend")
     .WithExternalHttpEndpoints()
     .WaitFor(apiService);
 
-builder.Build().Run();
+await builder.Build().RunAsync();
