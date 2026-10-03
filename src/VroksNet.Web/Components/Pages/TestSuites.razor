@@ -1,0 +1,348 @@
+@page "/test-suites"
+@inject TestSuiteApiClient TestSuiteApi
+@inject TestScenarioApiClient TestScenarioApi
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>Test Suites</PageTitle>
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h1>Test Suites</h1>
+        <p class="text-muted mb-0">
+            Run several test scenarios together. Listens start first, and Sends only once every Listen is subscribed, so a suite can check a whole chain.
+            A pipeline runs one with <code>scripts/run-test-suite.sh &lt;url&gt; &lt;suite name&gt;</code>.
+        </p>
+    </div>
+    <button type="button" class="btn btn-primary text-nowrap ms-3" @onclick="OpenAddPanel">+ Add test suite</button>
+</div>
+
+@if (errorMessage is not null)
+{
+    <p class="text-danger">@errorMessage</p>
+}
+
+@if (_suites is null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (_suites.Length == 0)
+{
+    <p><em>No test suites yet.</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Scenarios</th>
+                <th>Last run</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var suite in _suites)
+            {
+                var lastRun = _activeRuns.TryGetValue(suite.Id, out var active) ? active : suite.LastRun;
+                <tr>
+                    <td>@suite.Name</td>
+                    <td class="small">@string.Join(", ", suite.Scenarios.Select(scenario => scenario.Name))</td>
+                    <td>
+                        @if (lastRun is null)
+                        {
+                            <span class="text-muted">Never run</span>
+                        }
+                        else
+                        {
+                            <span class="badge @StatusBadge(lastRun.Status)">@lastRun.Status</span>
+                            <br />
+                            <small class="text-muted">@((lastRun.StartedAt ?? lastRun.ScheduledFor).ToLocalTime().ToString("g"))</small>
+                        }
+                    </td>
+                    <td class="text-nowrap">
+                        @if (_activeRuns.TryGetValue(suite.Id, out var running) && !running.IsFinished)
+                        {
+                            <button type="button" class="btn btn-outline-primary btn-sm" disabled>Running…</button>
+                            <button type="button" class="btn btn-outline-warning btn-sm ms-1" @onclick="() => TestSuiteApi.CancelRunAsync(running.Id)">Stop</button>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => RunAsync(suite)">Run</button>
+                        }
+                        <button type="button" class="btn btn-outline-secondary btn-sm ms-1" aria-expanded="@_details.ContainsKey(suite.Id)" @onclick="() => ToggleDetailsAsync(suite)">Runs</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm ms-1" @onclick="() => StartEdit(suite)">Edit</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm ms-1" @onclick="() => DeleteAsync(suite)">Delete</button>
+                    </td>
+                </tr>
+                @if (_details.TryGetValue(suite.Id, out var runs))
+                {
+                    <tr class="table-light">
+                        <td colspan="4">
+                            @if (runs.Length == 0)
+                            {
+                                <span class="text-muted small">No runs yet.</span>
+                            }
+                            @foreach (var run in runs)
+                            {
+                                <div class="mb-2" role="region" aria-label="@($"Suite run {run.Id}")">
+                                    <div>
+                                        <span class="badge @StatusBadge(run.Status)">@run.Status</span>
+                                        <small class="text-muted ms-1">@((run.StartedAt ?? run.ScheduledFor).ToLocalTime().ToString("g"))</small>
+                                        <small class="ms-1">@run.Message</small>
+                                    </div>
+                                    <table class="table table-sm mb-0" aria-label="@($"Scenarios of suite run {run.Id}")">
+                                        <tbody>
+                                            @foreach (var entry in run.Runs)
+                                            {
+                                                <tr>
+                                                    <td style="width: 9rem"><span class="badge @StatusBadge(entry.Status)">@entry.Status</span></td>
+                                                    <td>
+                                                        @entry.ScenarioName
+                                                        @if (entry.Kind == TestScenarioKind.Listen)
+                                                        {
+                                                            <span class="badge bg-info text-dark ms-1">Listen</span>
+                                                        }
+                                                    </td>
+                                                    <td class="small">@entry.Message</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+}
+
+@if (_isPanelOpen)
+{
+    <div class="suite-panel-backdrop" @onclick="ClosePanel"></div>
+}
+
+<aside class="suite-panel @(_isPanelOpen ? "open" : "")">
+    <div class="suite-panel-header">
+        <h3 class="h6 mb-0">@(_editingId is null ? "Add test suite" : "Edit test suite")</h3>
+        <button type="button" class="btn-close" aria-label="Close" @onclick="ClosePanel"></button>
+    </div>
+
+    <div class="suite-panel-body">
+        <div class="mb-3">
+            <label class="form-label" for="suite-name-input">Name</label>
+            <input id="suite-name-input" class="form-control" @bind="_formName" @bind:event="oninput" placeholder="e.g. payments-contract" />
+            <div class="form-text">A pipeline runs the suite by this name.</div>
+        </div>
+
+        <fieldset class="mb-3">
+            <legend class="form-label fs-6">Scenarios</legend>
+            @if (_scenarios is null || _scenarios.Length == 0)
+            {
+                <p class="text-muted small">No test scenarios yet — add some on the Test Scenarios page first.</p>
+            }
+            else
+            {
+                @foreach (var scenario in _scenarios)
+                {
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="@($"suite-scenario-{scenario.Id}")"
+                               checked="@_formScenarioIds.Contains(scenario.Id)" @onchange="e => ToggleScenario(scenario.Id, e.Value is true)" />
+                        <label class="form-check-label" for="@($"suite-scenario-{scenario.Id}")">
+                            @scenario.Name
+                            @if (scenario.Kind == TestScenarioKind.Listen)
+                            {
+                                <span class="badge bg-info text-dark ms-1">Listen</span>
+                            }
+                        </label>
+                    </div>
+                }
+                <div class="form-text">Sends run in the order you tick them.</div>
+            }
+        </fieldset>
+
+        <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@(_isSaving || !CanSave)">
+            @(_isSaving ? "Saving…" : _editingId is null ? "Add" : "Save changes")
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm ms-2" @onclick="ClosePanel">Cancel</button>
+    </div>
+</aside>
+
+@code {
+    private TestSuiteSummary[]? _suites;
+    private TestScenarioSummary[]? _scenarios;
+    /// <summary>Suite id → the run this page started and is polling.</summary>
+    private readonly Dictionary<Guid, SuiteRunDetails> _activeRuns = [];
+    /// <summary>Suite id → its recent runs, for the suites whose Runs is open.</summary>
+    private readonly Dictionary<Guid, SuiteRunDetails[]> _details = [];
+    private readonly CancellationTokenSource _pageCts = new();
+    private string? errorMessage;
+    private bool _isPanelOpen;
+    private bool _isSaving;
+    private Guid? _editingId;
+    private string _formName = string.Empty;
+    /// <summary>In the order they were ticked — the suite's order.</summary>
+    private readonly List<Guid> _formScenarioIds = [];
+
+    private const int RunsShown = 5;
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1.5);
+
+    private bool CanSave => !string.IsNullOrWhiteSpace(_formName) && _formScenarioIds.Count > 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _scenarios = await TestScenarioApi.GetAllAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _suites = await TestSuiteApi.GetAllAsync();
+
+    private void OpenAddPanel()
+    {
+        _editingId = null;
+        _formName = string.Empty;
+        _formScenarioIds.Clear();
+        errorMessage = null;
+        _isPanelOpen = true;
+    }
+
+    private void StartEdit(TestSuiteSummary suite)
+    {
+        _editingId = suite.Id;
+        _formName = suite.Name;
+        _formScenarioIds.Clear();
+        _formScenarioIds.AddRange(suite.Scenarios.Select(scenario => scenario.Id));
+        errorMessage = null;
+        _isPanelOpen = true;
+    }
+
+    private void ClosePanel() => _isPanelOpen = false;
+
+    private void ToggleScenario(Guid id, bool selected)
+    {
+        _formScenarioIds.Remove(id);
+        if (selected)
+        {
+            _formScenarioIds.Add(id);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _isSaving = true;
+        errorMessage = null;
+        try
+        {
+            var form = new TestSuiteForm(_formName, [.. _formScenarioIds]);
+            if (_editingId is { } id)
+            {
+                if (!await TestSuiteApi.UpdateAsync(id, form))
+                {
+                    errorMessage = "That test suite no longer exists — it may have been deleted elsewhere.";
+                }
+            }
+            else
+            {
+                await TestSuiteApi.CreateAsync(form);
+            }
+
+            _isPanelOpen = false;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to save test suite: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task DeleteAsync(TestSuiteSummary suite)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete test suite '{suite.Name}'? Its run history stays."))
+        {
+            return;
+        }
+
+        await TestSuiteApi.DeleteAsync(suite.Id);
+        _details.Remove(suite.Id);
+        await LoadAsync();
+    }
+
+    /// <summary>Starts a run on the server and polls it until it finishes, refreshing the open run list as it goes.</summary>
+    private async Task RunAsync(TestSuiteSummary suite)
+    {
+        errorMessage = null;
+        try
+        {
+            var suiteRunId = await TestSuiteApi.StartRunAsync(suite.Id, _pageCts.Token);
+            if (suiteRunId is null)
+            {
+                errorMessage = "That test suite no longer exists — it may have been deleted elsewhere.";
+                return;
+            }
+
+            SuiteRunDetails? run;
+            do
+            {
+                run = await TestSuiteApi.GetRunAsync(suiteRunId.Value, _pageCts.Token);
+                if (run is not null)
+                {
+                    _activeRuns[suite.Id] = run;
+                    if (_details.ContainsKey(suite.Id))
+                    {
+                        _details[suite.Id] = await TestSuiteApi.GetRunsAsync(suite.Id, RunsShown, _pageCts.Token);
+                    }
+
+                    StateHasChanged();
+                }
+
+                if (run is { IsFinished: false })
+                {
+                    await Task.Delay(PollInterval, _pageCts.Token);
+                }
+            }
+            while (run is { IsFinished: false });
+
+            await LoadAsync();
+        }
+        catch (OperationCanceledException) when (_pageCts.IsCancellationRequested)
+        {
+            // The page went away; the run carries on on the server.
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Couldn't run '{suite.Name}': {ex.Message}";
+        }
+        finally
+        {
+            _activeRuns.Remove(suite.Id);
+        }
+    }
+
+    private async Task ToggleDetailsAsync(TestSuiteSummary suite)
+    {
+        if (!_details.Remove(suite.Id))
+        {
+            _details[suite.Id] = await TestSuiteApi.GetRunsAsync(suite.Id, RunsShown, _pageCts.Token);
+        }
+    }
+
+    private static string StatusBadge(TestRunStatus status) => status switch
+    {
+        TestRunStatus.Passed => "bg-success",
+        TestRunStatus.Failed => "bg-danger",
+        TestRunStatus.Running or TestRunStatus.Queued => "bg-primary",
+        _ => "bg-secondary"
+    };
+
+    public void Dispose()
+    {
+        _pageCts.Cancel();
+        _pageCts.Dispose();
+    }
+}

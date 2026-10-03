@@ -206,14 +206,16 @@ public sealed class TestRunHandlersTests
 
     private ExecuteTestRunHandler ExecuteHandler(IMessageSender? sender = null, IMessageListener? listener = null) => new(
         _runs,
-        _scenarios,
-        TestRunHandlers.Executor(
-            _scenarios, _specifications, _connections,
-            sender ?? new FakeMessageSender(new MessageSendResult(true, "200 OK")),
-            listener ?? new FakeMessageListener(new MessageListenResult(false, "unused")),
-            new SchemaValidator(), _callRecords),
-        _cancellations,
-        TimeProvider.System);
+        new TestRunRunner(
+            _runs,
+            _scenarios,
+            TestRunHandlers.Executor(
+                _scenarios, _specifications, _connections,
+                sender ?? new FakeMessageSender(new MessageSendResult(true, "200 OK")),
+                listener ?? new FakeMessageListener(new MessageListenResult(false, "unused")),
+                new SchemaValidator(), _callRecords),
+            _cancellations,
+            TimeProvider.System));
 
     private async Task<Guid> ArrangeHttpScenarioAsync() => await ArrangeScenarioAsync(_httpEndpointId, _httpConnectionId, TestScenarioKind.Send, null);
 
@@ -263,8 +265,9 @@ public sealed class TestRunHandlersTests
     /// <summary>A broker listen that never receives anything and only ends when cancelled, like a real long Listen.</summary>
     private sealed class BlockingMessageListener : IMessageListener
     {
-        public async Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, string exchange, CancellationToken cancellationToken)
+        public async Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
         {
+            onListening?.Invoke();
             await Task.Delay(Timeout.Infinite, cancellationToken);
             return new MessageListenResult(false, "unreachable");
         }

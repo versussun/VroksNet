@@ -92,8 +92,50 @@ A run:
 ```
 
 - `status`: `Queued` → `Running` → `Passed`, `Failed`, `Cancelled`, or `Interrupted` (the app stopped while it ran).
-- `trigger`: `Manual` — someone ran it, from the UI or the API.
+- `trigger`: `Manual` (someone ran it, from the UI or the API), `Schedule` (the scenario's cron schedule), `Delayed` (a run queued for later), `Suite` (part of a suite run).
 - The run's traffic is in the call history: `GET /api/call-records?testRunId={id}`.
+
+## Test suites
+
+A suite is a named list of scenarios run together — the unit a CI pipeline runs. A suite run starts **every Listen first**, and the Sends only once each Listen is subscribed (or has failed, or 30 seconds passed), so a suite can check a whole chain: send a command → the service handles it → it publishes an event → the Listen catches it. Sends then run one after another in the suite's order. The suite passes only if every run passed. `{suite}` is the suite's id or its name.
+
+| Method & path | Body / query | Returns |
+|---|---|---|
+| `POST /api/test-suites` | `{ "name", "testScenarioIds": ["…"] }` | `{ "id" }`; `400` for a blank or taken name, no scenarios, a repeat or an unknown scenario |
+| `GET /api/test-suites` | | `[{ "id", "name", "scenarios": [{ "id", "name", "kind" }], "updatedAt", "lastRun" }]` |
+| `GET /api/test-suites/{suite}` | | one suite; `404` |
+| `PUT /api/test-suites/{id}` | same as create | `204` / `404` / `400` |
+| `DELETE /api/test-suites/{id}` | | `204` / `404`; its run history stays |
+| `POST /api/test-suites/{suite}/runs` | | `202 { "suiteRunId" }` with `Location: /api/suite-runs/{suiteRunId}`; `404` |
+| `GET /api/test-suites/{suite}/runs` | `limit` (default 20, max 100) | the suite's runs, newest first; `404` |
+| `GET /api/test-suites/{suite}/runs/latest` | | the latest run; `404` if the suite doesn't exist or hasn't run |
+| `GET /api/suite-runs/{id}` | | one suite run, see below; `404` |
+| `POST /api/suite-runs/{id}/cancel` | | `204` — it stops with its runs; `404`; `409` if it has already finished |
+
+A suite run:
+
+```json
+{
+  "id": "…",
+  "testSuiteId": "…",
+  "suiteName": "payments-contract",
+  "status": "Failed",
+  "trigger": "Manual",
+  "scheduledFor": "…", "startedAt": "…", "finishedAt": "…",
+  "message": "1 of 2 passed. Failed: order-created-listen.",
+  "runs": [
+    { "testScenarioId": "…", "scenarioName": "payments-get", "kind": "Send", "testRunId": "…", "status": "Passed", "message": "200 OK" },
+    { "testScenarioId": "…", "scenarioName": "order-created-listen", "kind": "Listen", "testRunId": "…", "status": "Failed", "message": "No message on subject \"orders.created\" within 30s." }
+  ],
+  "failed": ["order-created-listen"]
+}
+```
+
+- `status` as for a run; `failed` lists the scenarios whose run didn't pass, once the suite run has finished.
+- Each scenario's run is also in `/api/test-runs` with `trigger: "Suite"`, and its traffic in the call history.
+- A scenario deleted since the suite was saved stays listed as `(deleted scenario)` and fails its run.
+- At most one run per suite at a time; a suite run takes one of the four background slots.
+- **In CI:** `scripts/run-test-suite.sh <url> <suite>` starts the suite, waits, prints each scenario's result and exits `0` when it passed, `1` when it didn't, `2` when it couldn't run (see the runbook).
 
 ## Mock and provider mode (Type 3)
 

@@ -63,7 +63,7 @@ public sealed class TestRunRepository(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         return await context.TestRuns.AsNoTracking()
-            .Where(run => run.Status == TestRunStatus.Queued && run.ScheduledFor <= now)
+            .Where(run => run.Status == TestRunStatus.Queued && run.ScheduledFor <= now && run.SuiteRunId == null)
             .OrderBy(run => run.ScheduledFor)
             .ToListAsync(cancellationToken);
     }
@@ -127,6 +127,30 @@ public sealed class TestRunRepository(
                 .Where(run => run.Status == TestRunStatus.Running)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(run => run.Status, TestRunStatus.Interrupted)
+                    .SetProperty(run => run.FinishedAt, at)
+                    .SetProperty(run => run.Message, message), ct);
+        }, cancellationToken);
+
+        return updated;
+    }
+
+    public async Task<IReadOnlyList<TestRun>> ListBySuiteRunAsync(Guid suiteRunId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var runs = await context.TestRuns.AsNoTracking().Where(run => run.SuiteRunId == suiteRunId).ToListAsync(cancellationToken);
+        // Inserted with ScheduledFor one tick apart, in the suite's order.
+        return runs.OrderBy(run => run.ScheduledFor).ToList();
+    }
+
+    public async Task<int> CancelQueuedBySuiteRunAsync(Guid suiteRunId, DateTimeOffset at, string message, CancellationToken cancellationToken)
+    {
+        var updated = 0;
+        await writeQueue.EnqueueAsync(async (context, ct) =>
+        {
+            updated = await context.TestRuns
+                .Where(run => run.SuiteRunId == suiteRunId && run.Status == TestRunStatus.Queued)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(run => run.Status, TestRunStatus.Cancelled)
                     .SetProperty(run => run.FinishedAt, at)
                     .SetProperty(run => run.Message, message), ct);
         }, cancellationToken);

@@ -4,5 +4,6 @@ public enum TestRunTrigger
 {
     Manual,
     Schedule,
-    Delayed
+    Delayed,
+    Suite
 }

@@ -35,7 +35,8 @@ public sealed class TestScenarioExecutor(
     ISchemaValidator schemaValidator,
     ICallRecordRepository callRecords)
 {
-    public async Task<RunTestScenarioResult> ExecuteAsync(TestScenario scenario, Guid testRunId, CancellationToken cancellationToken)
+    /// <param name="onListening">For a Listen scenario: called once it's subscribed (see <see cref="IMessageListener.ListenAsync"/>).</param>
+    public async Task<RunTestScenarioResult> ExecuteAsync(TestScenario scenario, Guid testRunId, CancellationToken cancellationToken, Action? onListening = null)
     {
         var specification = await specifications.FindByIdAsync(scenario.SpecificationId, cancellationToken);
         var endpoint = specification?.Endpoints.FirstOrDefault(e => e.Id == scenario.MockEndpointId);
@@ -49,7 +50,7 @@ public sealed class TestScenarioExecutor(
         }
 
         var outcome = scenario.Kind == TestScenarioKind.Listen
-            ? await ListenAsync(scenario, endpoint, connection, cancellationToken)
+            ? await ListenAsync(scenario, endpoint, connection, onListening, cancellationToken)
             : await SendAsync(scenario, endpoint, connection, cancellationToken);
         var ranAt = DateTimeOffset.UtcNow;
 
@@ -116,11 +117,11 @@ public sealed class TestScenarioExecutor(
     /// operation's payload schema (<see cref="MockEndpoint.ResponseSchema"/> for AsyncAPI) — no
     /// schema means nothing to check. Not receiving anything within the timeout fails the run.
     /// </summary>
-    private async Task<RunOutcome> ListenAsync(TestScenario scenario, MockEndpoint endpoint, Connection connection, CancellationToken cancellationToken)
+    private async Task<RunOutcome> ListenAsync(TestScenario scenario, MockEndpoint endpoint, Connection connection, Action? onListening, CancellationToken cancellationToken)
     {
         var timeout = TimeSpan.FromSeconds(scenario.ListenTimeoutSeconds ?? TestScenarioListening.DefaultTimeoutSeconds);
         var exchange = scenario.Exchange ?? TestScenarioListening.DefaultRabbitMqExchange;
-        var result = await listener.ListenAsync(connection, endpoint.OperationKey, timeout, exchange, cancellationToken);
+        var result = await listener.ListenAsync(connection, endpoint.OperationKey, timeout, exchange, cancellationToken, onListening);
 
         SchemaValidationResult? validation = null;
         if (result.Received && endpoint.ResponseSchema is { } schema)

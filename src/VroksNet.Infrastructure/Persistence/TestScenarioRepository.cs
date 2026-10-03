@@ -59,6 +59,8 @@ public sealed class TestScenarioRepository(
                     .SetProperty(s => s.Kind, scenario.Kind)
                     .SetProperty(s => s.ListenTimeoutSeconds, scenario.ListenTimeoutSeconds)
                     .SetProperty(s => s.Exchange, scenario.Exchange)
+                    .SetProperty(s => s.Schedule, scenario.Schedule)
+                    .SetProperty(s => s.ScheduleTimeZone, scenario.ScheduleTimeZone)
                     .SetProperty(s => s.UpdatedAt, scenario.UpdatedAt), ct);
 
             updated = rows > 0;

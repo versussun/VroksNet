@@ -95,6 +95,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITestScenarioRepository, TestScenarioRepository>();
         services.AddScoped<IPublisherRepository, PublisherRepository>();
         services.AddScoped<ITestRunRepository, TestRunRepository>();
+        services.AddScoped<ITestSuiteRepository, TestSuiteRepository>();
+        services.AddScoped<ISuiteRunRepository, SuiteRunRepository>();
         services.AddScoped<ICallRecordRepository, CallRecordRepository>();
         services.AddScoped<ICallRecordNameResolver, CallRecordNameResolver>();
         services.AddSingleton<IMessageListener, MessageListener>();

@@ -110,6 +110,23 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Apply_AChangedSchedule_IsStoredOnTheExistingScenario()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        CopySample("bookstore-openapi.yaml", "specs/bookstore-openapi.yaml");
+        CopySample("shop-events-kafka-asyncapi.yaml", "specs/events/shop-events-kafka-asyncapi.yaml");
+        WriteManifest(ValidManifest);
+        await ApplyAsync();
+
+        WriteManifest(ValidManifest.Replace("""schedule: { cron: "0 9 * * 1-5", timeZone: Europe/Kyiv }""", """schedule: { cron: "*/5 * * * *" }"""));
+        var report = await ApplyAsync();
+
+        Assert.Equal(ProvisioningStatus.Applied, report.Status);
+        var listBooks = await Get<ITestScenarioRepository>().FindByNameAsync("list-books", cancellationToken);
+        Assert.Equal(("*/5 * * * *", (string?)null), (listBooks!.Schedule, listBooks.ScheduleTimeZone));
+    }
+
+    [Fact]
     public async Task Apply_CollectsEveryProblem_AndAppliesWhatItCan()
     {
         CopySample("bookstore-openapi.yaml", "specs/bookstore-openapi.yaml");
