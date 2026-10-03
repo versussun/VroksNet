@@ -57,7 +57,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 ARG VERSION=0.0.0-dev
 
 # OCI labels; io.vroksnet.contract.version is the version of docs/container-contract.md this image
-# implements, which the Aspire hosting package checks before starting it. CI's metadata step sets
+# implements, which the Aspire hosting package checks before starting it. It must equal
+# ContainerContract.Version (scripts/verify-container-contract.sh checks). CI's metadata step sets
 # the same OCI keys from the git tag; these are the fallback for local builds.
 LABEL org.opencontainers.image.title="VroksNet" \
       org.opencontainers.image.description="Mock server and contract-testing tool for OpenAPI and AsyncAPI specifications" \

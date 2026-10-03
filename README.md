@@ -116,7 +116,7 @@ dotnet test tests/VroksNet.E2ETests           # needs Docker and, once, Playwrig
                                               #   pwsh tests/VroksNet.E2ETests/bin/Debug/net10.0/playwright.ps1 install
 ```
 
-CI runs all three suites on every pull request, and `master` only accepts pull requests that pass. Each merge to `master` publishes the image to GHCR.
+CI runs all three suites on every pull request, and `master` only accepts pull requests that pass. Each merge to `master` publishes the image to GHCR, after `scripts/verify-container-contract.sh` has checked it against the [image contract](docs/container-contract.md) (run it locally on an image you built).
 
 ## Documentation
 
