@@ -16,6 +16,7 @@ public sealed class MigrationTests : IAsyncLifetime
     private const string MigrationBeforeCallHistory = "20261001221321_AddResponseSchemasByStatusAndCallRecordContract";
     private const string MigrationBeforeUniqueNames = "20261003110717_AddTestRuns";
     private const string MigrationBeforeBrokerOptions = "20261003172741_AddTestSuiteStartupAndProvisioning";
+    private const string MigrationBeforeProtocols = "20261003193146_MoveExchangeIntoBrokerOptions";
 
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"vroksnet-migration-test-{Guid.NewGuid():N}.db");
 
@@ -27,6 +28,27 @@ public sealed class MigrationTests : IAsyncLifetime
         SqliteConnection.ClearAllPools();
         File.Delete(_dbPath);
         return ValueTask.CompletedTask;
+    }
+
+    [Fact]
+    public async Task AddSpecificationProtocols_ExistingSpecRow_ReadsBackWithNoProtocols()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var context = new VroksNetDbContext(new DbContextOptionsBuilder<VroksNetDbContext>().UseSqlite($"Data Source={_dbPath}").Options);
+        var migrator = context.GetService<IMigrator>();
+
+        await migrator.MigrateAsync(MigrationBeforeProtocols, cancellationToken: cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO ApiSpecifications (Id, Title, Kind, RawContent, CreatedAt, UpdatedAt)
+            VALUES ('6F9619FF-8B86-D011-B42D-00C04FC964FF', 'Old spec', 1, 'raw', '2026-09-01 00:00:00+00:00', '2026-09-01 00:00:00+00:00');
+            """,
+            cancellationToken);
+
+        await migrator.MigrateAsync(cancellationToken: cancellationToken);
+
+        var specification = Assert.Single(await context.ApiSpecifications.AsNoTracking().ToListAsync(cancellationToken));
+        Assert.Empty(specification.Protocols);
     }
 
     [Fact]

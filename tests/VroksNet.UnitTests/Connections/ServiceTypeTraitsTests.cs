@@ -15,6 +15,14 @@ public class ServiceTypeTraitsTests
     public void All_ListenNoteIsGivenExactlyWhenTheTypeCantListen()
         => Assert.All(ServiceTypeTraits.All, traits => Assert.Equal(traits.CanListen, traits.ListenNote is null));
 
+    [Theory]
+    [InlineData(new[] { "KAFKA-SECURE" }, new[] { ConnectionServiceType.Kafka })]
+    [InlineData(new[] { "nats", "amqp" }, new[] { ConnectionServiceType.RabbitMq, ConnectionServiceType.Nats })]
+    [InlineData(new[] { "mqtt" }, new ConnectionServiceType[0])]
+    [InlineData(new[] { "http" }, new ConnectionServiceType[0])] // an AsyncAPI operation can't go through an HTTP connection
+    public void TypesFor_MatchesProtocolsCaseInsensitively(string[] protocols, ConnectionServiceType[] expected)
+        => Assert.Equal(expected, ServiceTypeTraits.TypesFor(protocols));
+
     [Fact]
     public void Find_UnknownValue_IsNull()
         => Assert.Null(ServiceTypeTraits.Find((ConnectionServiceType)99));

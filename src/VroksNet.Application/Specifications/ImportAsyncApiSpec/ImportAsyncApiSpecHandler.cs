@@ -32,6 +32,7 @@ public sealed class ImportAsyncApiSpecHandler(
             Title = parsed.Title,
             Kind = SpecificationKind.AsyncApi,
             RawContent = request.YamlContent,
+            Protocols = [.. parsed.Protocols ?? []],
             CreatedAt = now,
             UpdatedAt = now
         };

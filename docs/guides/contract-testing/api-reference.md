@@ -11,7 +11,7 @@ All admin endpoints live on the main address (`$API`, see [Getting started](gett
 | `POST /api/specifications/openapi` | the YAML (`Content-Type: text/plain`); optional `X-File-Name` header | `{ "id" }`, or `400 { "message" }` if it doesn't parse |
 | `POST /api/specifications/asyncapi` | same | same |
 | `GET /api/specifications` | | list of specifications |
-| `GET /api/specifications/{id}` | | the spec with `endpoints[]`: `id`, `operationKey`, `isEnabled`, `serveAtRealPath`, `exampleTemplate`, `requiresHttpConnection`, `canListen`, `defaultTestScenarioKind` |
+| `GET /api/specifications/{id}` | | the spec with `endpoints[]`: `id`, `operationKey`, `isEnabled`, `serveAtRealPath`, `exampleTemplate`, `requiresHttpConnection`, `canListen`, `defaultTestScenarioKind`; plus `protocols` (AsyncAPI `servers.*.protocol`, lower-case) and `connectionTypes` (the connection types that speak them — the forms offer those first) |
 | `PUT /api/specifications/{id}/provider-mode` | `{ "enabled": true }` | `{ "served": [], "skipped": [{ "operationKey", "reason" }], "refusal" }`; `404`; `409` if it couldn't be saved |
 
 Names of connections, test scenarios and Publishers are unique within each kind, and stored without surrounding spaces. Creating or renaming one to a taken name is a `400` with `{ "detail": "A test scenario named \"…\" already exists." }`; other invalid input (a blank name, an operation that can't go through the connection, …) is a `400` with the reason too.

@@ -44,6 +44,15 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
                 .WithOne()
                 .HasForeignKey(endpoint => endpoint.SpecificationId)
                 .OnDelete(DeleteBehavior.Cascade);
+            // Its AsyncAPI servers' protocols — a short list only ever read and written with its spec.
+            entity.Property(specification => specification.Protocols)
+                .HasConversion(
+                    protocols => JsonSerializer.Serialize(protocols, (JsonSerializerOptions?)null),
+                    json => JsonSerializer.Deserialize<List<string>>(json, (JsonSerializerOptions?)null) ?? new List<string>(),
+                    new ValueComparer<List<string>>(
+                        (left, right) => left == null ? right == null : right != null && left.SequenceEqual(right),
+                        protocols => protocols.Aggregate(0, (hash, protocol) => HashCode.Combine(hash, protocol)),
+                        protocols => protocols.ToList()));
         });
 
         modelBuilder.Entity<MockEndpoint>(entity =>

@@ -7,4 +7,6 @@ public sealed record SpecificationDetails(
     string RawContent,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    MockEndpointDetail[] Endpoints);
+    MockEndpointDetail[] Endpoints,
+    string[] Protocols,
+    string[] ConnectionTypes);

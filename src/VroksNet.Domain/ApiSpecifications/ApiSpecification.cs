@@ -28,6 +28,14 @@ public sealed class ApiSpecification
     /// </summary>
     public DateTimeOffset? ProvisionedAt { get; set; }
 
+    /// <summary>
+    /// AsyncAPI only: the distinct <c>servers.*.protocol</c> values the spec declares, lower-case, in
+    /// order (<c>kafka</c>, <c>kafka-secure</c>) — what kind of connection its operations are meant
+    /// for (<see cref="Connections.ServiceTypeTraits.TypesFor"/>). Empty for OpenAPI, for a spec
+    /// without servers, and for one imported before this was recorded until it's imported again.
+    /// </summary>
+    public List<string> Protocols { get; set; } = [];
+
     public ICollection<MockEndpoints.MockEndpoint> Endpoints { get; set; } = new List<MockEndpoints.MockEndpoint>();
 
     /// <summary>
@@ -58,6 +66,13 @@ public sealed class ApiSpecification
         if (!string.Equals(RawContent, imported.RawContent, StringComparison.Ordinal))
         {
             RawContent = imported.RawContent;
+            anyChange = true;
+        }
+
+        // Also fills it in for a spec imported before protocols were recorded, from the same file.
+        if (!Protocols.SequenceEqual(imported.Protocols, StringComparer.Ordinal))
+        {
+            Protocols = [.. imported.Protocols];
             anyChange = true;
         }
 

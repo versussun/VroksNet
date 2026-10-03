@@ -40,5 +40,8 @@ public sealed record ParsedOperation(
     IReadOnlyDictionary<string, string?>? ResponseSchemasByStatus = null,
     int? ExampleStatusCode = null);
 
-/// <summary>Title (the version-matching key) plus its flat list of operations.</summary>
-public sealed record ParsedSpecification(string Title, IReadOnlyList<ParsedOperation> Operations);
+/// <summary>
+/// Title (the version-matching key) plus its flat list of operations. <see cref="Protocols"/> is
+/// AsyncAPI only: the distinct <c>servers.*.protocol</c> values, lower-case, in order.
+/// </summary>
+public sealed record ParsedSpecification(string Title, IReadOnlyList<ParsedOperation> Operations, IReadOnlyList<string>? Protocols = null);

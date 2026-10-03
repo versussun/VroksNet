@@ -93,7 +93,9 @@ These apply to your own specs too.
   `channels`) imports with no operations, so convert it first.
 - The operation key is `"{channel address}:{action}"`. The address is the RabbitMQ routing key,
   the NATS subject or the Kafka topic. The exchange comes from the Publisher/scenario, never from
-  `bindings`; bindings, servers and security are documentation only.
+  `bindings`; bindings and security are documentation only. `servers` only say what kind of
+  connection fits: their `protocol` (`kafka`, `amqp`, `nats`, …) puts matching connections first in
+  the Test Scenario and Publisher forms. The host and credentials still come from the connection.
 - A message may be declared inline in the channel or `$ref` `components.messages`. Its `payload`
   may be inline or one `$ref` to `components.schemas`. **The schema that ref points to must be
   self-contained**: a `$ref` nested inside it isn't resolved, and contract checks against it

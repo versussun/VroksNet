@@ -1,0 +1,50 @@
+@* What a specification's AsyncAPI servers say about the connection to use (R5 of the broker
+   adapters plan). The server works out which connection types speak the spec's protocols
+   (SpecificationDetails.ConnectionTypes); this only shows it. Says nothing when the spec names no
+   protocol, or when one of the offered connections fits. *@
+
+@if (Message is { } message)
+{
+    <div class="form-text" role="note">@message</div>
+}
+
+@code {
+    /// <summary>The spec's server protocols, as the server read them.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> Protocols { get; set; } = [];
+
+    /// <summary>The connection types that speak them, from the server.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> ConnectionTypes { get; set; } = [];
+
+    /// <summary>The connections the form offers.</summary>
+    [Parameter, EditorRequired]
+    public IEnumerable<ConnectionSummary> Offered { get; set; } = [];
+
+    /// <summary>For the types' display names.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ConnectionTypeInfo> Types { get; set; } = [];
+
+    private string? Message
+    {
+        get
+        {
+            if (Protocols.Count == 0 || Offered.Any(connection => ConnectionTypes.Contains(connection.ServiceType)))
+            {
+                return null;
+            }
+
+            if (ConnectionTypes.Count == 0)
+            {
+                return $"This specification's servers use {string.Join(", ", Protocols)}, which VroksNet has no connection type for.";
+            }
+
+            var names = ConnectionTypes.Select(type => Types.FirstOrDefault(info => info.Type == type)?.DisplayName ?? type);
+            return $"This specification is for {string.Join(" or ", names)} — none of these connections is. Add one on the Settings page.";
+        }
+    }
+
+    /// <summary>The connections whose type the spec is for first, otherwise in their own order.</summary>
+    public static IEnumerable<ConnectionSummary> MatchingFirst(IEnumerable<ConnectionSummary> connections, IReadOnlyList<string> connectionTypes)
+        => connections.OrderBy(connection => connectionTypes.Contains(connection.ServiceType) ? 0 : 1);
+}

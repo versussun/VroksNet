@@ -89,4 +89,74 @@ public sealed class PublishersPageTests(AppHostFixture fixture) : PageTestBase(f
         await Page.ReloadAsync();
         await Expect(running).Not.ToBeCheckedAsync();
     }
+
+    /// <summary>
+    /// R5 of the broker adapters plan: a spec's AsyncAPI servers say which connections fit it —
+    /// those come first, and a protocol VroksNet has no connection type for is pointed out.
+    /// </summary>
+    [Fact]
+    public async Task SpecServers_PutMatchingConnectionsFirst()
+    {
+        var suffix = Guid.NewGuid();
+        var kafkaSpec = $"E2E Kafka Servers {suffix}";
+        var mqttSpec = $"E2E MQTT Servers {suffix}";
+
+        await ImportAsync(kafkaSpec, "kafka", suffix);
+        await ImportAsync(mqttSpec, "mqtt", suffix);
+        // Any broker value will do: nothing is sent. The NATS one is added first, so ordering by name or age can't pass the test.
+        await AddConnectionAsync($"E2E Servers NATS {suffix}", "Nats", "nats://localhost:4222");
+        await AddConnectionAsync($"E2E Servers Kafka {suffix}", "Kafka", "localhost:9092");
+
+        await Page.GotoAsync("/publishers");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add publisher" }).ClickAsync();
+
+        await Page.GetByLabel("Specification").SelectOptionAsync(new SelectOptionValue { Label = kafkaSpec });
+        var connections = Page.Locator("#publisher-connection-select option");
+        await Expect(connections.Nth(1)).ToContainTextAsync("(Kafka)"); // after "Select a broker connection…"
+        await Expect(Page.GetByRole(AriaRole.Note)).Not.ToBeVisibleAsync();
+
+        await Page.GetByLabel("Specification").SelectOptionAsync(new SelectOptionValue { Label = mqttSpec });
+        await Expect(Page.GetByRole(AriaRole.Note)).ToContainTextAsync("use mqtt, which VroksNet has no connection type for");
+    }
+
+    private async Task ImportAsync(string title, string protocol, Guid suffix)
+    {
+        await Page.GotoAsync("/specifications");
+        await Page.Locator("#spec-kind-select").SelectOptionAsync("AsyncApi");
+        await Page.Locator("input[type=file]").SetInputFilesAsync(new FilePayload
+        {
+            Name = $"{protocol}.yaml",
+            MimeType = "application/yaml",
+            Buffer = Encoding.UTF8.GetBytes($"""
+                asyncapi: 3.0.0
+                info:
+                  title: "{title}"
+                  version: "1.0.0"
+                servers:
+                  main:
+                    host: broker:1234
+                    protocol: {protocol}
+                channels:
+                  events:
+                    address: e2e.servers.{protocol}.{suffix:N}
+                operations:
+                  publishEvent:
+                    action: send
+                    channel:
+                      $ref: "#/channels/events"
+                """),
+        });
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = title })).ToBeVisibleAsync();
+    }
+
+    private async Task AddConnectionAsync(string name, string serviceType, string value)
+    {
+        await Page.GotoAsync("/settings");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add connection" }).ClickAsync();
+        await Page.GetByLabel("Name").FillAsync(name);
+        await Page.GetByLabel("Service type").SelectOptionAsync(serviceType);
+        await Page.GetByLabel("Connection string").FillAsync(value);
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = name })).ToBeVisibleAsync();
+    }
 }

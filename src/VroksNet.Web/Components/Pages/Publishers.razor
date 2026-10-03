@@ -161,7 +161,7 @@ else
             <label class="form-label" for="publisher-connection-select">Connection</label>
             <select id="publisher-connection-select" class="form-select" @bind="_formConnectionId">
                 <option value="">Select a broker connection…</option>
-                @foreach (var connection in BrokerConnections)
+                @foreach (var connection in SpecConnectionHint.MatchingFirst(BrokerConnections, _specConnectionTypes))
                 {
                     <option value="@connection.Id">@connection.Name (@connection.ServiceType)</option>
                 }
@@ -169,6 +169,10 @@ else
             @if (_connections is not null && !BrokerConnections.Any())
             {
                 <div class="form-text text-danger">No broker connections yet — add one on the Settings page first.</div>
+            }
+            else
+            {
+                <SpecConnectionHint Protocols="_specProtocols" ConnectionTypes="_specConnectionTypes" Offered="BrokerConnections" Types="_connectionTypes" />
             }
         </div>
 
@@ -217,6 +221,9 @@ else
     private SpecificationSummary[]? _specifications;
     private ConnectionSummary[]? _connections;
     private MockEndpointDetail[]? _specificationEndpoints;
+    /// <summary>The selected spec's server protocols and the connection types that speak them (from the server) — matching connections are offered first.</summary>
+    private string[] _specProtocols = [];
+    private string[] _specConnectionTypes = [];
     private readonly HashSet<Guid> _publishing = [];
     private readonly HashSet<Guid> _toggling = [];
     private readonly Dictionary<Guid, PublishResult> _publishResults = [];
@@ -292,10 +299,14 @@ else
     {
         _formMockEndpointId = string.Empty;
         _specificationEndpoints = null;
+        _specProtocols = [];
+        _specConnectionTypes = [];
 
         if (Guid.TryParse(_formSpecificationId, out var specificationId))
         {
             var details = await SpecificationApi.GetByIdAsync(specificationId);
+            _specProtocols = details?.Protocols ?? [];
+            _specConnectionTypes = details?.ConnectionTypes ?? [];
             _specificationEndpoints = details?.Endpoints.Where(e => !e.RequiresHttpConnection).ToArray();
         }
     }
@@ -340,6 +351,8 @@ else
         _formStartNow = true;
         _formError = null;
         _specificationEndpoints = null;
+        _specProtocols = [];
+        _specConnectionTypes = [];
     }
 
     private async Task SaveAsync()
