@@ -85,6 +85,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IConnectionRepository, ConnectionRepository>();
         services.AddScoped<ITestScenarioRepository, TestScenarioRepository>();
         services.AddScoped<IPublisherRepository, PublisherRepository>();
+        services.AddScoped<ITestRunRepository, TestRunRepository>();
         services.AddScoped<ICallRecordRepository, CallRecordRepository>();
         services.AddScoped<ICallRecordNameResolver, CallRecordNameResolver>();
         services.AddSingleton<IMessageListener, MessageListener>();
@@ -106,6 +107,9 @@ public static class InfrastructureServiceCollectionExtensions
         // The async-mock worker: publishes enabled publishers on their schedule.
         services.TryAddSingleton(TimeProvider.System);
         services.AddHostedService<PublisherBackgroundService>();
+        // Registered after DbWriteBackgroundService, so it stops first on shutdown: its runs still
+        // record themselves as Interrupted through the write queue.
+        services.AddHostedService<TestRuns.TestRunBackgroundService>();
 
         return services;
     }

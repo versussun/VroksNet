@@ -42,6 +42,11 @@ public sealed class CallRecordRepository(
             query = query.Where(record => record.TestScenarioId == testScenarioId);
         }
 
+        if (filter.TestRunId is { } testRunId)
+        {
+            query = query.Where(record => record.TestRunId == testRunId);
+        }
+
         if (filter.Direction is { } direction)
         {
             query = query.Where(record => record.Direction == direction);

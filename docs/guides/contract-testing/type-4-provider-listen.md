@@ -69,7 +69,7 @@ Import the spec as **AsyncAPI** and add a **RabbitMQ**, **NATS** or **Kafka** co
 | Operation | `orders.created:send` |
 | Connection | your RabbitMQ, NATS or Kafka connection |
 | Mode | **Listen for a message and validate it** (pre-selected for `send` operations) |
-| Wait up to (seconds) | 1–80; blank = 30 |
+| Wait up to (seconds) | 1–1800 (30 minutes); blank = 30. Over 80, it runs only in the background |
 | Exchange | RabbitMQ only; blank = `amq.topic` |
 
 The scenario row gets a **Listen** badge.
@@ -95,10 +95,16 @@ A run **waits** for the next message, so start it first, then trigger the servic
 
 **UI:** **Run** shows *Listening…* until a message arrives or the time runs out. **Stop** cancels the wait.
 
+**Run in background** does the same on the server, so you can close the page, and is the only option for a wait over 80 seconds. **History** lists the scenario's recent runs.
+
 **API:**
 
 ```bash
 curl -s -X POST "$API/api/test-scenarios/$SCENARIO/run"     # blocks until a message or the timeout
+
+# or in the background, then poll:
+RUN=$(curl -s -X POST "$API/api/test-scenarios/$SCENARIO/runs" | jq -r .runId)
+curl -s "$API/api/test-runs/$RUN"                            # status: Queued → Running → Passed/Failed
 ```
 
 Message received and valid:

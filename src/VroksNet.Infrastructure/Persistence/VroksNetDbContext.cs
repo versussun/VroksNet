@@ -6,6 +6,7 @@ using VroksNet.Domain.CallRecords;
 using VroksNet.Domain.Connections;
 using VroksNet.Domain.MockEndpoints;
 using VroksNet.Domain.Publishers;
+using VroksNet.Domain.TestRuns;
 using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Infrastructure.Persistence;
@@ -23,6 +24,8 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
     public DbSet<TestScenario> TestScenarios => Set<TestScenario>();
 
     public DbSet<Publisher> Publishers => Set<Publisher>();
+
+    public DbSet<TestRun> TestRuns => Set<TestRun>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -80,5 +83,22 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
         // Read whole by the worker every second and filtered in memory (PublisherSchedule.IsDue) —
         // there are only ever a handful, so LastPublishedAt never needs ordering in SQL.
         modelBuilder.Entity<Publisher>(entity => entity.HasKey(publisher => publisher.Id));
+
+        modelBuilder.Entity<TestRun>(entity =>
+        {
+            entity.HasKey(run => run.Id);
+            // UTC ticks, like CallRecord.Timestamp: the history is ordered and the worker filters
+            // "due" runs by ScheduledFor in SQL, which SQLite can't do on DateTimeOffset text.
+            entity.Property(run => run.ScheduledFor)
+                .HasConversion(time => time.UtcTicks, ticks => new DateTimeOffset(ticks, TimeSpan.Zero));
+            entity.Property(run => run.StartedAt)
+                .HasConversion(time => time.HasValue ? time.Value.UtcTicks : (long?)null, ticks => ticks.HasValue ? new DateTimeOffset(ticks.Value, TimeSpan.Zero) : null);
+            entity.Property(run => run.FinishedAt)
+                .HasConversion(time => time.HasValue ? time.Value.UtcTicks : (long?)null, ticks => ticks.HasValue ? new DateTimeOffset(ticks.Value, TimeSpan.Zero) : null);
+            // A scenario's history, newest first (the keyset includes Id), and the worker's
+            // "queued and due" lookup every second.
+            entity.HasIndex(run => new { run.TestScenarioId, run.ScheduledFor, run.Id });
+            entity.HasIndex(run => new { run.Status, run.ScheduledFor });
+        });
     }
 }

@@ -23,6 +23,11 @@ public static class ApplicationServiceCollectionExtensions
             options.ServiceLifetime = ServiceLifetime.Scoped;
         });
 
+        // Runs a scenario once; shared by the synchronous Run and the background ExecuteTestRun.
+        services.AddScoped<TestScenarios.TestScenarioExecutor>();
+        // The tokens of the runs executing in this process, so a running one can be cancelled.
+        services.AddSingleton<TestRuns.TestRunCancellations>();
+
         return services;
     }
 }

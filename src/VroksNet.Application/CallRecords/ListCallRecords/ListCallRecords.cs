@@ -16,4 +16,5 @@ public sealed record ListCallRecords(
     CallDirection? Direction = null,
     bool? ContractValid = null,
     string? Cursor = null,
-    int? Limit = null) : IRequest<CallRecordPage>;
+    int? Limit = null,
+    Guid? TestRunId = null) : IRequest<CallRecordPage>;

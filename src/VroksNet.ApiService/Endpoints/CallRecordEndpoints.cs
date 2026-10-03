@@ -17,8 +17,8 @@ public static class CallRecordEndpoints
     {
         var group = app.MapGroup("/api/call-records");
 
-        // Query: specificationId, mockEndpointId, testScenarioId, direction (e.g. "InboundHttpRequest"),
-        // contractValid, cursor (the previous page's nextCursor), limit.
+        // Query: specificationId, mockEndpointId, testScenarioId, publisherId, testRunId, direction
+        // (e.g. "InboundHttpRequest"), contractValid, cursor (the previous page's nextCursor), limit.
         group.MapGet("/", async ([AsParameters] ListCallRecords request, IMediator mediator, CancellationToken cancellationToken) =>
         {
             var page = await mediator.Send(request, cancellationToken);

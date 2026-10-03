@@ -86,4 +86,44 @@ public sealed class TestScenarioApiClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<RunTestScenarioResult>(JsonOptions, cancellationToken);
     }
+
+    /// <summary>Queues a background run. Returns the run's id, or null if no scenario with that id exists.</summary>
+    public async Task<Guid?> StartRunAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.PostAsync($"/api/test-scenarios/{id}/runs", null, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<StartTestRunResult>(JsonOptions, cancellationToken))!.RunId;
+    }
+
+    /// <summary>Returns null if no run with that id exists.</summary>
+    public async Task<TestRunSummary?> GetRunAsync(Guid runId, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.GetAsync($"/api/test-runs/{runId}", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<TestRunSummary>(JsonOptions, cancellationToken);
+    }
+
+    /// <summary>The newest runs of one scenario, newest first.</summary>
+    public async Task<TestRunSummary[]> GetRunsAsync(Guid scenarioId, int limit, CancellationToken cancellationToken = default)
+    {
+        var page = await httpClient.GetFromJsonAsync<TestRunPage>($"/api/test-runs?testScenarioId={scenarioId}&limit={limit}", JsonOptions, cancellationToken);
+        return page?.Items ?? [];
+    }
+
+    /// <summary>Asks a queued or running run to stop. False if it had already finished or doesn't exist.</summary>
+    public async Task<bool> CancelRunAsync(Guid runId, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.PostAsync($"/api/test-runs/{runId}/cancel", null, cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
 }

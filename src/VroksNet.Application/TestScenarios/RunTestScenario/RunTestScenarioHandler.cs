@@ -1,33 +1,28 @@
-using System.Text.Json;
 using Mediator;
 using VroksNet.Application.Abstractions;
-using VroksNet.Application.CallRecords;
-using VroksNet.Domain.CallRecords;
-using VroksNet.Domain.Connections;
-using VroksNet.Domain.MockEndpoints;
+using VroksNet.Application.TestRuns;
+using VroksNet.Domain.TestRuns;
 using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Application.TestScenarios.RunTestScenario;
 
 /// <summary>
-/// Sends a saved <see cref="Domain.TestScenarios.TestScenario"/>'s message and logs a
-/// <see cref="CallRecord"/> either way. Unlike create/update (which validate new input and throw
-/// on a bad reference), a dangling specification/operation/connection here is an expected runtime
-/// condition — one of them may have been deleted since the scenario was saved — so it's reported
-/// back as an unsuccessful result rather than thrown. An HTTP response is also checked against the
-/// operation's declared responses (see docs/contract-testing-plan.md, "Phase B"); a response that
-/// doesn't match fails the run even though the send itself went through. A
-/// <see cref="TestScenarioKind.Listen"/> scenario instead waits for a message on the operation's
-/// broker channel and validates that ("Phase C").
+/// Runs a scenario synchronously: the caller's request stays open until the run finishes, and gets
+/// its result. The run is recorded as a <see cref="TestRun"/> (<see cref="TestRunTrigger.Manual"/>)
+/// like a background one, and can be cancelled the same way. The run itself is
+/// <see cref="TestScenarioExecutor"/>, shared with background runs.
+/// <para>
+/// A Listen scenario waiting longer than <see cref="TestScenarioListening.MaxSynchronousTimeoutSeconds"/>
+/// can't run synchronously — the request would outlive the Admin UI's HTTP timeout — so it's
+/// refused without running and pointed at a background run.
+/// </para>
 /// </summary>
 public sealed class RunTestScenarioHandler(
     ITestScenarioRepository scenarios,
-    IApiSpecificationRepository specifications,
-    IConnectionRepository connections,
-    IMessageSender sender,
-    IMessageListener listener,
-    ISchemaValidator schemaValidator,
-    ICallRecordRepository callRecords) : IRequestHandler<RunTestScenario, RunTestScenarioResult?>
+    ITestRunRepository runs,
+    TestScenarioExecutor executor,
+    TestRunCancellations cancellations,
+    TimeProvider timeProvider) : IRequestHandler<RunTestScenario, RunTestScenarioResult?>
 {
     public async ValueTask<RunTestScenarioResult?> Handle(RunTestScenario request, CancellationToken cancellationToken)
     {
@@ -37,141 +32,52 @@ public sealed class RunTestScenarioHandler(
             return null;
         }
 
-        var specification = await specifications.FindByIdAsync(scenario.SpecificationId, cancellationToken);
-        var endpoint = specification?.Endpoints.FirstOrDefault(e => e.Id == scenario.MockEndpointId);
-        var connection = await connections.FindByIdAsync(scenario.ConnectionId, cancellationToken);
-
-        if (endpoint is null || connection is null)
+        if (TestScenarioListening.RequiresBackgroundRun(scenario.Kind, scenario.ListenTimeoutSeconds))
         {
-            const string missingMessage = "The scenario's specification, operation, or connection no longer exists.";
-            await scenarios.RecordRunAsync(scenario.Id, DateTimeOffset.UtcNow, success: false, missingMessage, cancellationToken);
-            return new RunTestScenarioResult(false, missingMessage, null);
+            return new RunTestScenarioResult(
+                false,
+                $"This scenario waits up to {scenario.ListenTimeoutSeconds}s for a message, longer than a synchronous run allows ({TestScenarioListening.MaxSynchronousTimeoutSeconds}s). Run it in the background.",
+                null);
         }
 
-        var outcome = scenario.Kind == TestScenarioKind.Listen
-            ? await ListenAsync(scenario, endpoint, connection, cancellationToken)
-            : await SendAsync(scenario, endpoint, connection, cancellationToken);
-        var ranAt = DateTimeOffset.UtcNow;
-
-        var validation = outcome.Validation;
-        var success = outcome.Success && validation?.IsValid != false;
-        var message = validation?.IsValid == false
-            ? $"{outcome.Message} — {outcome.ViolationSubject} doesn't match the spec ({validation.Errors.Count} violation(s))."
-            : outcome.Message;
-
-        await callRecords.InsertAsync(new CallRecord
+        var now = timeProvider.GetUtcNow();
+        var run = new TestRun
         {
             Id = Guid.NewGuid(),
-            SpecificationId = scenario.SpecificationId,
-            MockEndpointId = scenario.MockEndpointId,
-            ConnectionId = connection.Id,
             TestScenarioId = scenario.Id,
-            Direction = outcome.Direction,
-            Timestamp = ranAt,
-            RequestSnapshot = CallRecordSnapshot.Truncate(outcome.RequestSnapshot),
-            ResponseSnapshot = CallRecordSnapshot.Truncate(outcome.ResponseSnapshot),
-            StatusCode = outcome.StatusCode,
-            ContractValid = validation?.IsValid,
-            ValidationErrors = validation is { IsValid: false } ? JsonSerializer.Serialize(validation.Errors) : null
-        }, cancellationToken);
+            Status = TestRunStatus.Running,
+            Trigger = TestRunTrigger.Manual,
+            ScheduledFor = now,
+            StartedAt = now
+        };
+        await runs.InsertAsync(run, cancellationToken);
 
-        await scenarios.RecordRunAsync(scenario.Id, ranAt, success, message, cancellationToken);
+        var token = cancellations.Register(run.Id, cancellationToken);
+        try
+        {
+            var result = await executor.ExecuteAsync(scenario, run.Id, token);
+            await runs.CompleteAsync(run.Id, TestScenarioExecutor.OutcomeOf(result, timeProvider.GetUtcNow()), CancellationToken.None);
+            return result;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // Cancelled through the API, or the caller went away (the Admin UI's Stop button).
+            await runs.CompleteAsync(run.Id, new TestRunOutcome(TestRunStatus.Cancelled, timeProvider.GetUtcNow(), "Cancelled."), CancellationToken.None);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
 
-        return new RunTestScenarioResult(success, message, outcome.ResponseBody, outcome.StatusCode, validation);
+            return new RunTestScenarioResult(false, "Cancelled.", null);
+        }
+        catch (Exception)
+        {
+            await runs.CompleteAsync(run.Id, new TestRunOutcome(TestRunStatus.Failed, timeProvider.GetUtcNow(), "The run failed unexpectedly; see the app log."), CancellationToken.None);
+            throw;
+        }
+        finally
+        {
+            cancellations.Unregister(run.Id);
+        }
     }
-
-    private async Task<RunOutcome> SendAsync(TestScenario scenario, MockEndpoint endpoint, Connection connection, CancellationToken cancellationToken)
-    {
-        var payload = scenario.PayloadOverride ?? endpoint.ExampleTemplate;
-        var result = await sender.SendAsync(connection, endpoint.OperationKey, payload, scenario.Exchange, cancellationToken);
-
-        var validation = result.Success && connection.ServiceType == ConnectionServiceType.Http
-            ? ValidateResponse(endpoint, result)
-            : null;
-
-        return new RunOutcome(
-            result.Success,
-            result.Message,
-            result.ResponseBody,
-            result.StatusCode,
-            validation,
-            connection.ServiceType == ConnectionServiceType.Http ? CallDirection.OutboundHttpRequest : CallDirection.OutboundBrokerPublish,
-            RequestSnapshot: payload,
-            ResponseSnapshot: result.Success ? result.ResponseBody ?? result.Message : result.Message,
-            ViolationSubject: "response");
-    }
-
-    /// <summary>
-    /// Waits for the next message on the operation's channel and validates it against the
-    /// operation's payload schema (<see cref="MockEndpoint.ResponseSchema"/> for AsyncAPI) — no
-    /// schema means nothing to check. Not receiving anything within the timeout fails the run.
-    /// </summary>
-    private async Task<RunOutcome> ListenAsync(TestScenario scenario, MockEndpoint endpoint, Connection connection, CancellationToken cancellationToken)
-    {
-        var timeout = TimeSpan.FromSeconds(scenario.ListenTimeoutSeconds ?? TestScenarioListening.DefaultTimeoutSeconds);
-        var exchange = scenario.Exchange ?? TestScenarioListening.DefaultRabbitMqExchange;
-        var result = await listener.ListenAsync(connection, endpoint.OperationKey, timeout, exchange, cancellationToken);
-
-        SchemaValidationResult? validation = null;
-        if (result.Received && endpoint.ResponseSchema is { } schema)
-        {
-            validation = string.IsNullOrWhiteSpace(result.Payload)
-                ? new SchemaValidationResult(false, ["The message is empty, but the spec declares a payload schema."])
-                : schemaValidator.Validate(schema, result.Payload);
-        }
-
-        return new RunOutcome(
-            result.Received,
-            result.Message,
-            result.Payload,
-            StatusCode: null,
-            validation,
-            CallDirection.InboundBrokerMessage,
-            RequestSnapshot: null,
-            ResponseSnapshot: result.Received ? result.Payload : result.Message,
-            ViolationSubject: "message");
-    }
-
-    /// <summary>
-    /// Null when there's nothing to validate against: no status code, or an operation with no
-    /// declared responses (an AsyncAPI one, or an OpenAPI one imported before they were stored —
-    /// re-importing the spec fixes that).
-    /// </summary>
-    private SchemaValidationResult? ValidateResponse(MockEndpoint endpoint, MessageSendResult result)
-    {
-        if (result.StatusCode is not { } statusCode || endpoint.ResponseSchemasByStatus.Count == 0)
-        {
-            return null;
-        }
-
-        if (!endpoint.TryGetDeclaredResponse(statusCode, out var schemaJson))
-        {
-            return new SchemaValidationResult(false, [$"Status {statusCode} isn't declared for {endpoint.OperationKey} in the spec."]);
-        }
-
-        if (schemaJson is null)
-        {
-            // The spec declares this status without a JSON body — nothing more to check.
-            return SchemaValidationResult.Valid;
-        }
-
-        if (string.IsNullOrWhiteSpace(result.ResponseBody))
-        {
-            return new SchemaValidationResult(false, [$"The response body is empty, but the spec declares a JSON body for status {statusCode}."]);
-        }
-
-        return schemaValidator.Validate(schemaJson, result.ResponseBody);
-    }
-
-    /// <param name="ViolationSubject">What a contract violation is about, for the run message: "response" or "message".</param>
-    private sealed record RunOutcome(
-        bool Success,
-        string Message,
-        string? ResponseBody,
-        int? StatusCode,
-        SchemaValidationResult? Validation,
-        CallDirection Direction,
-        string? RequestSnapshot,
-        string? ResponseSnapshot,
-        string ViolationSubject);
 }

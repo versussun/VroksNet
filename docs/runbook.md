@@ -65,6 +65,8 @@ All settings are environment variables (or the matching keys in `appsettings.jso
 | `Provider__Port` | `7353` | Port for provider mode. Unset turns provider mode off. Must differ from the API's own port, or startup fails |
 | `Provider__PublicUrl` | not set | Provider address shown in the Admin UI and `GET /api/system/provider` |
 | `Provider__CorsOrigins` | not set (CORS off) | Comma-separated browser origins allowed to call the provider port, or `*`. No credentials are allowed |
+| `TestRuns__MaxConcurrency` | `4` | How many background test runs may execute at once. A run of the same scenario never overlaps another |
+| `TestRuns__RetentionPerScenario` | `100` | How many finished runs of each scenario the history keeps; older ones are deleted every few minutes |
 | `ASPNETCORE_HTTP_PORTS` | `8080` | Port for the API and Admin UI |
 | `Logging__LogLevel__Default` | `Information` | Log level. EF Core SQL logging is at `Warning` on purpose (the publisher worker queries every second) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | not set | When set, logs, traces and metrics are exported over OTLP |

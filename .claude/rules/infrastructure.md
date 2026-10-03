@@ -77,6 +77,13 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
 - **EF's SQL command logging is at Warning** (`Microsoft.EntityFrameworkCore.Database.Command` in ApiService's `appsettings.json`). The worker reads the publishers every second, and at Information that would log a SELECT every second. To see SQL while debugging, lower it locally rather than in the checked-in config.
 - **`Publisher.LastPublishedAt` is the schedule's anchor** and is set to when the publish *started*. Failures set it too, so a broken publisher retries once per interval. `PublisherSchedule.IsDue` filters in memory on purpose: there are only a handful of publishers, so no SQL ordering on a `DateTimeOffset` is needed.
 
+### Test runs (background worker)
+
+- **`TestRunBackgroundService` (`Infrastructure/TestRuns`) only schedules,** like the Publishers worker: `ListDueTestRuns` every second, then `ExecuteTestRun` per run. Unlike it, a tick **doesn't wait** for the runs it started (a Listen can last 30 minutes); it tracks them itself, starting at most one per scenario and at most `TestRuns:MaxConcurrency` (4) in all.
+- **At startup it sends `InterruptRunningTestRuns`**: anything still `Running` was cut off by the previous process. Every 5 minutes it prunes history to `TestRuns:RetentionPerScenario` (100) finished runs per scenario; queued and running runs are never pruned.
+- **It's registered after `DbWriteBackgroundService`,** so it stops first on shutdown and its runs can still record themselves as `Interrupted` through the write queue.
+- **`TestRun.ScheduledFor`/`StartedAt`/`FinishedAt` are UTC ticks**, like `CallRecord.Timestamp`: the history is ordered and "due" runs are selected by `ScheduledFor` in SQL.
+
 ### Response templating
 
 - **`IResponseTemplateEngine` → `VroksNet.Infrastructure.Templating.ResponseTemplateEngine`**, a singleton built with `TimeProvider.System` (for `{{now}}`). The rules (3.9–3.10 in `docs/contract-testing-plan.md`) live in its doc comment: string-literal tracking decides escaping, an unfillable placeholder becomes `null`/empty plus a warning, and `{{…}}` that isn't `uuid`/`now`/`request.…` is left alone.

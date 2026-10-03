@@ -36,6 +36,9 @@ public sealed class CallRecord
     /// <summary>The <see cref="TestScenarios.TestScenario"/> whose run produced this record, if any — null for an ordinary inbound mock call.</summary>
     public Guid? TestScenarioId { get; set; }
 
+    /// <summary>The <see cref="TestRuns.TestRun"/> this record belongs to, if a test-scenario run produced it.</summary>
+    public Guid? TestRunId { get; set; }
+
     /// <summary>The <see cref="Publishers.Publisher"/> whose publish produced this record, if any.</summary>
     public Guid? PublisherId { get; set; }
 

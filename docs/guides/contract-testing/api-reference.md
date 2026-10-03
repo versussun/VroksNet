@@ -33,7 +33,8 @@ All admin endpoints live on the main address (`$API`, see [Getting started](gett
 | `GET /api/test-scenarios/{id}` | | one scenario |
 | `PUT /api/test-scenarios/{id}` | same as create | `204` / `404` |
 | `DELETE /api/test-scenarios/{id}` | | `204` / `404` |
-| `POST /api/test-scenarios/{id}/run` | | `{ "success", "message", "responseBody", "statusCode", "contractValidation": { "isValid", "errors" } \| null }` |
+| `POST /api/test-scenarios/{id}/run` | | runs it synchronously: `{ "success", "message", "responseBody", "statusCode", "contractValidation": { "isValid", "errors" } \| null }` |
+| `POST /api/test-scenarios/{id}/runs` | | runs it in the background: `202 { "runId" }` with `Location: /api/test-runs/{runId}`; `404` |
 
 Create/update body:
 
@@ -51,9 +52,41 @@ Create/update body:
 ```
 
 - `kind`: `"Send"` (HTTP request or broker publish, the default) or `"Listen"` (broker operations only).
-- `listenTimeoutSeconds`: 1–80, `null` = 30. Listen only.
+- `listenTimeoutSeconds`: 1–1800 (30 minutes), `null` = 30. Listen only. Over 80, the scenario can only run in the background: the synchronous `/run` returns `success: false` with a message saying so, without running.
 - `exchange`: RabbitMQ only (dropped for NATS/HTTP). Send publishes to it with routing key = channel address, `null` = the default exchange `""` (straight into the queue named after the channel); Listen binds to it, `null` = `amq.topic`. A missing exchange fails the run with a readable message. (Was `listenExchange`, Listen only.)
 - An operation/connection mismatch (an HTTP operation through a broker connection, etc.) is rejected.
+
+## Test runs
+
+Every run of a scenario, synchronous or in the background, is recorded. A background run is queued and picked up within a second; at most one runs per scenario at a time, and at most four in all. The last 100 finished runs of each scenario are kept.
+
+| Method & path | Query / body | Returns |
+|---|---|---|
+| `GET /api/test-runs` | `testScenarioId`, `status`, `cursor`, `limit` (default 50, max 200) | `{ "items": [], "nextCursor" }`, newest first; `400` for a bad cursor |
+| `GET /api/test-runs/{id}` | | one run, see below; `404` |
+| `POST /api/test-runs/{id}/cancel` | | `204` — a queued run is cancelled at once, a running one stops within moments (poll it); `404`; `409` if it has already finished |
+
+A run:
+
+```json
+{
+  "id": "…",
+  "testScenarioId": "…",
+  "status": "Passed",
+  "trigger": "Manual",
+  "scheduledFor": "2026-10-03T10:00:00+00:00",
+  "startedAt": "2026-10-03T10:00:00.4+00:00",
+  "finishedAt": "2026-10-03T10:00:01.2+00:00",
+  "message": "200 OK",
+  "statusCode": 200,
+  "contractValid": true,
+  "validationErrors": []
+}
+```
+
+- `status`: `Queued` → `Running` → `Passed`, `Failed`, `Cancelled`, or `Interrupted` (the app stopped while it ran).
+- `trigger`: `Manual` — someone ran it, from the UI or the API.
+- The run's traffic is in the call history: `GET /api/call-records?testRunId={id}`.
 
 ## Mock and provider mode (Type 3)
 
@@ -100,6 +133,6 @@ Not a contract test: a publisher publishes an AsyncAPI operation's message to a 
 
 | Method & path | Query / body | Returns |
 |---|---|---|
-| `GET /api/call-records` | `specificationId`, `mockEndpointId`, `testScenarioId`, `publisherId`, `direction`, `contractValid`, `cursor`, `limit` | `{ "items": [], "nextCursor" }` — each item carries `statusCode`, `contractValid`, `validationErrors[]`, `warnings[]` (e.g. placeholders that couldn't be filled in) and `testScenarioName`/`publisherName` |
+| `GET /api/call-records` | `specificationId`, `mockEndpointId`, `testScenarioId`, `publisherId`, `testRunId`, `direction`, `contractValid`, `cursor`, `limit` | `{ "items": [], "nextCursor" }` — each item carries `statusCode`, `contractValid`, `validationErrors[]`, `warnings[]` (e.g. placeholders that couldn't be filled in) and `testScenarioName`/`publisherName` |
 | `GET /api/call-records/{id}` | | `{ "id", "requestSnapshot", "responseSnapshot" }` / `404` |
 | `DELETE /api/call-records` | | `{ "deleted" }` |
