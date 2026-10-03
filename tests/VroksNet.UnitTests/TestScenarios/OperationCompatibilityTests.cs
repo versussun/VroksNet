@@ -17,4 +17,10 @@ public class OperationCompatibilityTests
     {
         Assert.Equal(expected, OperationCompatibility.IsCompatible(operationKey, serviceType));
     }
+
+    [Theory]
+    [InlineData("GET /pets")]
+    [InlineData("orders.created:send")]
+    public void IsCompatible_UnknownServiceType_IsFalse(string operationKey)
+        => Assert.False(OperationCompatibility.IsCompatible(operationKey, (ConnectionServiceType)99));
 }

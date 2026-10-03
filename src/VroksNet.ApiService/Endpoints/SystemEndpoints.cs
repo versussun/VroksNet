@@ -2,12 +2,13 @@ using Mediator;
 using VroksNet.Application.System.GetProviderInfo;
 using VroksNet.Application.System.GetStorageStatus;
 using VroksNet.Application.System.GetSystemInfo;
+using VroksNet.Application.System.ListConnectionTypes;
 
 namespace VroksNet.ApiService.Endpoints;
 
 /// <summary>
 /// Read-only system/environment info for the Admin UI and for tooling (the Aspire hosting package):
-/// storage mode, provider mode, and version + provisioning state. No logic lives here, per .claude/CLAUDE.md.
+/// storage mode, provider mode, version + provisioning state, and the connection types. No logic lives here, per .claude/CLAUDE.md.
 /// </summary>
 public static class SystemEndpoints
 {
@@ -35,6 +36,15 @@ public static class SystemEndpoints
             return Results.Ok(info);
         })
         .WithName("GetSystemInfo");
+
+        // Every connection type, what its value looks like and what it can do (ADR 0003) — the
+        // Admin UI builds its type list and connection filters from this.
+        app.MapGet("/api/system/connection-types", async (IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            var types = await mediator.Send(new ListConnectionTypes(), cancellationToken);
+            return Results.Ok(types);
+        })
+        .WithName("ListConnectionTypes");
 
         return app;
     }

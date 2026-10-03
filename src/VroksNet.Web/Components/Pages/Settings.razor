@@ -156,15 +156,15 @@ else
         <div class="mb-2">
             <label class="form-label" for="connection-service-type-select">Service type</label>
             <select id="connection-service-type-select" class="form-select" @bind="_formServiceType" @bind:after="() => _formTestResult = null">
-                <option value="@ConnectionServiceType.Http">HTTP</option>
-                <option value="@ConnectionServiceType.RabbitMq">RabbitMQ</option>
-                <option value="@ConnectionServiceType.Nats">NATS</option>
-                <option value="@ConnectionServiceType.Kafka">Kafka</option>
+                @foreach (var type in _connectionTypes)
+                {
+                    <option value="@type.Type">@type.DisplayName</option>
+                }
             </select>
         </div>
 
         <div class="mb-3">
-            <label class="form-label" for="connection-value-input">@(_formServiceType == ConnectionServiceType.Http ? "URL" : "Connection string")</label>
+            <label class="form-label" for="connection-value-input">@(SelectedType?.ValueLabel ?? "Connection string")</label>
             <div class="input-group">
                 <input id="connection-value-input" type="@(_formValueVisible ? "text" : "password")" class="form-control" @bind="_formValue" @bind:event="oninput" @bind:after="() => _formTestResult = null"
                        placeholder="@ValuePlaceholder" autocomplete="off" />
@@ -173,7 +173,7 @@ else
                 </button>
             </div>
 
-            <button type="button" class="btn btn-outline-primary btn-sm mt-2" @onclick="TestFormValueAsync" disabled="@(_isTestingForm || string.IsNullOrWhiteSpace(_formValue))">
+            <button type="button" class="btn btn-outline-primary btn-sm mt-2" @onclick="TestFormValueAsync" disabled="@(_isTestingForm || string.IsNullOrWhiteSpace(_formValue) || SelectedType is null)">
                 @(_isTestingForm ? "Testing…" : "Test connection")
             </button>
             @if (_formTestResult is not null)
@@ -207,27 +207,29 @@ else
 
     private Guid? _editingId;
     private string _formName = string.Empty;
-    private ConnectionServiceType _formServiceType = ConnectionServiceType.Http;
+    /// <summary>From the server (GET /api/system/connection-types), in the order it offers them.</summary>
+    private ConnectionTypeInfo[] _connectionTypes = [];
+    private string _formServiceType = string.Empty;
     private string _formValue = string.Empty;
     private bool _isTestingForm;
     private ConnectionTestResult? _formTestResult;
 
-    private bool CanSave => !string.IsNullOrWhiteSpace(_formName) && !string.IsNullOrWhiteSpace(_formValue);
+    private bool CanSave => !string.IsNullOrWhiteSpace(_formName) && !string.IsNullOrWhiteSpace(_formValue) && SelectedType is not null;
 
     private string EnvVarValue => $"Data Source={(string.IsNullOrWhiteSpace(_desiredStoragePath) ? "vroksnet.db" : _desiredStoragePath)}";
 
-    private string ValuePlaceholder => _formServiceType switch
-    {
-        ConnectionServiceType.Http => "https://api.example.com",
-        ConnectionServiceType.RabbitMq => "amqp://user:password@host:5672/vhost",
-        ConnectionServiceType.Nats => "nats://user:password@host:4222",
-        ConnectionServiceType.Kafka => "host:9092,host2:9092 — or bootstrap.servers=host:9092;security.protocol=SASL_SSL;…",
-        _ => string.Empty
-    };
+    private ConnectionTypeInfo? SelectedType => _connectionTypes.FirstOrDefault(type => type.Type == _formServiceType);
+
+    private string ValuePlaceholder => SelectedType?.ValueHint ?? string.Empty;
+
+    /// <summary>A new connection starts as the first type the server offers.</summary>
+    private string DefaultServiceType => _connectionTypes.FirstOrDefault()?.Type ?? string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         _storageStatus = await SystemApi.GetStorageStatusAsync();
+        _connectionTypes = await SystemApi.GetConnectionTypesAsync();
+        _formServiceType = DefaultServiceType;
         await LoadAsync();
     }
 
@@ -277,7 +279,7 @@ else
     {
         _editingId = null;
         _formName = string.Empty;
-        _formServiceType = ConnectionServiceType.Http;
+        _formServiceType = DefaultServiceType;
         _formValue = string.Empty;
         _formValueVisible = false;
         _formTestResult = null;

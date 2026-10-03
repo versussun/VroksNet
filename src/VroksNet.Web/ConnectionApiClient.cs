@@ -19,7 +19,7 @@ public sealed class ConnectionApiClient(HttpClient httpClient)
         return connections ?? [];
     }
 
-    public async Task<Guid> CreateAsync(string name, ConnectionServiceType serviceType, string value, CancellationToken cancellationToken = default)
+    public async Task<Guid> CreateAsync(string name, string serviceType, string value, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.PostAsJsonAsync("/api/connections", new { name, serviceType, value }, JsonOptions, cancellationToken);
         await ThrowIfRejectedAsync(response, cancellationToken);
@@ -29,7 +29,7 @@ public sealed class ConnectionApiClient(HttpClient httpClient)
     }
 
     /// <summary>Returns false if no connection with that id exists.</summary>
-    public async Task<bool> UpdateAsync(Guid id, string name, ConnectionServiceType serviceType, string value, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(Guid id, string name, string serviceType, string value, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.PutAsJsonAsync($"/api/connections/{id}", new { name, serviceType, value }, JsonOptions, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -70,7 +70,7 @@ public sealed class ConnectionApiClient(HttpClient httpClient)
     }
 
     /// <summary>Tests a URL/connection string directly — for the Add/Edit panel's "Test" button, before the connection has been saved.</summary>
-    public async Task<ConnectionTestResult> TestValueAsync(ConnectionServiceType serviceType, string value, CancellationToken cancellationToken = default)
+    public async Task<ConnectionTestResult> TestValueAsync(string serviceType, string value, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.PostAsJsonAsync("/api/connections/test", new { serviceType, value }, JsonOptions, cancellationToken);
         response.EnsureSuccessStatusCode();

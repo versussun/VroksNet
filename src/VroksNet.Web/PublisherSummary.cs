@@ -10,7 +10,7 @@ public sealed record PublisherSummary(
     string OperationKey,
     Guid ConnectionId,
     string ConnectionName,
-    ConnectionServiceType ConnectionServiceType,
+    string ConnectionServiceType,
     string? PayloadOverride,
     string? Exchange,
     int IntervalSeconds,

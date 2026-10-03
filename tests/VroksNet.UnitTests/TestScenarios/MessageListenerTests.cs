@@ -28,7 +28,7 @@ public class MessageListenerTests
         var result = await Listener.ListenAsync(Connection(ConnectionServiceType.Http, "https://api.example.com"), "orders.created:send", TimeSpan.FromSeconds(1), "amq.topic", TestContext.Current.CancellationToken);
 
         Assert.False(result.Received);
-        Assert.Contains("only RabbitMq/Nats/Kafka", result.Message);
+        Assert.Contains("Listen needs a broker connection", result.Message);
     }
 
     [Theory]

@@ -30,6 +30,6 @@ public sealed class MessageListener(BrokerAdapterRegistry adapters) : IMessageLi
 
         return adapters.Find(connection.ServiceType) is IListeningBrokerAdapter adapter
             ? adapter.ListenAsync(connection, pattern, timeout, exchange, cancellationToken, onListening)
-            : Task.FromResult(new MessageListenResult(false, $"Can't listen through a {connection.ServiceType} connection — only RabbitMq/Nats/Kafka."));
+            : Task.FromResult(new MessageListenResult(false, $"Can't listen through a {connection.ServiceType} connection. {ServiceTypeTraits.Find(connection.ServiceType)?.ListenNote}".TrimEnd()));
     }
 }
