@@ -123,10 +123,22 @@ public sealed class KafkaApiTests(AppHostFixture fixture)
         return connectionString;
     }
 
+    /// <summary>
+    /// Creates the topic and waits until the broker's metadata lists it. CreateTopicsAsync returns
+    /// once the controller has the topic, but the broker's metadata catches up a moment later — a
+    /// Listen started in between found no matching topic, which made these tests flaky on CI.
+    /// </summary>
     private static async Task CreateTopicAsync(string bootstrapServers, string topic)
     {
         using var admin = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = bootstrapServers }).Build();
         await admin.CreateTopicsAsync([new TopicSpecification { Name = topic, NumPartitions = 1, ReplicationFactor = 1 }]);
+
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (!admin.GetMetadata(topic, TimeSpan.FromSeconds(2)).Topics.Any(metadata => metadata.Topic == topic && metadata.Error.Code == ErrorCode.NoError && metadata.Partitions.Count > 0))
+        {
+            Assert.True(DateTime.UtcNow < deadline, $"Topic \"{topic}\" didn't show up in the broker's metadata within 15s.");
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+        }
     }
 
     /// <summary>
