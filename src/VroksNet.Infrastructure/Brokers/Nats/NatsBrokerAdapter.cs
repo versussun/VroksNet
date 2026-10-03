@@ -8,7 +8,9 @@ namespace VroksNet.Infrastructure.Brokers.Nats;
 /// <summary>
 /// <see cref="ConnectionServiceType.Nats"/>. The connection value is a nats:// URL. Send publishes
 /// to subject = the operation's channel address and pings afterwards, since a publish only
-/// buffers; Listen is a plain core subscription.
+/// buffers; Listen is a plain core subscription to the channel address with each parameter as
+/// "*". NATS wildcards stand for whole "."-separated tokens, so a channel with parameters between
+/// "/"-separated segments can't be listened on here.
 /// </summary>
 public sealed class NatsBrokerAdapter : IListeningBrokerAdapter
 {
@@ -61,9 +63,13 @@ public sealed class NatsBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public async Task<MessageListenResult> ListenAsync(Connection connection, string subscriptionPattern, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
+    public async Task<MessageListenResult> ListenAsync(Connection connection, ChannelPattern channel, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
     {
-        var subject = subscriptionPattern;
+        if (SubjectOf(channel) is not { } subject)
+        {
+            return new MessageListenResult(false, $"Channel \"{channel.Address}\" has parameters between \"/\"-separated segments, and NATS wildcards only stand for whole \".\"-separated tokens — it can't be listened on through a Nats connection.");
+        }
+
         var stage = ListenStage.Connecting;
         try
         {
@@ -99,6 +105,10 @@ public sealed class NatsBrokerAdapter : IListeningBrokerAdapter
             return new MessageListenResult(false, ex.Message);
         }
     }
+
+    /// <summary>The subject to subscribe to for <paramref name="channel"/> ("orders.{region}.created" → "orders.*.created"); null if it has parameters but isn't "."-separated.</summary>
+    public static string? SubjectOf(ChannelPattern channel)
+        => channel.HasParameters && channel.Separator != '.' ? null : channel.Render("*");
 
     private static async Task PublishAndConfirmAsync(NatsConnection connection, string subject, string payload, CancellationToken cancellationToken)
     {

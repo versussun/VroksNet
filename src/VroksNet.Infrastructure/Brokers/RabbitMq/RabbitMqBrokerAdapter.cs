@@ -18,7 +18,9 @@ namespace VroksNet.Infrastructure.Brokers.RabbitMq;
 /// <item>Listen binds a server-named exclusive, auto-delete queue to the exchange, so the broker
 /// hands this run its own copy and the queue goes away with the connection. On a topic exchange
 /// the binding key is a pattern; a fanout/headers exchange ignores it, so any message on the
-/// exchange counts.</item>
+/// exchange counts. The binding key is the channel address with each parameter as "*" — topic
+/// wildcards stand for whole "."-separated words, so a channel with parameters between "/"-separated
+/// segments can't be listened on here.</item>
 /// </list>
 /// </summary>
 public sealed class RabbitMqBrokerAdapter : IListeningBrokerAdapter
@@ -101,14 +103,18 @@ public sealed class RabbitMqBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public async Task<MessageListenResult> ListenAsync(Connection connection, string subscriptionPattern, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
+    public async Task<MessageListenResult> ListenAsync(Connection connection, ChannelPattern channel, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
     {
+        if (BindingKeyOf(channel) is not { } bindingKey)
+        {
+            return new MessageListenResult(false, $"Channel \"{channel.Address}\" has parameters between \"/\"-separated segments, and RabbitMQ binding keys only have wildcards for whole \".\"-separated words — it can't be listened on through a RabbitMq connection.");
+        }
+
         if (!Uri.TryCreate(connection.Value, UriKind.Absolute, out var uri))
         {
             return new MessageListenResult(false, "Not a valid amqp(s):// connection string.");
         }
 
-        var bindingKey = subscriptionPattern;
         var stage = ListenStage.Connecting;
         try
         {
@@ -120,19 +126,19 @@ public sealed class RabbitMqBrokerAdapter : IListeningBrokerAdapter
             using var setupCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             setupCts.CancelAfter(BrokerListening.ConnectTimeout);
 
-            await using var channel = await brokerConnection.CreateChannelAsync(cancellationToken: setupCts.Token);
-            var queue = await channel.QueueDeclareAsync(queue: string.Empty, durable: false, exclusive: true, autoDelete: true, cancellationToken: setupCts.Token);
-            await channel.QueueBindAsync(queue.QueueName, exchange, bindingKey, cancellationToken: setupCts.Token);
+            await using var amqpChannel = await brokerConnection.CreateChannelAsync(cancellationToken: setupCts.Token);
+            var queue = await amqpChannel.QueueDeclareAsync(queue: string.Empty, durable: false, exclusive: true, autoDelete: true, cancellationToken: setupCts.Token);
+            await amqpChannel.QueueBindAsync(queue.QueueName, exchange, bindingKey, cancellationToken: setupCts.Token);
 
             var received = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var consumer = new AsyncEventingBasicConsumer(channel);
+            var consumer = new AsyncEventingBasicConsumer(amqpChannel);
             consumer.ReceivedAsync += (_, delivery) =>
             {
                 // The body buffer is only valid during this callback — decode it now.
                 received.TrySetResult(Encoding.UTF8.GetString(delivery.Body.Span));
                 return Task.CompletedTask;
             };
-            await channel.BasicConsumeAsync(queue.QueueName, autoAck: true, consumer, setupCts.Token);
+            await amqpChannel.BasicConsumeAsync(queue.QueueName, autoAck: true, consumer, setupCts.Token);
             stage = ListenStage.Listening;
             onListening?.Invoke();
 
@@ -152,4 +158,8 @@ public sealed class RabbitMqBrokerAdapter : IListeningBrokerAdapter
             return new MessageListenResult(false, ex.Message);
         }
     }
+
+    /// <summary>The topic binding key for <paramref name="channel"/> ("orders.{region}.created" → "orders.*.created"); null if it has parameters but isn't "."-separated.</summary>
+    public static string? BindingKeyOf(ChannelPattern channel)
+        => channel.HasParameters && channel.Separator != '.' ? null : channel.Render("*");
 }

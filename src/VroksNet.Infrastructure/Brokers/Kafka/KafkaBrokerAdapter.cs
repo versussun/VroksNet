@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Confluent.Kafka;
 using VroksNet.Application.Abstractions;
 using VroksNet.Domain.Connections;
@@ -13,7 +14,8 @@ namespace VroksNet.Infrastructure.Brokers.Kafka;
 /// broker's acknowledgement. Listen uses no consumer group at all: the partitions of every
 /// matching topic are assigned by hand, starting at their current end, and nothing is committed.
 /// The topic's real consumer groups don't notice, and a message written after the listen window
-/// opens can't be missed waiting for a group rebalance.
+/// opens can't be missed waiting for a group rebalance. The matching topics are found with a regex,
+/// so a channel of either separator can be listened on.
 /// </summary>
 public sealed class KafkaBrokerAdapter : IListeningBrokerAdapter
 {
@@ -83,16 +85,17 @@ public sealed class KafkaBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public async Task<MessageListenResult> ListenAsync(Connection connection, string subscriptionPattern, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
+    public async Task<MessageListenResult> ListenAsync(Connection connection, ChannelPattern channel, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
     {
-        var pattern = subscriptionPattern;
+        // What the messages show: the address with each parameter as "*".
+        var pattern = channel.Render("*");
         var config = KafkaClients.ConfigFrom(connection.Value);
         if (config is null)
         {
             return new MessageListenResult(false, KafkaClients.InvalidConnectionStringMessage);
         }
 
-        var topicRegex = KafkaClients.TopicRegexOf(pattern);
+        var topicRegex = TopicRegexOf(channel);
         var stage = ListenStage.Connecting;
         try
         {
@@ -140,6 +143,17 @@ public sealed class KafkaBrokerAdapter : IListeningBrokerAdapter
         {
             return new MessageListenResult(false, ex is KafkaException kafka ? kafka.Error.Reason : ex.Message);
         }
+    }
+
+    /// <summary>
+    /// The regex for the topics <paramref name="channel"/> matches: each parameter matches one
+    /// segment between the channel's separators, everything else literally ("orders.{region}.created"
+    /// → ^orders\.[^.]+\.created$, "user/{id}/signedup" → ^user/[^/]+/signedup$).
+    /// </summary>
+    public static Regex TopicRegexOf(ChannelPattern channel)
+    {
+        var separator = Regex.Escape(channel.Separator.ToString());
+        return new Regex("^" + string.Join(separator, channel.Segments.Select(segment => segment.IsParameter ? $"[^{separator}]+" : Regex.Escape(segment.Text))) + "$");
     }
 
     /// <exception cref="TimeoutException">The partitions' offsets weren't all known within <see cref="BrokerListening.ConnectTimeout"/>.</exception>

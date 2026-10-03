@@ -98,7 +98,10 @@ These apply to your own specs too.
   may be inline or one `$ref` to `components.schemas`. **The schema that ref points to must be
   self-contained**: a `$ref` nested inside it isn't resolved, and contract checks against it
   report "couldn't be evaluated".
-- A channel parameter has to be a whole `.`-separated segment (`orders.{region}.created`). Only
-  then can a Listen scenario subscribe to it (`orders.*.created`, or a topic regex on Kafka).
+- A channel parameter has to be a whole segment, between `.`s (`orders.{region}.created`) or `/`s
+  (`user/{id}/signedup`). Only then can a Listen scenario subscribe to it: `orders.*.created` on
+  RabbitMQ and NATS, a topic regex on Kafka. RabbitMQ and NATS wildcards only stand for whole
+  `.`-separated words, so a `/`-separated channel with parameters can be listened on through Kafka
+  only.
   Publishers and Send scenarios don't fill parameters in. They would publish to the literal
   `{region}` address, so give them an operation with a concrete address, as the samples do.
