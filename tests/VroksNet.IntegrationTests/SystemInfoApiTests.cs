@@ -26,4 +26,19 @@ public sealed class SystemInfoApiTests(AppHostFixture fixture)
         Assert.Equal(0, provisioning["counts"]!["specifications"]!.GetValue<int>());
         Assert.Empty(provisioning["errors"]!.AsArray());
     }
+
+    /// <summary><c>GET /api/system/connection-types</c> (ADR 0003): what the Admin UI builds its type list and filters from.</summary>
+    [Fact]
+    public async Task ConnectionTypes_DescribeEveryType()
+    {
+        var types = await fixture.ApiServiceClient.GetFromJsonAsync<JsonArray>("/api/system/connection-types", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["Http", "RabbitMq", "Nats", "Kafka"], types!.Select(type => type!["type"]!.GetValue<string>()));
+        var http = types[0]!;
+        Assert.Equal("HTTP", http["displayName"]!.GetValue<string>());
+        Assert.True(http["isHttp"]!.GetValue<bool>());
+        Assert.False(http["canListen"]!.GetValue<bool>());
+        Assert.False(string.IsNullOrWhiteSpace(http["listenNote"]!.GetValue<string>()));
+        Assert.All(types.Skip(1), type => Assert.True(type!["canListen"]!.GetValue<bool>()));
+    }
 }

@@ -1,5 +1,6 @@
 using VroksNet.Domain.Connections;
 using VroksNet.Infrastructure.Connections;
+using VroksNet.UnitTests.TestDoubles;
 
 namespace VroksNet.UnitTests.TestScenarios;
 
@@ -10,7 +11,7 @@ namespace VroksNet.UnitTests.TestScenarios;
 /// </summary>
 public class MessageListenerTests
 {
-    private static readonly MessageListener Listener = new();
+    private static readonly MessageListener Listener = new(BrokerAdapters.Registry());
 
     [Fact]
     public async Task ListenAsync_HttpOperation_FailsWithoutConnecting()
@@ -27,7 +28,7 @@ public class MessageListenerTests
         var result = await Listener.ListenAsync(Connection(ConnectionServiceType.Http, "https://api.example.com"), "orders.created:send", TimeSpan.FromSeconds(1), "amq.topic", TestContext.Current.CancellationToken);
 
         Assert.False(result.Received);
-        Assert.Contains("only RabbitMq/Nats/Kafka", result.Message);
+        Assert.Contains("Listen needs a broker connection", result.Message);
     }
 
     [Theory]
@@ -49,6 +50,26 @@ public class MessageListenerTests
 
         Assert.False(result.Received);
         Assert.StartsWith("Not a valid Kafka connection string", result.Message);
+    }
+
+    [Theory]
+    [InlineData(ConnectionServiceType.RabbitMq, "amqp://guest:guest@127.0.0.1:1")]
+    [InlineData(ConnectionServiceType.Nats, "nats://127.0.0.1:1")]
+    public async Task ListenAsync_SlashSeparatedParameterOnADotWildcardBroker_FailsWithoutConnecting(ConnectionServiceType serviceType, string value)
+    {
+        var result = await Listener.ListenAsync(Connection(serviceType, value), "user/{userId}/signedup:send", TimeSpan.FromSeconds(1), "amq.topic", TestContext.Current.CancellationToken);
+
+        Assert.False(result.Received);
+        Assert.Contains("\"/\"-separated segments", result.Message);
+    }
+
+    [Fact]
+    public async Task ListenAsync_PartialSegmentParameter_FailsWithoutConnecting()
+    {
+        var result = await Listener.ListenAsync(Connection(ConnectionServiceType.Kafka, "127.0.0.1:1"), "orders.eu-{region}.created:send", TimeSpan.FromSeconds(1), "amq.topic", TestContext.Current.CancellationToken);
+
+        Assert.False(result.Received);
+        Assert.Contains("isn't a whole segment", result.Message);
     }
 
     private static Connection Connection(ConnectionServiceType serviceType, string value)

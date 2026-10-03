@@ -35,17 +35,9 @@ public class ListenTestScenarioTests
         => Assert.Equal(expected, TestScenarioListening.DefaultKindFor(operationKey));
 
     [Theory]
-    [InlineData("orders.created", "orders.created")]
-    [InlineData("orders.{region}.created", "orders.*.created")]
-    [InlineData("{tenant}.orders.{id}", "*.orders.*")]
-    [InlineData("user/{userId}/signedup", null)]  // parameter inside a "/"-separated segment
-    [InlineData("orders.eu-{region}.created", null)] // parameter is only part of a segment
-    public void SubscriptionPatternOf_TurnsWholeSegmentParametersIntoWildcards(string channelAddress, string? expected)
-        => Assert.Equal(expected, TestScenarioListening.SubscriptionPatternOf(channelAddress));
-
-    [Theory]
     [InlineData("orders.{region}.created:send", true)]
-    [InlineData("user/{userId}/signedup:send", false)]
+    [InlineData("user/{userId}/signedup:send", true)]
+    [InlineData("orders.eu-{region}.created:send", false)]
     [InlineData("GET /pets", false)]
     public void CanListen_RequiresASubscribableChannel(string operationKey, bool expected)
         => Assert.Equal(expected, TestScenarioListening.CanListen(operationKey));

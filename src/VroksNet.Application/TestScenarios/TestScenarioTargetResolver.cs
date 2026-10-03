@@ -38,7 +38,7 @@ public static class TestScenarioTargetResolver
     /// the timeout is null (meaning "use the default") for a Listen scenario that gave none, and
     /// always null for a Send one; the exchange is kept, trimmed, only for a RabbitMQ connection
     /// (either kind — blank means "use the kind's default"). Throws <see cref="ArgumentException"/>
-    /// on an operation that can't be listened to, an unknown kind, or a timeout outside
+    /// on an operation or connection type that can't be listened on, an unknown kind, or a timeout outside
     /// 1..<see cref="TestScenarioListening.MaxTimeoutSeconds"/>.
     /// </summary>
     public static (int? TimeoutSeconds, string? Exchange) ValidateKindSettings(
@@ -66,7 +66,12 @@ public static class TestScenarioTargetResolver
         {
             throw new ArgumentException(OperationCompatibility.IsHttpOperation(target.Endpoint.OperationKey)
                 ? $"Operation \"{target.Endpoint.OperationKey}\" isn't a broker channel, so it can't be listened to."
-                : $"Operation \"{target.Endpoint.OperationKey}\" has a channel parameter that isn't a whole \".\"-separated segment, so it can't be subscribed to.");
+                : $"Operation \"{target.Endpoint.OperationKey}\" has a channel parameter that is only part of a segment, so it can't be subscribed to.");
+        }
+
+        if (ServiceTypeTraits.Find(target.Connection.ServiceType) is { CanListen: false, ListenNote: var note })
+        {
+            throw new ArgumentException(note ?? $"A {target.Connection.ServiceType} connection can't be listened on.");
         }
 
         if (timeoutSeconds is < 1 or > TestScenarioListening.MaxTimeoutSeconds)

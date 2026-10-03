@@ -1,5 +1,6 @@
 using VroksNet.Domain.Connections;
 using VroksNet.Infrastructure.Connections;
+using VroksNet.UnitTests.TestDoubles;
 
 namespace VroksNet.UnitTests.TestScenarios;
 
@@ -19,7 +20,7 @@ public class MessageSenderUrlTests
     public async Task SendAsync_Http_KeepsTheConnectionsBasePathAndQuery(string connectionUrl, string expectedUrl)
     {
         var handler = new CapturingHandler();
-        var sender = new MessageSender(new SingleClientFactory(handler));
+        var sender = new MessageSender(BrokerAdapters.Registry(new SingleClientFactory(handler)));
 
         await sender.SendAsync(
             new Connection { Id = Guid.NewGuid(), Name = "Pets API", ServiceType = ConnectionServiceType.Http, Value = connectionUrl },

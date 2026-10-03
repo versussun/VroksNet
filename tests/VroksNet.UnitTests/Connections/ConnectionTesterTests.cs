@@ -1,6 +1,6 @@
-using Microsoft.Extensions.DependencyInjection;
 using VroksNet.Domain.Connections;
 using VroksNet.Infrastructure.Connections;
+using VroksNet.UnitTests.TestDoubles;
 
 namespace VroksNet.UnitTests.Connections;
 
@@ -12,8 +12,7 @@ namespace VroksNet.UnitTests.Connections;
 /// </summary>
 public class ConnectionTesterTests
 {
-    private static readonly ConnectionTester Tester = new(
-        new ServiceCollection().AddHttpClient().BuildServiceProvider().GetRequiredService<IHttpClientFactory>());
+    private static readonly ConnectionTester Tester = new(BrokerAdapters.Registry());
 
     [Fact]
     public async Task TestAsync_Http_InvalidUrl_FailsWithoutAttemptingAnyRequest()

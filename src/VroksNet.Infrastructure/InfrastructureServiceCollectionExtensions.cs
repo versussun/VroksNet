@@ -4,6 +4,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.EntityFrameworkCore;
 using VroksNet.Application.Abstractions;
+using VroksNet.Infrastructure.Brokers;
+using VroksNet.Infrastructure.Brokers.Http;
+using VroksNet.Infrastructure.Brokers.Kafka;
+using VroksNet.Infrastructure.Brokers.Nats;
+using VroksNet.Infrastructure.Brokers.RabbitMq;
 using VroksNet.Infrastructure.Connections;
 using VroksNet.Infrastructure.Hosting;
 using VroksNet.Infrastructure.Persistence;
@@ -100,7 +105,6 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ISuiteRunRepository, SuiteRunRepository>();
         services.AddScoped<ICallRecordRepository, CallRecordRepository>();
         services.AddScoped<ICallRecordNameResolver, CallRecordNameResolver>();
-        services.AddSingleton<IMessageListener, MessageListener>();
         services.AddSingleton<IProviderSettings>(new ProviderSettings(configuration));
         services.AddSingleton<IAppVersionProvider, AppVersionProvider>();
         services.AddSingleton<ICronSchedule, CronSchedule>();
@@ -111,12 +115,10 @@ public static class InfrastructureServiceCollectionExtensions
         // Stateless — no scoped dependencies of its own, so Singleton avoids reallocating it per request.
         services.AddSingleton<ISchemaValidator, SchemaValidator>();
 
-        // Bare factory registration — ConnectionTester/MessageSender each request their own named
-        // client via IHttpClientFactory.CreateClient(...) rather than a typed AddHttpClient<T>
-        // registration.
-        services.AddHttpClient();
+        services.AddBrokerAdapters();
         services.AddScoped<IConnectionTester, ConnectionTester>();
         services.AddScoped<IMessageSender, MessageSender>();
+        services.AddSingleton<IMessageListener, MessageListener>();
 
         // The async-mock worker: publishes enabled publishers on their schedule.
         services.TryAddSingleton(TimeProvider.System);
@@ -125,6 +127,23 @@ public static class InfrastructureServiceCollectionExtensions
         // record themselves as Interrupted through the write queue.
         services.AddHostedService<TestRuns.TestRunBackgroundService>();
 
+        return services;
+    }
+
+    /// <summary>
+    /// One <see cref="IBrokerAdapter"/> per <see cref="Domain.Connections.ConnectionServiceType"/>
+    /// (ADR 0003) and the registry the dispatchers look them up in. The adapters are stateless and
+    /// open their own short-lived clients per call. Http requests its named client through the
+    /// bare <see cref="IHttpClientFactory"/> registration rather than a typed AddHttpClient&lt;T&gt;.
+    /// </summary>
+    public static IServiceCollection AddBrokerAdapters(this IServiceCollection services)
+    {
+        services.AddHttpClient();
+        services.AddSingleton<IBrokerAdapter, HttpBrokerAdapter>();
+        services.AddSingleton<IBrokerAdapter, RabbitMqBrokerAdapter>();
+        services.AddSingleton<IBrokerAdapter, NatsBrokerAdapter>();
+        services.AddSingleton<IBrokerAdapter, KafkaBrokerAdapter>();
+        services.AddSingleton<BrokerAdapterRegistry>();
         return services;
     }
 

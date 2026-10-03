@@ -2,6 +2,7 @@
 @inject TestScenarioApiClient TestScenarioApi
 @inject SpecificationApiClient SpecificationApi
 @inject ConnectionApiClient ConnectionApi
+@inject SystemApiClient SystemApi
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -249,7 +250,7 @@ else
             </select>
             @if (SelectedEndpoint is not null && _connections is { Length: > 0 } && !CompatibleConnections.Any())
             {
-                <div class="form-text text-danger">No @(SelectedEndpoint.RequiresHttpConnection ? "Http" : "RabbitMq/Nats/Kafka") connections yet — add one on the Settings page first.</div>
+                <div class="form-text text-danger">No @(SelectedEndpoint.RequiresHttpConnection ? "HTTP connections" : IsListening ? "broker connections that can be listened on" : "broker connections") yet — add one on the Settings page first.</div>
             }
         </div>
 
@@ -276,7 +277,7 @@ else
             </div>
         }
 
-        @if (SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq)
+        @if (SelectedConnection?.ServiceType == RabbitMqType)
         {
             <div class="mb-3">
                 <label class="form-label" for="scenario-exchange-input">Exchange</label>
@@ -429,16 +430,30 @@ else
 
     private MockEndpointDetail? SelectedEndpoint => _specificationEndpoints?.FirstOrDefault(e => e.Id.ToString() == _formMockEndpointId);
 
-    /// <summary>Once an operation is picked, only offer connections its OperationKey could actually be sent through — see OperationCompatibility on the server.</summary>
+    /// <summary>
+    /// Once an operation is picked, only offer connections its OperationKey could actually be sent
+    /// through (see OperationCompatibility on the server) — and, for a Listen scenario, only ones
+    /// whose type can be listened on. Both come from the server's connection types.
+    /// </summary>
     private IEnumerable<ConnectionSummary> CompatibleConnections =>
         _connections is null ? []
         : SelectedEndpoint is null ? _connections
-        : _connections.Where(c => (c.ServiceType == ConnectionServiceType.Http) == SelectedEndpoint.RequiresHttpConnection);
+        : _connections.Where(c => TypeOf(c) is { } type
+            && type.IsHttp == SelectedEndpoint.RequiresHttpConnection
+            && (!IsListening || type.CanListen));
+
+    /// <summary>The RabbitMQ exchange field is RabbitMQ-only until broker options replace it (ADR 0003).</summary>
+    private const string RabbitMqType = "RabbitMq";
+
+    private ConnectionTypeInfo[] _connectionTypes = [];
+
+    private ConnectionTypeInfo? TypeOf(ConnectionSummary connection) => _connectionTypes.FirstOrDefault(type => type.Type == connection.ServiceType);
 
     protected override async Task OnInitializedAsync()
     {
         _specifications = await SpecificationApi.GetAllAsync();
         _connections = await ConnectionApi.GetAllAsync();
+        _connectionTypes = await SystemApi.GetConnectionTypesAsync();
         await LoadAsync();
 
         if (QuerySpecificationId is { } specificationId && _specifications.Any(s => s.Id == specificationId))
@@ -564,7 +579,7 @@ else
             listening || string.IsNullOrWhiteSpace(_formPayloadOverride) ? null : _formPayloadOverride,
             listening ? TestScenarioKind.Listen : TestScenarioKind.Send,
             listening ? ListenTimeoutSeconds : null,
-            SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq && !string.IsNullOrWhiteSpace(_formExchange)
+            SelectedConnection?.ServiceType == RabbitMqType && !string.IsNullOrWhiteSpace(_formExchange)
                 ? _formExchange
                 : null,
             string.IsNullOrWhiteSpace(_formSchedule) ? null : _formSchedule,

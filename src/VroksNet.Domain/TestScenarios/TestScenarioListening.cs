@@ -27,37 +27,13 @@ public static class TestScenarioListening
 
     /// <summary>
     /// Whether the operation is a broker channel that can be subscribed to. HTTP operations have no
-    /// channel; an AsyncAPI address whose parameters aren't whole "."-separated segments (e.g.
-    /// "user/{id}/signedup") can't be turned into a subscription — see <see cref="SubscriptionPatternOf"/>.
+    /// channel; an AsyncAPI address with a parameter that is only part of a segment
+    /// ("orders.eu-{region}.created") can't be turned into a subscription — see
+    /// <see cref="ChannelPattern.Parse"/>. Whether a particular broker can match the pattern is up
+    /// to its adapter.
     /// </summary>
     public static bool CanListen(string operationKey)
-        => OperationCompatibility.ChannelAddressOf(operationKey) is { } address && SubscriptionPatternOf(address) is not null;
-
-    /// <summary>
-    /// The RabbitMQ topic binding key / NATS subject / Kafka topic pattern to subscribe with for a
-    /// channel address: each "."-separated segment that is a whole AsyncAPI parameter ("{region}")
-    /// becomes the one-segment wildcard "*", which means the same thing in RabbitMQ and NATS
-    /// ("orders.{region}.created" → "orders.*.created"; the Kafka listener turns it into a topic
-    /// regex). Null if a parameter is only part of a segment, since no broker can match that. Addresses without parameters are used as-is.
-    /// </summary>
-    public static string? SubscriptionPatternOf(string channelAddress)
-    {
-        var segments = channelAddress.Split('.');
-        for (var i = 0; i < segments.Length; i++)
-        {
-            var segment = segments[i];
-            if (segment.Length > 2 && segment[0] == '{' && segment[^1] == '}' && segment.IndexOfAny(['{', '}'], 1, segment.Length - 2) < 0)
-            {
-                segments[i] = "*";
-            }
-            else if (segment.Contains('{') || segment.Contains('}'))
-            {
-                return null;
-            }
-        }
-
-        return string.Join('.', segments);
-    }
+        => OperationCompatibility.ChannelAddressOf(operationKey) is { } address && ChannelPattern.Parse(address) is not null;
 
     /// <summary>
     /// The mode a new scenario should start in. An AsyncAPI "send" operation is one the described

@@ -1,6 +1,6 @@
 # Plan: broker adapters, then new brokers
 
-**Status:** proposed. Steps R0–R6 are the refactoring; N1–N5 add brokers on top of it.
+**Status:** accepted — decisions in ADR 0003 (`docs/adr/0003-broker-adapters.md`). Steps R0–R6 are the refactoring; N1–N5 add brokers on top of it.
 **Why:** VroksNet speaks RabbitMQ, NATS and Kafka, and more are wanted (MQTT, Redis, Azure Service Bus, AWS SQS/SNS). Today each broker is a branch in several places, so every new one would touch all of them.
 
 ## Where broker-specific code lives today
@@ -12,7 +12,7 @@
 | `Infrastructure/Connections/ConnectionTester.cs` | `switch`: one reachability check per type |
 | `Infrastructure/Connections/KafkaClients.cs`, `RabbitMqConnections.cs` | client setup shared by the three classes above |
 | `Domain/TestScenarios/OperationCompatibility.cs` | "HTTP operation ⇔ `Http` connection, AsyncAPI operation ⇔ any broker" |
-| `Domain/TestScenarios/TestScenarioListening.cs` | one subscription pattern (`.`-separated segments, `*` for a parameter) shared by all brokers; Kafka turns it into a regex in `KafkaClients.TopicRegexOf` |
+| `Domain/TestScenarios/TestScenarioListening.cs` (before R3) | one subscription pattern (`.`-separated segments, `*` for a parameter) shared by all brokers; Kafka turns it into a regex in `KafkaClients.TopicRegexOf` |
 | `TestScenario.Exchange`, `Publisher.Exchange` | a RabbitMQ-only field carried through the entities, DTOs, endpoints, Web forms, the manifest (`exchange`) and the export |
 | `Web/Components/Pages/Settings.razor` | the list of types and each type's value hint, written out by hand |
 | `docs/schemas/provisioning-manifest.v1.schema.json` | the `type` enum |
@@ -155,10 +155,11 @@ R1–R3 can't change behaviour, so they're safe to do first. R4 is the only step
 - **Destructive Listen sneaking in (N4, N5).** The rule is enforced by traits plus review. An adapter for a queue-only broker must say "can't Listen", never consume.
 - **CI time (R6 before N2).** Without per-broker collections, each broker slows every run.
 
-## Questions for ADR 0003
+## Questions for ADR 0003 — resolved
 
-1. Which brokers do VroksNet's users actually need, and in what order? (The table above is a proposal.)
-2. Service Bus / SNS: may VroksNet create temporary subscriptions — which needs management rights on the connection — or must the user name an existing one?
-3. Is "Send only" acceptable for queue-only brokers (SQS, Service Bus queues), with the UI saying why Listen isn't offered?
-4. Should `exchange` be marked deprecated in favour of `brokerOptions.exchange` (to drop in contract v2), or kept for good?
-5. WebSocket/SSE channels, served by the mock the way provider mode serves HTTP: a separate ADR, or out of scope?
+ADR 0003 answers them:
+1. Brokers and order: as in the table above.
+2. Service Bus / SNS: both — a named existing `subscription`, or a temporary one when the connection may manage entities.
+3. Queue-only brokers are Send only, and the UI says why Listen isn't offered.
+4. `exchange` is deprecated in contract v1 and removed in v2.
+5. WebSocket/SSE served by the mock: out of scope, a separate ADR if wanted.
