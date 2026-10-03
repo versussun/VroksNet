@@ -15,6 +15,7 @@ The Clean Architecture Domain layer and the innermost layer. **It has no project
 
 ## Feature notes
 
+- **What a connection type is and can do lives in `VroksNet.Domain.Connections.ServiceTypeTraits`** (ADR 0003): HTTP or broker, whether it can Listen and why not, display name, value label and hint. Rules read the traits; **never compare `ConnectionServiceType` values** to decide behaviour. A new type needs an entry in `ServiceTypeTraits.All` and a broker adapter (`.claude/rules/infrastructure.md`); `ServiceTypeTraitsTests` and `BrokerAdapterRegistryTests` keep them consistent. `GET /api/system/connection-types` serves them to the UI.
 - **Enforce operation ↔ connection-type compatibility; don't assume it.** Use `VroksNet.Domain.TestScenarios.OperationCompatibility.IsCompatible(operationKey, serviceType)`. It has two callers:
   - `CreateTestScenarioHandler`/`UpdateTestScenarioHandler` throw `ArgumentException`, the validation-error convention every create/update handler follows. The endpoints (scenarios, connections, Publishers) map it to a 400 with the reason.
   - `MessageSender` checks again at send time and returns a failed `MessageSendResult` instead of throwing. A `TestScenario`'s `Connection` can be edited after the scenario was saved, so the mismatch can appear later even if it didn't exist at creation.

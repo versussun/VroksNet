@@ -96,7 +96,8 @@ public sealed class TestScenarioExecutor(
         var payload = scenario.PayloadOverride ?? endpoint.ExampleTemplate;
         var result = await sender.SendAsync(connection, endpoint.OperationKey, payload, scenario.Exchange, cancellationToken);
 
-        var validation = result.Success && connection.ServiceType == ConnectionServiceType.Http
+        var isHttp = ServiceTypeTraits.Find(connection.ServiceType)?.IsHttp == true;
+        var validation = result.Success && isHttp
             ? ValidateResponse(endpoint, result)
             : null;
 
@@ -106,7 +107,7 @@ public sealed class TestScenarioExecutor(
             result.ResponseBody,
             result.StatusCode,
             validation,
-            connection.ServiceType == ConnectionServiceType.Http ? CallDirection.OutboundHttpRequest : CallDirection.OutboundBrokerPublish,
+            isHttp ? CallDirection.OutboundHttpRequest : CallDirection.OutboundBrokerPublish,
             RequestSnapshot: payload,
             ResponseSnapshot: result.Success ? result.ResponseBody ?? result.Message : result.Message,
             ViolationSubject: "response");

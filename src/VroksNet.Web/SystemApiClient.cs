@@ -10,6 +10,9 @@ public sealed class SystemApiClient(HttpClient httpClient)
     public async Task<ProviderInfo?> GetProviderInfoAsync(CancellationToken cancellationToken = default) =>
         await httpClient.GetFromJsonAsync<ProviderInfo>("/api/system/provider", cancellationToken);
 
+    public async Task<ConnectionTypeInfo[]> GetConnectionTypesAsync(CancellationToken cancellationToken = default) =>
+        await httpClient.GetFromJsonAsync<ConnectionTypeInfo[]>("/api/system/connection-types", cancellationToken) ?? [];
+
     /// <summary>
     /// Where the configuration export downloads from — an absolute URL, since the API may be on
     /// another origin (dev). The server answers with an attachment, so a plain link downloads it.

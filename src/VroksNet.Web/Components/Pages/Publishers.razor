@@ -2,6 +2,7 @@
 @inject PublisherApiClient PublisherApi
 @inject SpecificationApiClient SpecificationApi
 @inject ConnectionApiClient ConnectionApi
+@inject SystemApiClient SystemApi
 @inject IJSRuntime JS
 
 <PageTitle>Publishers</PageTitle>
@@ -167,11 +168,11 @@ else
             </select>
             @if (_connections is not null && !BrokerConnections.Any())
             {
-                <div class="form-text text-danger">No RabbitMq/Nats/Kafka connections yet — add one on the Settings page first.</div>
+                <div class="form-text text-danger">No broker connections yet — add one on the Settings page first.</div>
             }
         </div>
 
-        @if (SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq)
+        @if (SelectedConnection?.ServiceType == RabbitMqType)
         {
             <div class="mb-2">
                 <label class="form-label" for="publisher-exchange-input">Exchange</label>
@@ -244,7 +245,14 @@ else
 
     private IEnumerable<SpecificationSummary> AsyncApiSpecifications => _specifications?.Where(s => s.Kind == SpecificationKind.AsyncApi) ?? [];
 
-    private IEnumerable<ConnectionSummary> BrokerConnections => _connections?.Where(c => c.ServiceType != ConnectionServiceType.Http) ?? [];
+    /// <summary>Publishers publish to a channel, so only broker connections — by the server's connection types.</summary>
+    private IEnumerable<ConnectionSummary> BrokerConnections =>
+        _connections?.Where(c => _connectionTypes.FirstOrDefault(type => type.Type == c.ServiceType) is { IsHttp: false }) ?? [];
+
+    private ConnectionTypeInfo[] _connectionTypes = [];
+
+    /// <summary>The RabbitMQ exchange field is RabbitMQ-only until broker options replace it (ADR 0003).</summary>
+    private const string RabbitMqType = "RabbitMq";
 
     private ConnectionSummary? SelectedConnection => _connections?.FirstOrDefault(c => c.Id.ToString() == _formConnectionId);
 
@@ -261,6 +269,7 @@ else
     {
         _specifications = await SpecificationApi.GetAllAsync();
         _connections = await ConnectionApi.GetAllAsync();
+        _connectionTypes = await SystemApi.GetConnectionTypesAsync();
         await LoadAsync();
     }
 
@@ -356,7 +365,7 @@ else
             Guid.Parse(_formConnectionId),
             string.IsNullOrWhiteSpace(_formPayloadOverride) ? null : _formPayloadOverride,
             int.Parse(_formIntervalText),
-            SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq && !string.IsNullOrWhiteSpace(_formExchange) ? _formExchange : null,
+            SelectedConnection?.ServiceType == RabbitMqType && !string.IsNullOrWhiteSpace(_formExchange) ? _formExchange : null,
             _formStartNow);
 
         try

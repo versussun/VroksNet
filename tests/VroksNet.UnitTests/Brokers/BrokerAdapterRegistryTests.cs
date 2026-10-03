@@ -19,20 +19,14 @@ public class BrokerAdapterRegistryTests
             adapters.Select(adapter => adapter.Type).Order());
     }
 
-    [Theory]
-    [InlineData(ConnectionServiceType.RabbitMq)]
-    [InlineData(ConnectionServiceType.Nats)]
-    [InlineData(ConnectionServiceType.Kafka)]
-    public void Find_Broker_IsAListeningAdapter(ConnectionServiceType type)
-        => Assert.IsAssignableFrom<IListeningBrokerAdapter>(BrokerAdapters.Registry().Find(type));
-
+    /// <summary>The UI offers Listen by <see cref="ServiceTypeTraits.CanListen"/>, so it must match what the adapter can do.</summary>
     [Fact]
-    public void Find_Http_CantListen()
+    public void EveryAdapter_ListensExactlyWhenItsTraitsSayItCan()
     {
-        var adapter = BrokerAdapters.Registry().Find(ConnectionServiceType.Http);
+        var registry = BrokerAdapters.Registry();
 
-        Assert.NotNull(adapter);
-        Assert.IsNotAssignableFrom<IListeningBrokerAdapter>(adapter);
+        Assert.All(ServiceTypeTraits.All, traits =>
+            Assert.Equal(traits.CanListen, registry.Find(traits.Type) is IListeningBrokerAdapter));
     }
 
     [Fact]

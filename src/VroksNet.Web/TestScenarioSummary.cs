@@ -9,7 +9,7 @@ public sealed record TestScenarioSummary(
     string OperationKey,
     Guid ConnectionId,
     string ConnectionName,
-    ConnectionServiceType ConnectionServiceType,
+    string ConnectionServiceType,
     string? PayloadOverride,
     TestScenarioKind Kind,
     int? ListenTimeoutSeconds,
