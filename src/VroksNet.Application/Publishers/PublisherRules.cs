@@ -10,14 +10,16 @@ namespace VroksNet.Application.Publishers;
 internal static class PublisherRules
 {
     /// <summary>
-    /// Resolves what the publisher points at and checks it: a name, an AsyncAPI operation sent
+    /// Resolves what the publisher points at and checks it: a name no other publisher has, an AsyncAPI operation sent
     /// through a compatible broker connection, and an interval within <see cref="PublisherSchedule"/>'s
     /// bounds. Returns the exchange to store — trimmed, and only for RabbitMQ. Throws
     /// <see cref="ArgumentException"/> on anything invalid.
     /// </summary>
     public static async Task<string?> ValidateAsync(
+        IPublisherRepository publishers,
         IApiSpecificationRepository specifications,
         IConnectionRepository connections,
+        Guid? publisherId,
         string name,
         Guid specificationId,
         Guid mockEndpointId,
@@ -26,10 +28,8 @@ internal static class PublisherRules
         string? exchange,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new ArgumentException("A publisher needs a name.");
-        }
+        var normalized = UniqueNames.Normalize(name, "publisher");
+        UniqueNames.EnsureFree((await publishers.FindByNameAsync(normalized, cancellationToken))?.Id, publisherId, "publisher", normalized);
 
         var target = await TestScenarioTargetResolver.ResolveAsync(specifications, connections, specificationId, mockEndpointId, connectionId, cancellationToken);
         if (OperationCompatibility.IsHttpOperation(target.Endpoint.OperationKey))

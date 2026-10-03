@@ -8,6 +8,9 @@ public interface IPublisherRepository
 
     Task<Publisher?> FindByIdAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>The one with exactly this name (names are unique, compared as stored — trimmed, case-sensitive); null if none.</summary>
+    Task<Publisher?> FindByNameAsync(string name, CancellationToken cancellationToken);
+
     Task InsertAsync(Publisher publisher, CancellationToken cancellationToken);
 
     /// <summary>Saves edits to the publisher's own definition (not its last-publish outcome).</summary>

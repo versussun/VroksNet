@@ -12,7 +12,8 @@ public sealed class CreateTestScenarioHandler(
 {
     public async ValueTask<Guid> Handle(CreateTestScenario request, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Name);
+        var name = UniqueNames.Normalize(request.Name, "test scenario");
+        UniqueNames.EnsureFree((await repository.FindByNameAsync(name, cancellationToken))?.Id, null, "test scenario", name);
 
         var target = await TestScenarioTargetResolver.ResolveAsync(
             specifications, connections, request.SpecificationId, request.MockEndpointId, request.ConnectionId, cancellationToken);
@@ -22,7 +23,7 @@ public sealed class CreateTestScenarioHandler(
         var scenario = new TestScenario
         {
             Id = Guid.NewGuid(),
-            Name = request.Name,
+            Name = name,
             SpecificationId = request.SpecificationId,
             MockEndpointId = request.MockEndpointId,
             ConnectionId = request.ConnectionId,

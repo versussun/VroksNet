@@ -13,6 +13,9 @@ internal sealed class FakePublisherRepository : IPublisherRepository
     public Task<Publisher?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
         => Task.FromResult(_publishers.FirstOrDefault(p => p.Id == id));
 
+    public Task<Publisher?> FindByNameAsync(string name, CancellationToken cancellationToken)
+        => Task.FromResult(_publishers.FirstOrDefault(p => p.Name == name));
+
     public Task InsertAsync(Publisher publisher, CancellationToken cancellationToken)
     {
         _publishers.Add(publisher);

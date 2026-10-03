@@ -28,18 +28,34 @@ public static class ConnectionEndpoints
         })
         .WithName("ListConnections");
 
+        // Invalid input (the handler's ArgumentException) — a blank or taken name, an incompatible
+        // operation/connection pair — is a 400 with the reason.
         group.MapPost("/", async (CreateConnection request, IMediator mediator, CancellationToken cancellationToken) =>
         {
-            var id = await mediator.Send(request, cancellationToken);
-            return Results.Ok(new CreateConnectionResult(id));
+            try
+            {
+                var id = await mediator.Send(request, cancellationToken);
+                return Results.Ok(new CreateConnectionResult(id));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex);
+            }
         })
         .WithName("CreateConnection");
 
         group.MapPut("/{id:guid}", async (Guid id, UpdateConnection body, IMediator mediator, CancellationToken cancellationToken) =>
         {
-            // The route's id is authoritative — the body's own Id (if any) is ignored.
-            var found = await mediator.Send(body with { Id = id }, cancellationToken);
-            return found ? Results.NoContent() : Results.NotFound();
+            try
+            {
+                // The route's id is authoritative — the body's own Id (if any) is ignored.
+                var found = await mediator.Send(body with { Id = id }, cancellationToken);
+                return found ? Results.NoContent() : Results.NotFound();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex);
+            }
         })
         .WithName("UpdateConnection");
 
@@ -69,4 +85,6 @@ public static class ConnectionEndpoints
 
         return app;
     }
+
+    private static IResult BadRequest(ArgumentException ex) => Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
 }

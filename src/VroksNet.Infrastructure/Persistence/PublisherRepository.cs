@@ -17,6 +17,14 @@ public sealed class PublisherRepository(
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<Publisher?> FindByNameAsync(string name, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Publishers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(publisher => publisher.Name == name, cancellationToken);
+    }
+
     public async Task<Publisher?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);

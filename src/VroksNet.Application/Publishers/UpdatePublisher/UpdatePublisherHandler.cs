@@ -18,7 +18,7 @@ public sealed class UpdatePublisherHandler(
         }
 
         var exchange = await PublisherRules.ValidateAsync(
-            specifications, connections, request.Name, request.SpecificationId, request.MockEndpointId, request.ConnectionId,
+            publishers, specifications, connections, publisher.Id, request.Name, request.SpecificationId, request.MockEndpointId, request.ConnectionId,
             request.IntervalSeconds, request.Exchange, cancellationToken);
 
         publisher.Name = request.Name.Trim();

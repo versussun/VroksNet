@@ -17,6 +17,14 @@ public sealed class TestScenarioRepository(
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<TestScenario?> FindByNameAsync(string name, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.TestScenarios
+            .AsNoTracking()
+            .FirstOrDefaultAsync(scenario => scenario.Name == name, cancellationToken);
+    }
+
     public async Task<TestScenario?> FindByIdAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);

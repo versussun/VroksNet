@@ -14,6 +14,8 @@ All admin endpoints live on the main address (`$API`, see [Getting started](gett
 | `GET /api/specifications/{id}` | | the spec with `endpoints[]`: `id`, `operationKey`, `isEnabled`, `serveAtRealPath`, `exampleTemplate`, `requiresHttpConnection`, `canListen`, `defaultTestScenarioKind` |
 | `PUT /api/specifications/{id}/provider-mode` | `{ "enabled": true }` | `{ "served": [], "skipped": [{ "operationKey", "reason" }], "refusal" }`; `404`; `409` if it couldn't be saved |
 
+Names of connections, test scenarios and Publishers are unique within each kind, and stored without surrounding spaces. Creating or renaming one to a taken name is a `400` with `{ "detail": "A test scenario named \"…\" already exists." }`; other invalid input (a blank name, an operation that can't go through the connection, …) is a `400` with the reason too.
+
 ## Connections
 
 | Method & path | Body | Returns |

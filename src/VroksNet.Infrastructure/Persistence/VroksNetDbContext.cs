@@ -78,11 +78,21 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
             entity.HasIndex(connection => connection.Name).IsUnique();
         });
 
-        modelBuilder.Entity<TestScenario>(entity => entity.HasKey(scenario => scenario.Id));
+        // Names are unique per kind (ADR 0001: provisioning refers to objects by name), like
+        // Connection.Name above. Migration AddUniqueNames renamed any duplicates before adding these.
+        modelBuilder.Entity<TestScenario>(entity =>
+        {
+            entity.HasKey(scenario => scenario.Id);
+            entity.HasIndex(scenario => scenario.Name).IsUnique();
+        });
 
         // Read whole by the worker every second and filtered in memory (PublisherSchedule.IsDue) —
         // there are only ever a handful, so LastPublishedAt never needs ordering in SQL.
-        modelBuilder.Entity<Publisher>(entity => entity.HasKey(publisher => publisher.Id));
+        modelBuilder.Entity<Publisher>(entity =>
+        {
+            entity.HasKey(publisher => publisher.Id);
+            entity.HasIndex(publisher => publisher.Name).IsUnique();
+        });
 
         modelBuilder.Entity<TestRun>(entity =>
         {

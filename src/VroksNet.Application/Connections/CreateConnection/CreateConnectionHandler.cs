@@ -8,13 +8,14 @@ public sealed class CreateConnectionHandler(IConnectionRepository repository) : 
 {
     public async ValueTask<Guid> Handle(CreateConnection request, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Name);
+        var name = UniqueNames.Normalize(request.Name, "connection");
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Value);
+        UniqueNames.EnsureFree((await repository.FindByNameAsync(name, cancellationToken))?.Id, null, "connection", name);
 
         var connection = new Connection
         {
             Id = Guid.NewGuid(),
-            Name = request.Name,
+            Name = name,
             ServiceType = request.ServiceType,
             Value = request.Value,
             CreatedAt = DateTimeOffset.UtcNow,
