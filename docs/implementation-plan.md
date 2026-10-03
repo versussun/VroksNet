@@ -1,6 +1,6 @@
 # Implementation plan — ADRs 0001 and 0002
 
-**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR).
+**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), B1 (background runs and history).
 **Covers:** ADR 0001 (`docs/adr/0001-aspire-integration-and-provisioning.md`) and ADR 0002 (`docs/adr/0002-background-and-scheduled-test-runs.md`). The ADRs hold the decisions and their reasoning; this document only orders the work.
 
 Each step is one pull request that can be merged and shown on its own. Sizes: **S** — a day or so, **M** — a few days, **L** — a week or more.
@@ -68,7 +68,7 @@ The largest step of track A.
 
 ## Track B — background and scheduled test runs (ADR 0002)
 
-### B1. `TestRun` + background runs + history (L) — after step 0
+### B1. `TestRun` + background runs + history (L) — ✅ done
 
 - **Domain:** a `TestRun` entity with its statuses and triggers.
 - **Migration:** `TestRun` and `CallRecord.TestRunId`, plus an index on `(TestScenarioId, ScheduledFor)`.

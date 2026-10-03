@@ -3,6 +3,7 @@
 @inject SpecificationApiClient SpecificationApi
 @inject ConnectionApiClient ConnectionApi
 @inject IJSRuntime JS
+@implements IDisposable
 
 <PageTitle>Test Scenarios</PageTitle>
 
@@ -69,15 +70,23 @@ else
                         }
                     </td>
                     <td>
-                        @if (_running.ContainsKey(scenario.Id))
+                        @if (_running.ContainsKey(scenario.Id) || _backgroundRuns.ContainsKey(scenario.Id))
                         {
-                            <button type="button" class="btn btn-outline-primary btn-sm" disabled>@(scenario.Kind == TestScenarioKind.Listen ? "Listening…" : "Running…")</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" disabled>
+                                @(scenario.Kind == TestScenarioKind.Listen ? "Listening…" : "Running…")@(_backgroundRuns.ContainsKey(scenario.Id) ? " (background)" : "")
+                            </button>
                             <button type="button" class="btn btn-outline-warning btn-sm ms-1" @onclick="() => StopAsync(scenario)">Stop</button>
                         }
                         else
                         {
-                            <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => RunAsync(scenario)">Run</button>
+                            @if (!RequiresBackgroundRun(scenario))
+                            {
+                                <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => RunAsync(scenario)">Run</button>
+                            }
+                            <button type="button" class="btn btn-outline-primary btn-sm @(RequiresBackgroundRun(scenario) ? "" : "ms-1")"
+                                    title="Runs on the server; you can leave the page and come back to its history." @onclick="() => RunInBackgroundAsync(scenario)">Run in background</button>
                         }
+                        <button type="button" class="btn btn-outline-secondary btn-sm ms-1" aria-expanded="@_histories.ContainsKey(scenario.Id)" @onclick="() => ToggleHistoryAsync(scenario)">History</button>
                         <button type="button" class="btn btn-outline-secondary btn-sm ms-1" @onclick="() => StartEditAsync(scenario)">Edit</button>
                         <button type="button" class="btn btn-outline-danger btn-sm ms-1" @onclick="() => DeleteAsync(scenario)">Delete</button>
                         @if (_runResults.TryGetValue(scenario.Id, out var runResult))
@@ -108,6 +117,37 @@ else
                         }
                     </td>
                 </tr>
+                @if (_histories.TryGetValue(scenario.Id, out var history))
+                {
+                    <tr class="table-light">
+                        <td colspan="7">
+                            @if (history.Length == 0)
+                            {
+                                <span class="text-muted small">No runs yet.</span>
+                            }
+                            else
+                            {
+                                <table class="table table-sm mb-0" aria-label="Run history of @scenario.Name">
+                                    <thead>
+                                        <tr><th>Status</th><th>Started</th><th>Duration</th><th>Result</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var run in history)
+                                        {
+                                            <tr>
+                                                <td><span class="badge @StatusBadge(run.Status)">@run.Status</span></td>
+                                                <td>@((run.StartedAt ?? run.ScheduledFor).ToLocalTime().ToString("g"))</td>
+                                                <td>@Duration(run)</td>
+                                                <td class="small">@run.Message</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                                <small class="text-muted">The last @HistoryLength runs. Their traffic is on the <a href="call-history">Call History</a> page.</small>
+                            }
+                        </td>
+                    </tr>
+                }
             }
         </tbody>
     </table>
@@ -191,7 +231,7 @@ else
                 <input id="scenario-timeout-input" type="number" min="1" max="@MaxListenTimeoutSeconds" class="form-control @(IsListenTimeoutValid ? "" : "is-invalid")"
                        @bind="_formListenTimeoutText" @bind:event="oninput" placeholder="30" aria-describedby="scenario-timeout-help" />
                 <div id="scenario-timeout-help" class="@(IsListenTimeoutValid ? "form-text" : "invalid-feedback")">
-                    A whole number from 1 to @MaxListenTimeoutSeconds. Leave blank for 30.
+                    A whole number from 1 to @MaxListenTimeoutSeconds (30 minutes). Leave blank for 30. Longer than @MaxSynchronousListenSeconds runs only in the background.
                 </div>
             </div>
         }
@@ -238,6 +278,12 @@ else
     private MockEndpointDetail[]? _specificationEndpoints;
     private readonly Dictionary<Guid, CancellationTokenSource> _running = [];
     private readonly Dictionary<Guid, RunTestScenarioResult> _runResults = [];
+    /// <summary>Scenario id → its background run being polled.</summary>
+    private readonly Dictionary<Guid, Guid> _backgroundRuns = [];
+    /// <summary>Scenario id → its run history, for the scenarios whose History is open.</summary>
+    private readonly Dictionary<Guid, TestRunSummary[]> _histories = [];
+    /// <summary>Stops the polling loops when the page goes away.</summary>
+    private readonly CancellationTokenSource _pageCts = new();
     private string? errorMessage;
     private bool _isSaving;
     private bool _isPanelOpen;
@@ -261,7 +307,13 @@ else
     private string _formListenTimeoutText = string.Empty;
 
     /// <summary>Mirrors the server's TestScenarioListening.MaxTimeoutSeconds, only to give feedback before saving — the server still validates.</summary>
-    private const int MaxListenTimeoutSeconds = 80;
+    private const int MaxListenTimeoutSeconds = 1800;
+
+    /// <summary>Mirrors TestScenarioListening.MaxSynchronousTimeoutSeconds: a Listen waiting longer only gets "Run in background".</summary>
+    private const int MaxSynchronousListenSeconds = 80;
+
+    private const int HistoryLength = 20;
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1.5);
 
     /// <summary>Blank means "use the server default"; otherwise a whole number in range.</summary>
     private bool IsListenTimeoutValid => string.IsNullOrWhiteSpace(_formListenTimeoutText)
@@ -493,11 +545,91 @@ else
     /// so this actually aborts the server-side send or stops the listen wait too — not just the
     /// client's wait for a response.
     /// </summary>
-    private void StopAsync(TestScenarioSummary scenario)
+    private async Task StopAsync(TestScenarioSummary scenario)
     {
         if (_running.TryGetValue(scenario.Id, out var cts))
         {
             cts.Cancel();
         }
+        else if (_backgroundRuns.TryGetValue(scenario.Id, out var runId))
+        {
+            // The polling loop picks up the run's final (Cancelled) status.
+            await TestScenarioApi.CancelRunAsync(runId);
+        }
+    }
+
+    private static bool RequiresBackgroundRun(TestScenarioSummary scenario)
+        => scenario.Kind == TestScenarioKind.Listen && (scenario.ListenTimeoutSeconds ?? 30) > MaxSynchronousListenSeconds;
+
+    /// <summary>Queues a server-side run, then polls it until it finishes — the run keeps going if this page is left.</summary>
+    private async Task RunInBackgroundAsync(TestScenarioSummary scenario)
+    {
+        _runResults.Remove(scenario.Id);
+        try
+        {
+            var runId = await TestScenarioApi.StartRunAsync(scenario.Id, _pageCts.Token);
+            if (runId is null)
+            {
+                errorMessage = "That test scenario no longer exists — it may have been deleted elsewhere.";
+                return;
+            }
+
+            _backgroundRuns[scenario.Id] = runId.Value;
+            StateHasChanged();
+
+            TestRunSummary? run;
+            do
+            {
+                await Task.Delay(PollInterval, _pageCts.Token);
+                run = await TestScenarioApi.GetRunAsync(runId.Value, _pageCts.Token);
+            }
+            while (run is { IsFinished: false });
+
+            _runResults[scenario.Id] = run?.ToRunResult() ?? new RunTestScenarioResult(false, "The run disappeared from the history.", null);
+            await LoadAsync();
+            if (_histories.ContainsKey(scenario.Id))
+            {
+                _histories[scenario.Id] = await TestScenarioApi.GetRunsAsync(scenario.Id, HistoryLength, _pageCts.Token);
+            }
+        }
+        catch (OperationCanceledException) when (_pageCts.IsCancellationRequested)
+        {
+            // The page went away; the run carries on on the server.
+        }
+        catch (Exception ex)
+        {
+            _runResults[scenario.Id] = new RunTestScenarioResult(false, ex.Message, null);
+        }
+        finally
+        {
+            _backgroundRuns.Remove(scenario.Id);
+        }
+    }
+
+    private async Task ToggleHistoryAsync(TestScenarioSummary scenario)
+    {
+        if (!_histories.Remove(scenario.Id))
+        {
+            _histories[scenario.Id] = await TestScenarioApi.GetRunsAsync(scenario.Id, HistoryLength, _pageCts.Token);
+        }
+    }
+
+    private static string StatusBadge(TestRunStatus status) => status switch
+    {
+        TestRunStatus.Passed => "bg-success",
+        TestRunStatus.Failed => "bg-danger",
+        TestRunStatus.Running or TestRunStatus.Queued => "bg-primary",
+        _ => "bg-secondary"
+    };
+
+    private static string Duration(TestRunSummary run)
+        => run is { StartedAt: { } started, FinishedAt: { } finished }
+            ? (finished - started).TotalSeconds < 60 ? $"{(finished - started).TotalSeconds:0.#}s" : $"{(finished - started).TotalMinutes:0.#}m"
+            : "—";
+
+    public void Dispose()
+    {
+        _pageCts.Cancel();
+        _pageCts.Dispose();
     }
 }

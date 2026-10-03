@@ -6,10 +6,21 @@ public static class TestScenarioListening
     public const int DefaultTimeoutSeconds = 30;
 
     /// <summary>
-    /// A run holds its HTTP request open while it waits. With up to 10s more to reach the broker,
-    /// 80s keeps the whole run under the Admin UI's 100s HttpClient timeout.
+    /// The longest a Listen scenario may wait, in seconds — 30 minutes. Only a background run
+    /// (ADR 0002) can wait that long; a synchronous one is capped at <see cref="MaxSynchronousTimeoutSeconds"/>.
     /// </summary>
-    public const int MaxTimeoutSeconds = 80;
+    public const int MaxTimeoutSeconds = 1800;
+
+    /// <summary>
+    /// The longest a synchronous run may wait. It holds its HTTP request open while it waits, and
+    /// with up to 10s more to reach the broker, 80s keeps the whole run under the Admin UI's 100s
+    /// HttpClient timeout. A scenario that waits longer can only run in the background.
+    /// </summary>
+    public const int MaxSynchronousTimeoutSeconds = 80;
+
+    /// <summary>Whether a scenario's Listen timeout is too long for a synchronous run.</summary>
+    public static bool RequiresBackgroundRun(TestScenarioKind kind, int? timeoutSeconds)
+        => kind == TestScenarioKind.Listen && (timeoutSeconds ?? DefaultTimeoutSeconds) > MaxSynchronousTimeoutSeconds;
 
     /// <summary>RabbitMQ's built-in topic exchange, used when a scenario names none.</summary>
     public const string DefaultRabbitMqExchange = "amq.topic";

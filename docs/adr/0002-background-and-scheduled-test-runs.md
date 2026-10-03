@@ -25,7 +25,7 @@ A new entity in `VroksNet.Domain.TestScenarios`: one run of one scenario.
 |---|---|
 | `Id`, `TestScenarioId` | no FK constraint, like the scenario's other references: a deleted scenario leaves its history behind |
 | `Status` | `Queued → Running → Passed / Failed / Cancelled / Interrupted` |
-| `Trigger` | `Manual`, `Delayed`, `Schedule`, `Startup`, `Api` |
+| `Trigger` | `Manual`, `Delayed`, `Schedule`, `Startup`. (Implementation note, B1: the originally listed `Api` was folded into `Manual` — a run someone starts from the UI and one started through the API are the same action. Each later trigger is added with its step.) |
 | `ScheduledFor` | when the run should start; for an immediate run, the time it was queued |
 | `StartedAt`, `FinishedAt` | `DateTimeOffset`, stored as UTC ticks — the rule for fields sorted on in SQL |
 | `Message`, `ContractValidation` | what `RunTestScenarioResult` returns today |

@@ -98,6 +98,7 @@ app.MapMockInvocationEndpoints();
 app.MapMockEndpointEndpoints();
 app.MapConnectionEndpoints();
 app.MapTestScenarioEndpoints();
+app.MapTestRunEndpoints();
 app.MapPublisherEndpoints();
 app.MapCallRecordEndpoints();
 app.MapSystemEndpoints();

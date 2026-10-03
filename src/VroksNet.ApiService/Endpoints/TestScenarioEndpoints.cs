@@ -1,4 +1,5 @@
 using Mediator;
+using VroksNet.Application.TestRuns.StartTestRun;
 using VroksNet.Application.TestScenarios.CreateTestScenario;
 using VroksNet.Application.TestScenarios.DeleteTestScenario;
 using VroksNet.Application.TestScenarios.GetTestScenario;
@@ -65,6 +66,17 @@ public static class TestScenarioEndpoints
             return result is not null ? Results.Ok(result) : Results.NotFound();
         })
         .WithName("RunTestScenario");
+
+        // A background run (ADR 0002): queued and picked up by the worker within a second. Poll
+        // GET /api/test-runs/{runId} for its status and result.
+        group.MapPost("/{id:guid}/runs", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            var runId = await mediator.Send(new StartTestRun(id), cancellationToken);
+            return runId is { } started
+                ? Results.Accepted($"/api/test-runs/{started}", new StartTestRunResult(started))
+                : Results.NotFound();
+        })
+        .WithName("StartTestRun");
 
         return app;
     }

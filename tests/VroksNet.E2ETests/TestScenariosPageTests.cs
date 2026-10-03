@@ -64,7 +64,7 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
         // Run it — only that a result appears is asserted (see class doc comment). Two badges now
         // exist in the row (the persisted "Last run" column, and this run's own ephemeral result
         // detail after the action buttons) — .Last is the latter.
-        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run" }).ClickAsync();
+        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run", Exact = true }).ClickAsync();
         await Expect(row.Locator("span.badge").Last).ToBeVisibleAsync();
 
         // The "Last run" status is persisted server-side (RunTestScenarioHandler records it, and
@@ -127,7 +127,7 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
 
         var row = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = scenarioName });
-        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run" }).ClickAsync();
+        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run", Exact = true }).ClickAsync();
 
         // Checked first so a failed send (which skips validation, so no contract badge renders)
         // fails here with the actual error text rather than as a missing-element timeout below.
@@ -194,8 +194,8 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
         await Expect(Page.GetByLabel("Exchange")).ToBeVisibleAsync();
         await Expect(Page.GetByLabel("Payload (optional override)")).Not.ToBeVisibleAsync();
 
-        // Out-of-range timeouts are caught before saving.
-        await Page.GetByLabel("Wait up to (seconds)").FillAsync("200");
+        // Out-of-range timeouts are caught before saving (the limit is 30 minutes).
+        await Page.GetByLabel("Wait up to (seconds)").FillAsync("1801");
         await Expect(Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true })).ToBeDisabledAsync();
         await Page.GetByLabel("Wait up to (seconds)").FillAsync("1");
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
@@ -204,8 +204,56 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
         await Expect(row.GetByText("Listen", new LocatorGetByTextOptions { Exact = true })).ToBeVisibleAsync();
 
         // Nothing publishes on the channel, so the run waits its 1s and fails with a timeout.
-        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run" }).ClickAsync();
+        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run", Exact = true }).ClickAsync();
         await Expect(row).ToContainTextAsync("No message");
+    }
+
+    [Fact]
+    public async Task RunInBackground_ShowsTheResult_AndTheRunAppearsInTheHistory()
+    {
+        var suffix = Guid.NewGuid();
+        var specTitle = $"E2E Background Petstore {suffix}";
+        var connectionName = $"E2E Background Connection {suffix}";
+        var scenarioName = $"E2E Background Scenario {suffix}";
+
+        await Page.GotoAsync("/specifications");
+        await Page.Locator("input[type=file]").SetInputFilesAsync(new FilePayload
+        {
+            Name = "petstore.yaml",
+            MimeType = "application/yaml",
+            Buffer = Encoding.UTF8.GetBytes(BuildPetstoreYaml(specTitle)),
+        });
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = specTitle })).ToBeVisibleAsync();
+
+        // The run goes to ApiService itself, so it finishes quickly and deterministically, whatever
+        // its result (/pets isn't one of ApiService's routes).
+        await Page.GotoAsync("/settings");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add connection" }).ClickAsync();
+        await Page.GetByLabel("Name").FillAsync(connectionName);
+        await Page.GetByLabel("URL").FillAsync(Fixture.ApiServiceHttpAddress.ToString());
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = connectionName })).ToBeVisibleAsync();
+
+        await Page.GotoAsync("/test-scenarios");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add test scenario" }).ClickAsync();
+        await Page.GetByLabel("Name").FillAsync(scenarioName);
+        await Page.GetByLabel("Specification").SelectOptionAsync(new SelectOptionValue { Label = $"{specTitle} (OpenApi)" });
+        await Expect(Page.Locator("#scenario-operation-select option")).ToHaveCountAsync(2);
+        await Page.GetByLabel("Operation").SelectOptionAsync(new SelectOptionValue { Label = "GET /pets" });
+        await Page.GetByLabel("Connection").SelectOptionAsync(new SelectOptionValue { Label = $"{connectionName} (Http)" });
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
+
+        var row = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = scenarioName });
+        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run in background" }).ClickAsync();
+
+        // The run's result replaces the in-progress button once the worker has finished it.
+        await Expect(row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run in background" })).ToBeVisibleAsync();
+        await Expect(row.Locator("span.badge").Last).ToBeVisibleAsync();
+        await Expect(row).Not.ToContainTextAsync("Never run");
+
+        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "History" }).ClickAsync();
+        var history = Page.GetByRole(AriaRole.Table, new PageGetByRoleOptions { Name = $"Run history of {scenarioName}" });
+        await Expect(history.Locator("tbody tr")).ToHaveCountAsync(1);
     }
 
     private static string BuildPetstoreYaml(string title) => $"""

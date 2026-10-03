@@ -8,5 +8,6 @@ public sealed record CallRecordFilter(
     Guid? MockEndpointId = null,
     Guid? TestScenarioId = null,
     Guid? PublisherId = null,
+    Guid? TestRunId = null,
     CallDirection? Direction = null,
     bool? ContractValid = null);

@@ -133,7 +133,7 @@ public class ListenTestScenarioTests
             TestContext.Current.CancellationToken);
         var sender = new FakeMessageSender(new MessageSendResult(true, "Published."));
 
-        var result = await new RunTestScenarioHandler(_scenarios, _specifications, _connections, sender, new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), _callRecords)
+        var result = await TestRunHandlers.Run(_scenarios, _specifications, _connections, sender, new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), _callRecords)
             .Handle(new RunTestScenario(id), TestContext.Current.CancellationToken);
 
         Assert.True(result!.Success);
@@ -210,7 +210,7 @@ public class ListenTestScenarioTests
 
     private CreateTestScenarioHandler CreateHandler => new(_scenarios, _specifications, _connections);
 
-    private RunTestScenarioHandler RunHandler(FakeMessageListener listener) => new(
+    private RunTestScenarioHandler RunHandler(FakeMessageListener listener) => TestRunHandlers.Run(
         _scenarios, _specifications, _connections,
         new FakeMessageSender(new MessageSendResult(false, "should not be called")),
         listener, new SchemaValidator(), _callRecords);

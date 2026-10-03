@@ -16,7 +16,14 @@ public sealed class ListCallRecordsHandler(
     {
         var limit = Math.Clamp(request.Limit ?? DefaultLimit, 1, MaxLimit);
         var after = request.Cursor is null ? null : CallRecordCursorFormat.Parse(request.Cursor);
-        var filter = new CallRecordFilter(request.SpecificationId, request.MockEndpointId, request.TestScenarioId, request.PublisherId, request.Direction, request.ContractValid);
+        var filter = new CallRecordFilter(
+            request.SpecificationId,
+            request.MockEndpointId,
+            request.TestScenarioId,
+            request.PublisherId,
+            request.TestRunId,
+            request.Direction,
+            request.ContractValid);
 
         // One extra row tells whether an older page exists without a separate count query.
         var records = await callRecords.ListAsync(filter, after, limit + 1, cancellationToken);

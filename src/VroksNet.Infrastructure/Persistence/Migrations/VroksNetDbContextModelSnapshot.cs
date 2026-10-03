@@ -84,6 +84,9 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
                     b.Property<int?>("StatusCode")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("TestRunId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("TestScenarioId")
                         .HasColumnType("TEXT");
 
@@ -230,6 +233,51 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Publishers");
+                });
+
+            modelBuilder.Entity("VroksNet.Domain.TestRuns.TestRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("ContractValid")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("FinishedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Message")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ScheduledFor")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("StartedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("StatusCode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("TestScenarioId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Trigger")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ValidationErrors")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "ScheduledFor");
+
+                    b.HasIndex("TestScenarioId", "ScheduledFor", "Id");
+
+                    b.ToTable("TestRuns");
                 });
 
             modelBuilder.Entity("VroksNet.Domain.TestScenarios.TestScenario", b =>
