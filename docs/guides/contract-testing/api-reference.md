@@ -36,7 +36,7 @@ Names of connections, test scenarios and Publishers are unique within each kind,
 | `PUT /api/test-scenarios/{id}` | same as create | `204` / `404` |
 | `DELETE /api/test-scenarios/{id}` | | `204` / `404` |
 | `POST /api/test-scenarios/{id}/run` | | runs it synchronously: `{ "success", "message", "responseBody", "statusCode", "contractValidation": { "isValid", "errors" } \| null }` |
-| `POST /api/test-scenarios/{id}/runs` | | runs it in the background: `202 { "runId" }` with `Location: /api/test-runs/{runId}`; `404` |
+| `POST /api/test-scenarios/{id}/runs` | none, or `{ "runAt" }` / `{ "delaySeconds" }` | runs it in the background: `202 { "runId" }` with `Location: /api/test-runs/{runId}`; `404`. With a body it's a delayed one-off run (`trigger: "Delayed"`, `Queued` until its time, cancellable): `runAt` is a time with an offset, `delaySeconds` 1–2592000; up to 30 days ahead, not both — otherwise `400` with the reason |
 | `GET /api/test-scenarios/schedule-preview?schedule=&timeZone=&count=` | | `{ "error", "nextRuns": [UTC times] }` — always `200`; `error` says why the schedule can't be saved. `count` 1–20, default 5 |
 
 Create/update body:

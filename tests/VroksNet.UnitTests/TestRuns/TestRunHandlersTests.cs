@@ -53,6 +53,47 @@ public sealed class TestRunHandlersTests
     }
 
     [Fact]
+    public async Task StartTestRun_Delayed_QueuesItForLater_AsDelayed()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var scenarioId = await ArrangeHttpScenarioAsync();
+        var now = DateTimeOffset.Parse("2026-10-03T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
+        var start = new StartTestRunHandler(_scenarios, _runs, new FixedTimeProvider(now));
+
+        var inTenMinutes = (await start.Handle(new StartTestRun(scenarioId, DelaySeconds: 600), cancellationToken))!.Value;
+        var atThreeKyiv = (await start.Handle(new StartTestRun(scenarioId, RunAt: DateTimeOffset.Parse("2026-10-03T15:00:00+03:00", System.Globalization.CultureInfo.InvariantCulture)), cancellationToken))!.Value;
+
+        var delayed = _runs.All.Single(run => run.Id == inTenMinutes);
+        Assert.Equal((TestRunStatus.Queued, TestRunTrigger.Delayed, now.AddMinutes(10)), (delayed.Status, delayed.Trigger, delayed.ScheduledFor));
+        var scheduled = _runs.All.Single(run => run.Id == atThreeKyiv);
+        Assert.Equal(TestRunTrigger.Delayed, scheduled.Trigger);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-03T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture), scheduled.ScheduledFor);
+        Assert.Equal(TimeSpan.Zero, scheduled.ScheduledFor.Offset);
+
+        // Not due yet, so the worker leaves both alone until then.
+        Assert.Empty(await _runs.ListDueAsync(now.AddMinutes(5), cancellationToken));
+        Assert.Equal(inTenMinutes, Assert.Single(await _runs.ListDueAsync(now.AddMinutes(10), cancellationToken)).Id);
+    }
+
+    [Theory]
+    [InlineData("2026-10-03T10:05:00Z", 300, "not both")]
+    [InlineData(null, 0, "delaySeconds must be from 1")]
+    [InlineData(null, 2_592_001, "delaySeconds must be from 1")]
+    [InlineData("2026-10-03T09:59:59Z", null, "has already passed")]
+    [InlineData("2026-11-03T10:00:00Z", null, "at most 30 days ahead")]
+    public async Task StartTestRun_BadDelay_ThrowsWithTheReason(string? runAt, int? delaySeconds, string reason)
+    {
+        var scenarioId = await ArrangeHttpScenarioAsync();
+        var start = new StartTestRunHandler(_scenarios, _runs, new FixedTimeProvider(DateTimeOffset.Parse("2026-10-03T10:00:00Z", System.Globalization.CultureInfo.InvariantCulture)));
+        var request = new StartTestRun(scenarioId, runAt is null ? null : DateTimeOffset.Parse(runAt, System.Globalization.CultureInfo.InvariantCulture), delaySeconds);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => start.Handle(request, TestContext.Current.CancellationToken).AsTask());
+
+        Assert.Contains(reason, ex.Message);
+        Assert.Empty(_runs.All);
+    }
+
+    [Fact]
     public async Task StartTestRun_UnknownScenario_ReturnsNull()
     {
         var runId = await new StartTestRunHandler(_scenarios, _runs, TimeProvider.System).Handle(new StartTestRun(Guid.NewGuid()), TestContext.Current.CancellationToken);

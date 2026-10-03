@@ -94,6 +94,7 @@ else
                             <button type="button" class="btn btn-outline-primary btn-sm @(RequiresBackgroundRun(scenario) ? "" : "ms-1")"
                                     title="Runs on the server; you can leave the page and come back to its history." @onclick="() => RunInBackgroundAsync(scenario)">Run in background</button>
                         }
+                        <button type="button" class="btn btn-outline-secondary btn-sm ms-1" aria-expanded="@_runLater.ContainsKey(scenario.Id)" @onclick="() => ToggleRunLater(scenario)">Run later</button>
                         <button type="button" class="btn btn-outline-secondary btn-sm ms-1" aria-expanded="@_histories.ContainsKey(scenario.Id)" @onclick="() => ToggleHistoryAsync(scenario)">History</button>
                         <button type="button" class="btn btn-outline-secondary btn-sm ms-1" @onclick="() => StartEditAsync(scenario)">Edit</button>
                         <button type="button" class="btn btn-outline-danger btn-sm ms-1" @onclick="() => DeleteAsync(scenario)">Delete</button>
@@ -125,6 +126,24 @@ else
                         }
                     </td>
                 </tr>
+                @if (_runLater.TryGetValue(scenario.Id, out var runLater))
+                {
+                    <tr class="table-light">
+                        <td colspan="7">
+                            <div class="d-flex flex-wrap align-items-end gap-2" role="group" aria-label="Run @scenario.Name later">
+                                <div>
+                                    <label class="form-label small mb-1" for="@($"run-at-{scenario.Id}")">Run at (your local time)</label>
+                                    <input id="@($"run-at-{scenario.Id}")" type="datetime-local" class="form-control form-control-sm"
+                                           value="@runLater.ToString("yyyy-MM-ddTHH:mm")" min="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")"
+                                           @onchange="e => SetRunLater(scenario.Id, e.Value)" />
+                                </div>
+                                <button type="button" class="btn btn-primary btn-sm" @onclick="() => QueueRunLaterAsync(scenario)">Queue run</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => _runLater.Remove(scenario.Id)">Cancel</button>
+                                <small class="text-muted">Runs once in the background, up to 30 days ahead. It shows in History until then and can be cancelled there.</small>
+                            </div>
+                        </td>
+                    </tr>
+                }
                 @if (_histories.TryGetValue(scenario.Id, out var history))
                 {
                     <tr class="table-light">
@@ -137,16 +156,29 @@ else
                             {
                                 <table class="table table-sm mb-0" aria-label="Run history of @scenario.Name">
                                     <thead>
-                                        <tr><th>Status</th><th>Started</th><th>Duration</th><th>Result</th></tr>
+                                        <tr><th>Status</th><th>Trigger</th><th>Started</th><th>Duration</th><th>Result</th><th></th></tr>
                                     </thead>
                                     <tbody>
                                         @foreach (var run in history)
                                         {
                                             <tr>
                                                 <td><span class="badge @StatusBadge(run.Status)">@run.Status</span></td>
-                                                <td>@((run.StartedAt ?? run.ScheduledFor).ToLocalTime().ToString("g"))</td>
+                                                <td class="small">@run.Trigger</td>
+                                                <td>
+                                                    @((run.StartedAt ?? run.ScheduledFor).ToLocalTime().ToString("g"))
+                                                    @if (run.Status == TestRunStatus.Queued)
+                                                    {
+                                                        <small class="text-muted">(scheduled)</small>
+                                                    }
+                                                </td>
                                                 <td>@Duration(run)</td>
                                                 <td class="small">@run.Message</td>
+                                                <td>
+                                                    @if (!run.IsFinished)
+                                                    {
+                                                        <button type="button" class="btn btn-outline-warning btn-sm py-0" @onclick="() => CancelHistoryRunAsync(scenario, run)">Cancel</button>
+                                                    }
+                                                </td>
                                             </tr>
                                         }
                                     </tbody>
@@ -689,6 +721,59 @@ else
         {
             _backgroundRuns.Remove(scenario.Id);
         }
+    }
+
+    /// <summary>Scenario id → the local time picked in its open "Run later" row.</summary>
+    private readonly Dictionary<Guid, DateTime> _runLater = [];
+
+    private void ToggleRunLater(TestScenarioSummary scenario)
+    {
+        if (!_runLater.Remove(scenario.Id))
+        {
+            var inAnHour = DateTime.Now.AddHours(1);
+            _runLater[scenario.Id] = inAnHour.AddSeconds(-inAnHour.Second).AddMilliseconds(-inAnHour.Millisecond);
+        }
+    }
+
+    private void SetRunLater(Guid scenarioId, object? value)
+    {
+        if (DateTime.TryParse(value?.ToString(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var picked))
+        {
+            _runLater[scenarioId] = picked;
+        }
+    }
+
+    /// <summary>Queues a delayed run at the picked local time (the browser's zone), then shows it in the history.</summary>
+    private async Task QueueRunLaterAsync(TestScenarioSummary scenario)
+    {
+        if (!_runLater.TryGetValue(scenario.Id, out var local))
+        {
+            return;
+        }
+
+        errorMessage = null;
+        try
+        {
+            var runAt = new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+            if (await TestScenarioApi.StartRunAsync(scenario.Id, _pageCts.Token, runAt) is null)
+            {
+                errorMessage = "That test scenario no longer exists — it may have been deleted elsewhere.";
+                return;
+            }
+
+            _runLater.Remove(scenario.Id);
+            _histories[scenario.Id] = await TestScenarioApi.GetRunsAsync(scenario.Id, HistoryLength, _pageCts.Token);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            errorMessage = $"Couldn't queue the run of '{scenario.Name}': {ex.Message}";
+        }
+    }
+
+    private async Task CancelHistoryRunAsync(TestScenarioSummary scenario, TestRunSummary run)
+    {
+        await TestScenarioApi.CancelRunAsync(run.Id, _pageCts.Token);
+        _histories[scenario.Id] = await TestScenarioApi.GetRunsAsync(scenario.Id, HistoryLength, _pageCts.Token);
     }
 
     private async Task ToggleHistoryAsync(TestScenarioSummary scenario)

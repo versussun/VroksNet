@@ -149,6 +149,46 @@ public sealed class TestRunsApiTests(AppHostFixture fixture)
     }
 
     [Fact]
+    public async Task DelayedRun_WaitsUntilItsTime_ThenRuns_AndBadDelaysAreA400()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = fixture.ApiServiceClient;
+        var scenarioId = await CreateHttpScenarioAsync(client, Guid.NewGuid(), cancellationToken);
+
+        var start = await client.PostAsJsonAsync($"/api/test-scenarios/{scenarioId}/runs", new { DelaySeconds = 3 }, cancellationToken);
+        Assert.Equal(HttpStatusCode.Accepted, start.StatusCode);
+        var runId = (await start.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!["runId"]!.GetValue<Guid>();
+
+        var queued = (await client.GetFromJsonAsync<JsonNode>($"/api/test-runs/{runId}", cancellationToken))!;
+        Assert.Equal("Queued", queued["status"]!.GetValue<string>());
+        Assert.Equal("Delayed", queued["trigger"]!.GetValue<string>());
+        var scheduledFor = queued["scheduledFor"]!.GetValue<DateTimeOffset>();
+        Assert.InRange((scheduledFor - DateTimeOffset.UtcNow).TotalSeconds, 1, 4);
+
+        var run = await WaitForFinalStatusAsync(client, runId, cancellationToken);
+        Assert.Equal("Passed", run["status"]!.GetValue<string>());
+        Assert.True(run["startedAt"]!.GetValue<DateTimeOffset>() >= scheduledFor);
+
+        // A later run at a given time can be cancelled while it waits.
+        var later = await client.PostAsJsonAsync($"/api/test-scenarios/{scenarioId}/runs", new { RunAt = DateTimeOffset.UtcNow.AddHours(1) }, cancellationToken);
+        var laterId = (await later.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!["runId"]!.GetValue<Guid>();
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync($"/api/test-runs/{laterId}/cancel", null, cancellationToken)).StatusCode);
+        Assert.Equal("Cancelled", (await client.GetFromJsonAsync<JsonNode>($"/api/test-runs/{laterId}", cancellationToken))!["status"]!.GetValue<string>());
+
+        foreach (var (body, reason) in new (object Body, string Reason)[]
+        {
+            (new { DelaySeconds = 0 }, "delaySeconds must be from 1"),
+            (new { RunAt = DateTimeOffset.UtcNow.AddMinutes(-1) }, "has already passed"),
+            (new { RunAt = DateTimeOffset.UtcNow.AddMinutes(5), DelaySeconds = 60 }, "not both")
+        })
+        {
+            var response = await client.PostAsJsonAsync($"/api/test-scenarios/{scenarioId}/runs", body, cancellationToken);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Contains(reason, (await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!["detail"]!.GetValue<string>());
+        }
+    }
+
+    [Fact]
     public async Task UnknownIds_Are404()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
