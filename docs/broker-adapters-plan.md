@@ -127,7 +127,7 @@ Record the decisions and ask the open questions (see the end):
 
 | Step | Broker | Size | Listen | Notes |
 |---|---|---|---|---|
-| N1 | Azure Event Hubs | S | via Kafka | Likely works already through the Kafka endpoint with SASL settings. Verify against the emulator, then document; no adapter |
+| N1 | Azure Event Hubs | S | via Kafka | **Done.** No adapter, but the Kafka connection value needed two additions: a quoted value (the SASL password is a connection string full of `;`/`=`), and an Event Hubs connection string pasted as is. The Kafka adapter worked unchanged against the emulator |
 | N2 | MQTT | S | yes: plain subscription | **Done.** MQTTnet 5; `+` per `/`-separated parameter; `qos`/`retain` options (with allowed values, a new `BrokerOptionDefinition.AllowedValues`); retained messages ignored by Listen; Mosquitto container; the first broker-integration matrix family |
 | N3 | Redis | S | Pub/Sub: subscription; Streams: `XREAD` from `$`, no consumer group | StackExchange.Redis; official Aspire integration; option: `mode` (pubsub/stream) |
 | N4 | Azure Service Bus | M | topics only, through a subscription (option `subscription`; a temporary one when the connection may manage entities) | Queues: Send only. Aspire emulator; its entities are declared up front |

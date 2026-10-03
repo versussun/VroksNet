@@ -36,7 +36,7 @@ public sealed record ServiceTypeTraits(
         new(ConnectionServiceType.Nats, "NATS", IsHttp: false, CanListen: true, null,
             ConnectionString, "nats://user:password@host:4222", ["nats"]),
         new(ConnectionServiceType.Kafka, "Kafka", IsHttp: false, CanListen: true, null,
-            ConnectionString, "host:9092,host2:9092 — or bootstrap.servers=host:9092;security.protocol=SASL_SSL;…", ["kafka", "kafka-secure"]),
+            ConnectionString, "host:9092,host2:9092 — or bootstrap.servers=host:9092;security.protocol=SASL_SSL;… — or an Event Hubs Endpoint=sb://…", ["kafka", "kafka-secure"]),
         new(ConnectionServiceType.Mqtt, "MQTT", IsHttp: false, CanListen: true, null,
             ConnectionString, "mqtt://user:password@host:1883 — or mqtts://… for TLS", ["mqtt", "secure-mqtt"]),
     ];
