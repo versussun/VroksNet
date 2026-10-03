@@ -11,14 +11,17 @@ namespace VroksNet.Infrastructure.Brokers;
 /// </summary>
 public interface IListeningBrokerAdapter : IBrokerAdapter
 {
+    /// <summary>Why its broker can't subscribe to <paramref name="channel"/> (e.g. its wildcards can't match the channel's parameters); null if it can.</summary>
+    string? WhyCantListen(ChannelPattern channel);
+
     /// <param name="channel">
     /// The channel to subscribe to. The adapter renders it in its broker's own wildcard syntax, and
     /// fails readably if its broker can't match it (e.g. a parameter between "/"-separated segments
     /// where wildcards only exist for "."-separated ones).
     /// </param>
-    /// <param name="exchange">RabbitMQ only: the exchange to bind a temporary queue to.</param>
+    /// <param name="options">The scenario's broker options; the adapter applies its own defaults.</param>
     /// <param name="onListening">
     /// Called exactly when the subscription is in place — see <see cref="IMessageListener"/>.
     /// </param>
-    Task<MessageListenResult> ListenAsync(Connection connection, ChannelPattern channel, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null);
+    Task<MessageListenResult> ListenAsync(Connection connection, ChannelPattern channel, TimeSpan timeout, BrokerOptions? options, CancellationToken cancellationToken, Action? onListening = null);
 }

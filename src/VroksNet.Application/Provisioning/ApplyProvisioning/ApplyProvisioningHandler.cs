@@ -168,7 +168,8 @@ public sealed class ApplyProvisioningHandler(
                 PayloadOverride: publisher.PayloadOverride,
                 IntervalSeconds: publisher.IntervalSeconds,
                 Exchange: publisher.Exchange,
-                Enabled: publisher.Enabled), cancellationToken);
+                Enabled: publisher.Enabled,
+                BrokerOptions: publisher.BrokerOptions), cancellationToken);
         }
         else
         {
@@ -181,7 +182,8 @@ public sealed class ApplyProvisioningHandler(
                 ConnectionId: connectionId,
                 PayloadOverride: publisher.PayloadOverride,
                 IntervalSeconds: publisher.IntervalSeconds,
-                Exchange: publisher.Exchange), cancellationToken);
+                Exchange: publisher.Exchange,
+                BrokerOptions: publisher.BrokerOptions), cancellationToken);
             if (existing.IsEnabled != publisher.Enabled)
             {
                 await mediator.Send(new SetPublisherEnabled(existing.Id, publisher.Enabled), cancellationToken);
@@ -212,7 +214,8 @@ public sealed class ApplyProvisioningHandler(
                 ListenTimeoutSeconds: scenario.ListenTimeoutSeconds,
                 Exchange: scenario.Exchange,
                 Schedule: scenario.Schedule,
-                ScheduleTimeZone: scenario.ScheduleTimeZone), cancellationToken);
+                ScheduleTimeZone: scenario.ScheduleTimeZone,
+                BrokerOptions: scenario.BrokerOptions), cancellationToken);
         }
         else
         {
@@ -228,7 +231,8 @@ public sealed class ApplyProvisioningHandler(
                 ListenTimeoutSeconds: scenario.ListenTimeoutSeconds,
                 Exchange: scenario.Exchange,
                 Schedule: scenario.Schedule,
-                ScheduleTimeZone: scenario.ScheduleTimeZone), cancellationToken);
+                ScheduleTimeZone: scenario.ScheduleTimeZone,
+                BrokerOptions: scenario.BrokerOptions), cancellationToken);
         }
 
         await marker.MarkAsync(ProvisionedObject.TestScenario, id, run.At, cancellationToken);

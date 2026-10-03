@@ -1,4 +1,5 @@
 using VroksNet.Application.Abstractions;
+using VroksNet.Application.Connections;
 using VroksNet.Domain.Connections;
 using VroksNet.Domain.TestScenarios;
 
@@ -36,30 +37,30 @@ public static class TestScenarioTargetResolver
     /// <summary>
     /// Checks <paramref name="kind"/> against the resolved operation and normalizes its settings:
     /// the timeout is null (meaning "use the default") for a Listen scenario that gave none, and
-    /// always null for a Send one; the exchange is kept, trimmed, only for a RabbitMQ connection
-    /// (either kind — blank means "use the kind's default"). Throws <see cref="ArgumentException"/>
-    /// on an operation or connection type that can't be listened on, an unknown kind, or a timeout outside
+    /// always null for a Send one; the broker options are checked against what the connection's
+    /// type accepts (<see cref="BrokerOptionRules.Normalize"/> — either kind; blank means "use the
+    /// default"). Throws <see cref="ArgumentException"/> on an unknown kind or option, an operation
+    /// or connection that can't be listened on, or a timeout outside
     /// 1..<see cref="TestScenarioListening.MaxTimeoutSeconds"/>.
     /// </summary>
-    public static (int? TimeoutSeconds, string? Exchange) ValidateKindSettings(
+    public static (int? TimeoutSeconds, BrokerOptions? Options) ValidateKindSettings(
+        IBrokerRules brokerRules,
         ResolvedTestScenarioTarget target,
         TestScenarioKind kind,
         int? timeoutSeconds,
-        string? exchange)
+        string? exchange,
+        IReadOnlyDictionary<string, string?>? brokerOptions)
     {
         if (!Enum.IsDefined(kind))
         {
             throw new ArgumentException($"Unknown test scenario kind '{kind}'.");
         }
 
-        // The exchange only means something for RabbitMQ — don't keep a stale one on a NATS/HTTP scenario.
-        var keptExchange = target.Connection.ServiceType == ConnectionServiceType.RabbitMq && !string.IsNullOrWhiteSpace(exchange)
-            ? exchange.Trim()
-            : null;
+        var options = BrokerOptionRules.Normalize(brokerRules, target.Connection.ServiceType, exchange, brokerOptions);
 
         if (kind != TestScenarioKind.Listen)
         {
-            return (null, keptExchange);
+            return (null, options);
         }
 
         if (!TestScenarioListening.CanListen(target.Endpoint.OperationKey))
@@ -74,11 +75,17 @@ public static class TestScenarioTargetResolver
             throw new ArgumentException(note ?? $"A {target.Connection.ServiceType} connection can't be listened on.");
         }
 
+        // CanListen above already found the operation's channel address, so it isn't null here.
+        if (brokerRules.WhyCantListen(target.Connection.ServiceType, OperationCompatibility.ChannelAddressOf(target.Endpoint.OperationKey)!) is { } reason)
+        {
+            throw new ArgumentException(reason);
+        }
+
         if (timeoutSeconds is < 1 or > TestScenarioListening.MaxTimeoutSeconds)
         {
             throw new ArgumentException($"The listen timeout must be between 1 and {TestScenarioListening.MaxTimeoutSeconds} seconds.");
         }
 
-        return (timeoutSeconds, keptExchange);
+        return (timeoutSeconds, options);
     }
 }

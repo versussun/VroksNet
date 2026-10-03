@@ -28,7 +28,26 @@ public sealed class RabbitMqBrokerAdapter : IListeningBrokerAdapter
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
 
+    /// <summary>RabbitMQ's built-in topic exchange: where a Listen binds when no exchange is set.</summary>
+    public const string DefaultListenExchange = "amq.topic";
+
+    /// <summary>The one option: the exchange to publish to, or to bind a Listen's temporary queue to.</summary>
+    public const string ExchangeOption = "exchange";
+
     public ConnectionServiceType Type => ConnectionServiceType.RabbitMq;
+
+    public IReadOnlyList<BrokerOptionDefinition> Options { get; } =
+    [
+        new(
+            ExchangeOption,
+            "Exchange",
+            SendDescription: "Published here with the channel address as routing key — a Listen on the same exchange hears it. Blank publishes straight into the queue named after the channel (the default exchange).",
+            SendPlaceholder: "(default exchange)",
+            ListenDescription: $"A temporary queue is bound to this exchange with the channel address as binding key, so the service's own consumers still get every message. Blank means {DefaultListenExchange}.",
+            ListenPlaceholder: DefaultListenExchange,
+            // So a new Send and a new Listen on the same operation meet.
+            SuggestedValue: DefaultListenExchange),
+    ];
 
     public async Task<ConnectionTestResult> TestAsync(Connection connection, CancellationToken cancellationToken)
     {
@@ -52,9 +71,9 @@ public sealed class RabbitMqBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, string? exchange, CancellationToken cancellationToken)
+    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken)
     {
-        exchange ??= string.Empty;
+        var exchange = options?[ExchangeOption] ?? string.Empty;
         var channelAddress = OperationCompatibility.ChannelAddressOf(operationKey);
         if (channelAddress is null)
         {
@@ -103,12 +122,14 @@ public sealed class RabbitMqBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public async Task<MessageListenResult> ListenAsync(Connection connection, ChannelPattern channel, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
+    public async Task<MessageListenResult> ListenAsync(Connection connection, ChannelPattern channel, TimeSpan timeout, BrokerOptions? options, CancellationToken cancellationToken, Action? onListening = null)
     {
         if (BindingKeyOf(channel) is not { } bindingKey)
         {
-            return new MessageListenResult(false, $"Channel \"{channel.Address}\" has parameters between \"/\"-separated segments, and RabbitMQ binding keys only have wildcards for whole \".\"-separated words — it can't be listened on through a RabbitMq connection.");
+            return new MessageListenResult(false, CantListenMessage(channel));
         }
+
+        var exchange = options?[ExchangeOption] ?? DefaultListenExchange;
 
         if (!Uri.TryCreate(connection.Value, UriKind.Absolute, out var uri))
         {
@@ -158,6 +179,11 @@ public sealed class RabbitMqBrokerAdapter : IListeningBrokerAdapter
             return new MessageListenResult(false, ex.Message);
         }
     }
+
+    public string? WhyCantListen(ChannelPattern channel) => BindingKeyOf(channel) is null ? CantListenMessage(channel) : null;
+
+    private static string CantListenMessage(ChannelPattern channel)
+        => $"Channel \"{channel.Address}\" has parameters between \"/\"-separated segments, and RabbitMQ binding keys only have wildcards for whole \".\"-separated words — it can't be listened on through a RabbitMq connection.";
 
     /// <summary>The topic binding key for <paramref name="channel"/> ("orders.{region}.created" → "orders.*.created"); null if it has parameters but isn't "."-separated.</summary>
     public static string? BindingKeyOf(ChannelPattern channel)

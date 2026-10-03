@@ -11,8 +11,8 @@ namespace VroksNet.Infrastructure.Connections;
 /// </summary>
 public sealed class MessageSender(BrokerAdapterRegistry adapters) : IMessageSender
 {
-    public Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, string? exchange, CancellationToken cancellationToken)
+    public Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken)
         => adapters.Find(connection.ServiceType) is { } adapter
-            ? adapter.SendAsync(connection, operationKey, payload, exchange, cancellationToken)
+            ? adapter.SendAsync(connection, operationKey, payload, options, cancellationToken)
             : Task.FromResult(new MessageSendResult(false, $"Unsupported service type '{connection.ServiceType}'."));
 }

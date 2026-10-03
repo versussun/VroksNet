@@ -224,7 +224,7 @@ public sealed class SuiteRunTests
     {
         private readonly TaskCompletionSource<string> _published = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, string? exchange, CancellationToken cancellationToken)
+        public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken)
         {
             events.Enqueue("send");
             if (blockSends)
@@ -236,7 +236,7 @@ public sealed class SuiteRunTests
             return new MessageSendResult(true, "Published.");
         }
 
-        public async Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
+        public async Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, BrokerOptions? options, CancellationToken cancellationToken, Action? onListening = null)
         {
             await Task.Delay(50, cancellationToken);
             events.Enqueue("subscribed");

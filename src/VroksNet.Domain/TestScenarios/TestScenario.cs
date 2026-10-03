@@ -29,14 +29,11 @@ public sealed class TestScenario
     public int? ListenTimeoutSeconds { get; set; }
 
     /// <summary>
-    /// RabbitMQ only (null for NATS/HTTP): the exchange a <see cref="TestScenarioKind.Send"/> run
-    /// publishes to — the default exchange ("", i.e. straight into the queue named after the
-    /// channel) if null — or a <see cref="TestScenarioKind.Listen"/> run binds its own temporary
-    /// queue to — <see cref="TestScenarioListening.DefaultRabbitMqExchange"/> if null. The routing
-    /// key is the channel address either way, so a Send and a Listen on the same operation and
-    /// exchange meet.
+    /// The connection's broker-specific settings (ADR 0003), e.g. RabbitMQ's <c>exchange</c> — what
+    /// they mean, and their defaults, are up to the connection type's broker adapter. Null when
+    /// none are set.
     /// </summary>
-    public string? Exchange { get; set; }
+    public Connections.BrokerOptions? BrokerOptions { get; set; }
 
     /// <summary>
     /// A standard 5-field cron expression (ADR 0002) the background worker runs this scenario on,

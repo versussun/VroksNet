@@ -8,13 +8,14 @@ namespace VroksNet.Application.Publishers.CreatePublisher;
 public sealed class CreatePublisherHandler(
     IPublisherRepository publishers,
     IApiSpecificationRepository specifications,
-    IConnectionRepository connections) : IRequestHandler<CreatePublisher, Guid>
+    IConnectionRepository connections,
+    IBrokerRules brokerRules) : IRequestHandler<CreatePublisher, Guid>
 {
     public async ValueTask<Guid> Handle(CreatePublisher request, CancellationToken cancellationToken)
     {
-        var exchange = await PublisherRules.ValidateAsync(
-            publishers, specifications, connections, null, request.Name, request.SpecificationId, request.MockEndpointId, request.ConnectionId,
-            request.IntervalSeconds, request.Exchange, cancellationToken);
+        var brokerOptions = await PublisherRules.ValidateAsync(
+            brokerRules, publishers, specifications, connections, null, request.Name, request.SpecificationId, request.MockEndpointId, request.ConnectionId,
+            request.IntervalSeconds, request.Exchange, request.BrokerOptions, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         var publisher = new Publisher
@@ -25,7 +26,7 @@ public sealed class CreatePublisherHandler(
             MockEndpointId = request.MockEndpointId,
             ConnectionId = request.ConnectionId,
             PayloadOverride = string.IsNullOrWhiteSpace(request.PayloadOverride) ? null : request.PayloadOverride,
-            Exchange = exchange,
+            BrokerOptions = brokerOptions,
             IntervalSeconds = request.IntervalSeconds,
             IsEnabled = request.Enabled,
             CreatedAt = now,

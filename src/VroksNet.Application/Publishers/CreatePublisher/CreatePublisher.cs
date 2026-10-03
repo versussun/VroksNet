@@ -2,7 +2,10 @@ using Mediator;
 
 namespace VroksNet.Application.Publishers.CreatePublisher;
 
-/// <summary><see cref="Exchange"/> only applies to a RabbitMQ connection and is dropped otherwise. <see cref="Enabled"/> starts it publishing on its schedule right away.</summary>
+/// <summary>
+/// <see cref="BrokerOptions"/> must be options the connection's type declares (ADR 0003); <see cref="Exchange"/> is the deprecated
+/// spelling of <c>BrokerOptions["exchange"]</c>, dropped for a type without that option. <see cref="Enabled"/> starts it publishing on its schedule right away.
+/// </summary>
 public sealed record CreatePublisher(
     string Name,
     Guid SpecificationId,
@@ -11,4 +14,5 @@ public sealed record CreatePublisher(
     string? PayloadOverride,
     int IntervalSeconds,
     string? Exchange = null,
-    bool Enabled = false) : IRequest<Guid>;
+    bool Enabled = false,
+    IReadOnlyDictionary<string, string?>? BrokerOptions = null) : IRequest<Guid>;

@@ -19,8 +19,11 @@ public interface IBrokerAdapter
 {
     ConnectionServiceType Type { get; }
 
+    /// <summary>The broker options it reads (ADR 0003); empty if none. Create/update rejects any other name.</summary>
+    IReadOnlyList<BrokerOptionDefinition> Options { get; }
+
     Task<ConnectionTestResult> TestAsync(Connection connection, CancellationToken cancellationToken);
 
     /// <summary>Succeeds only once the target has the message (see <see cref="IMessageSender"/>).</summary>
-    Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, string? exchange, CancellationToken cancellationToken);
+    Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken);
 }

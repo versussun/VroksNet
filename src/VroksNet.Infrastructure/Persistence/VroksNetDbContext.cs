@@ -89,6 +89,7 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
         {
             entity.HasKey(scenario => scenario.Id);
             entity.HasIndex(scenario => scenario.Name).IsUnique();
+            entity.Property(scenario => scenario.BrokerOptions).HasConversion<BrokerOptionsConverter>();
         });
 
         // Read whole by the worker every second and filtered in memory (PublisherSchedule.IsDue) —
@@ -97,6 +98,7 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
         {
             entity.HasKey(publisher => publisher.Id);
             entity.HasIndex(publisher => publisher.Name).IsUnique();
+            entity.Property(publisher => publisher.BrokerOptions).HasConversion<BrokerOptionsConverter>();
         });
 
         modelBuilder.Entity<TestRun>(entity =>

@@ -1,4 +1,5 @@
 using VroksNet.Application.Abstractions;
+using VroksNet.Application.Connections;
 using VroksNet.Application.TestScenarios;
 using VroksNet.Domain.Connections;
 using VroksNet.Domain.Publishers;
@@ -12,10 +13,11 @@ internal static class PublisherRules
     /// <summary>
     /// Resolves what the publisher points at and checks it: a name no other publisher has, an AsyncAPI operation sent
     /// through a compatible broker connection, and an interval within <see cref="PublisherSchedule"/>'s
-    /// bounds. Returns the exchange to store — trimmed, and only for RabbitMQ. Throws
+    /// bounds. Returns the broker options to store (<see cref="BrokerOptionRules.Normalize"/>). Throws
     /// <see cref="ArgumentException"/> on anything invalid.
     /// </summary>
-    public static async Task<string?> ValidateAsync(
+    public static async Task<BrokerOptions?> ValidateAsync(
+        IBrokerRules brokerRules,
         IPublisherRepository publishers,
         IApiSpecificationRepository specifications,
         IConnectionRepository connections,
@@ -26,6 +28,7 @@ internal static class PublisherRules
         Guid connectionId,
         int intervalSeconds,
         string? exchange,
+        IReadOnlyDictionary<string, string?>? brokerOptions,
         CancellationToken cancellationToken)
     {
         var normalized = UniqueNames.Normalize(name, "publisher");
@@ -42,8 +45,6 @@ internal static class PublisherRules
             throw new ArgumentException($"The interval must be between {PublisherSchedule.MinIntervalSeconds} and {PublisherSchedule.MaxIntervalSeconds} seconds.");
         }
 
-        return target.Connection.ServiceType == ConnectionServiceType.RabbitMq && !string.IsNullOrWhiteSpace(exchange)
-            ? exchange.Trim()
-            : null;
+        return BrokerOptionRules.Normalize(brokerRules, target.Connection.ServiceType, exchange, brokerOptions);
     }
 }

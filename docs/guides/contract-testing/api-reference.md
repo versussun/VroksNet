@@ -50,7 +50,7 @@ Create/update body:
   "payloadOverride": null,
   "kind": "Send",
   "listenTimeoutSeconds": null,
-  "exchange": null,
+  "brokerOptions": null,
   "schedule": null,
   "scheduleTimeZone": null
 }
@@ -58,7 +58,9 @@ Create/update body:
 
 - `kind`: `"Send"` (HTTP request or broker publish, the default) or `"Listen"` (broker operations only).
 - `listenTimeoutSeconds`: 1–1800 (30 minutes), `null` = 30. Listen only. Over 80, the scenario can only run in the background: the synchronous `/run` returns `success: false` with a message saying so, without running.
-- `exchange`: RabbitMQ only (dropped for NATS/HTTP). Send publishes to it with routing key = channel address, `null` = the default exchange `""` (straight into the queue named after the channel); Listen binds to it, `null` = `amq.topic`. A missing exchange fails the run with a readable message. (Was `listenExchange`, Listen only.)
+- `brokerOptions`: the connection type's own settings (ADR 0003), an object of strings; `null` or a blank value = the default. `GET /api/system/connection-types` lists what each type accepts (`options`); anything else is a `400`. RabbitMQ has one, `exchange`: Send publishes to it with routing key = channel address, default the default exchange `""` (straight into the queue named after the channel); Listen binds to it, default `amq.topic`. A missing exchange fails the run with a readable message.
+- `exchange` (**deprecated**, removed in contract v2): the same as `brokerOptions.exchange`, still accepted and still returned. It's dropped for a type without that option, as before; set to a different value than `brokerOptions.exchange` it's a `400`.
+- A Listen whose channel the connection's broker can't subscribe to is a `400` with the reason — e.g. a `/`-separated channel with parameters through RabbitMQ or NATS, whose wildcards only match whole `.`-separated words.
 - `schedule`: a standard 5-field cron expression (minute hour day-of-month month day-of-week, no seconds), e.g. `"0 9 * * 1-5"`; `null` = not scheduled. The background worker queues the next run (`trigger: "Schedule"`), so it shows in `/api/test-runs` as `Queued` until its time. Runs missed while the app was down aren't caught up. Changing or clearing the schedule drops the queued run.
 - `scheduleTimeZone`: an IANA name (`"Europe/Kyiv"`) the schedule is read in, with its daylight-saving rules; `null` = UTC. Only with a `schedule`. An invalid expression or unknown zone is a `400` with the reason.
 - An operation/connection mismatch (an HTTP operation through a broker connection, etc.) is rejected.
@@ -154,7 +156,7 @@ Not a contract test: a publisher publishes an AsyncAPI operation's message to a 
 
 | Method & path | Body | Returns |
 |---|---|---|
-| `GET /api/publishers` | | `[{ "id", "name", "operationKey", "connectionName", "exchange", "intervalSeconds", "isEnabled", "lastPublishedAt", "lastPublishSuccess", "lastPublishMessage", "provisionedAt", … }]` |
+| `GET /api/publishers` | | `[{ "id", "name", "operationKey", "connectionName", "brokerOptions", "exchange", "intervalSeconds", "isEnabled", "lastPublishedAt", "lastPublishSuccess", "lastPublishMessage", "provisionedAt", … }]` |
 | `POST /api/publishers` | see below | `{ "id" }`; `400 { "detail" }` with the reason |
 | `PUT /api/publishers/{id}` | same, without `enabled` | `204`; `400`; `404` |
 | `PUT /api/publishers/{id}/enabled` | `{ "enabled": true }` | `204`; `404` — start/stop the schedule |
@@ -169,14 +171,14 @@ Not a contract test: a publisher publishes an AsyncAPI operation's message to a 
   "connectionId": "…",
   "payloadOverride": "{\"orderId\":\"{{uuid}}\",\"at\":\"{{now}}\"}",
   "intervalSeconds": 5,
-  "exchange": "amq.topic",
+  "brokerOptions": { "exchange": "amq.topic" },
   "enabled": true
 }
 ```
 
 - The operation must be an AsyncAPI one and the connection a RabbitMQ/NATS/Kafka one. `intervalSeconds` is 1–86400.
 - `payloadOverride`: `null` publishes the operation's own example. Either way it's a template: `{{uuid}}` and `{{now}}` are filled in per message. `{{request.*}}` has no request behind it, so it becomes `null`/empty and shows up as a warning.
-- `exchange`: RabbitMQ only, `null` = the default exchange (straight into the queue named after the channel).
+- `brokerOptions`: as for Test Scenarios. RabbitMQ's `exchange` defaults to the default exchange (straight into the queue named after the channel). The deprecated `exchange` field still works as there.
 - Each publish is checked against the operation's payload schema. A mismatch is reported in `message`/`contractValidation` and in Call History, but the message is still sent.
 
 ## Call History

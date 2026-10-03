@@ -213,11 +213,11 @@ public sealed class FileProvisioningSource(IConfiguration configuration) : IProv
             (document.Specifications ?? []).Select(spec => new ManifestSpecification(spec.Title, spec.ProviderMode, spec.DisabledOperations ?? [])).ToList(),
             (document.Publishers ?? []).Select(publisher => new ManifestPublisher(
                 publisher.Name, publisher.Specification, publisher.Operation, publisher.Connection, publisher.IntervalSeconds,
-                publisher.Exchange, publisher.PayloadOverride, publisher.Enabled ?? true)).ToList(),
+                publisher.Exchange, publisher.PayloadOverride, publisher.Enabled ?? true, publisher.BrokerOptions)).ToList(),
             (document.TestScenarios ?? []).Select(scenario => new ManifestTestScenario(
                 scenario.Name, scenario.Specification, scenario.Operation, scenario.Connection, scenario.Kind,
                 scenario.ListenTimeoutSeconds, scenario.Exchange, scenario.PayloadOverride,
-                scenario.Schedule?.Cron, scenario.Schedule?.TimeZone)).ToList(),
+                scenario.Schedule?.Cron, scenario.Schedule?.TimeZone, scenario.BrokerOptions)).ToList(),
             (document.TestSuites ?? []).Select(suite => new ManifestTestSuite(suite.Name, suite.Scenarios, suite.RunOnStartup ?? false)).ToList());
     }
 
@@ -270,11 +270,12 @@ public sealed class FileProvisioningSource(IConfiguration configuration) : IProv
 
     private sealed record PublisherEntry(
         string Name, string Specification, string Operation, string Connection, int IntervalSeconds,
-        string? Exchange, string? PayloadOverride, bool? Enabled);
+        string? Exchange, string? PayloadOverride, bool? Enabled, Dictionary<string, string?>? BrokerOptions);
 
     private sealed record TestScenarioEntry(
         string Name, string Specification, string Operation, string Connection, TestScenarioKind? Kind,
-        int? ListenTimeoutSeconds, string? Exchange, string? PayloadOverride, ScheduleEntry? Schedule);
+        int? ListenTimeoutSeconds, string? Exchange, string? PayloadOverride, ScheduleEntry? Schedule,
+        Dictionary<string, string?>? BrokerOptions);
 
     private sealed record ScheduleEntry(string Cron, string? TimeZone);
 

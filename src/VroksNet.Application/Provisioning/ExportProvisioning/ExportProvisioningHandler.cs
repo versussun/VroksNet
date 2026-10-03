@@ -1,3 +1,4 @@
+using VroksNet.Application.Connections;
 using System.Text.RegularExpressions;
 using Mediator;
 using VroksNet.Application.Abstractions;
@@ -55,7 +56,8 @@ public sealed partial class ExportProvisioningHandler(
 
             exportedPublishers.Add(new ManifestPublisher(
                 publisher.Name, specsById[publisher.SpecificationId].Title, operation!, connectionsById[publisher.ConnectionId].Name,
-                publisher.IntervalSeconds, publisher.Exchange, publisher.PayloadOverride, publisher.IsEnabled));
+                publisher.IntervalSeconds, ExchangeOf(publisher.BrokerOptions), publisher.PayloadOverride, publisher.IsEnabled,
+                OtherOptionsOf(publisher.BrokerOptions)));
         }
 
         var allScenarios = await scenarios.ListAsync(cancellationToken);
@@ -73,7 +75,8 @@ public sealed partial class ExportProvisioningHandler(
                 scenario.Name, specsById[scenario.SpecificationId].Title, operation!, connectionsById[scenario.ConnectionId].Name,
                 scenario.Kind,
                 scenario.Kind == TestScenarioKind.Listen ? scenario.ListenTimeoutSeconds : null,
-                scenario.Exchange, scenario.PayloadOverride, scenario.Schedule, scenario.ScheduleTimeZone));
+                ExchangeOf(scenario.BrokerOptions), scenario.PayloadOverride, scenario.Schedule, scenario.ScheduleTimeZone,
+                OtherOptionsOf(scenario.BrokerOptions)));
             exportedScenarioIds.Add(scenario.Id);
         }
 
@@ -163,4 +166,11 @@ public sealed partial class ExportProvisioningHandler(
 
     [GeneratedRegex("[^a-z0-9._-]+")]
     private static partial Regex UnsafeFileCharacters();
+
+    /// <summary>The exchange is exported as the v1 <c>exchange</c> field, so the files stay readable by images older than <c>brokerOptions</c> (ADR 0003).</summary>
+    private static string? ExchangeOf(BrokerOptions? options) => options?[BrokerOptionRules.ExchangeOption];
+
+    /// <summary>Every other option goes into <c>brokerOptions</c>; null when there's none.</summary>
+    private static IReadOnlyDictionary<string, string?>? OtherOptionsOf(BrokerOptions? options)
+        => options?.Without(BrokerOptionRules.ExchangeOption)?.Values.ToDictionary(pair => pair.Key, pair => (string?)pair.Value);
 }

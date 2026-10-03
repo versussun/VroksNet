@@ -2,7 +2,7 @@ using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Application.Provisioning;
 
-/// <summary>A test scenario to create or bring in line by <see cref="Name"/>. A null <see cref="Kind"/> means the operation's default (Listen for an AsyncAPI "send", Send otherwise); a null <see cref="Schedule"/>, no schedule.</summary>
+/// <summary>A test scenario to create or bring in line by <see cref="Name"/>. A null <see cref="Kind"/> means the operation's default (Listen for an AsyncAPI "send", Send otherwise); a null <see cref="Schedule"/>, no schedule. <see cref="Exchange"/> is the deprecated spelling of <c>BrokerOptions["exchange"]</c> (ADR 0003).</summary>
 public sealed record ManifestTestScenario(
     string Name,
     string Specification,
@@ -13,4 +13,5 @@ public sealed record ManifestTestScenario(
     string? Exchange,
     string? PayloadOverride,
     string? Schedule = null,
-    string? ScheduleTimeZone = null);
+    string? ScheduleTimeZone = null,
+    IReadOnlyDictionary<string, string?>? BrokerOptions = null);

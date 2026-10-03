@@ -49,7 +49,7 @@ public sealed class PublishNowHandler(
         var rendered = template is null ? null : templateEngine.Render(template, NoRequest);
         var payload = rendered?.Text;
 
-        var result = await sender.SendAsync(connection, endpoint.OperationKey, payload, publisher.Exchange, cancellationToken);
+        var result = await sender.SendAsync(connection, endpoint.OperationKey, payload, publisher.BrokerOptions, cancellationToken);
 
         var validation = result.Success && endpoint.ResponseSchema is { } schema && !string.IsNullOrWhiteSpace(payload)
             ? schemaValidator.Validate(schema, payload)

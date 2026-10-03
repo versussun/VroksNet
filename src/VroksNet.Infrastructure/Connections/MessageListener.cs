@@ -13,7 +13,7 @@ namespace VroksNet.Infrastructure.Connections;
 /// </summary>
 public sealed class MessageListener(BrokerAdapterRegistry adapters) : IMessageListener
 {
-    public Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
+    public Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, BrokerOptions? options, CancellationToken cancellationToken, Action? onListening = null)
     {
         var channelAddress = OperationCompatibility.ChannelAddressOf(operationKey);
         if (channelAddress is null)
@@ -28,7 +28,7 @@ public sealed class MessageListener(BrokerAdapterRegistry adapters) : IMessageLi
         }
 
         return adapters.Find(connection.ServiceType) is IListeningBrokerAdapter adapter
-            ? adapter.ListenAsync(connection, pattern, timeout, exchange, cancellationToken, onListening)
+            ? adapter.ListenAsync(connection, pattern, timeout, options, cancellationToken, onListening)
             : Task.FromResult(new MessageListenResult(false, $"Can't listen through a {connection.ServiceType} connection. {ServiceTypeTraits.Find(connection.ServiceType)?.ListenNote}".TrimEnd()));
     }
 }

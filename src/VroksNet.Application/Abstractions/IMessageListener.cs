@@ -10,11 +10,11 @@ namespace VroksNet.Application.Abstractions;
 /// </summary>
 public interface IMessageListener
 {
-    /// <param name="exchange">RabbitMQ only: the exchange to bind a temporary queue to (binding key = channel address).</param>
+    /// <param name="options">The scenario's broker options (ADR 0003), e.g. RabbitMQ's <c>exchange</c> to bind a temporary queue to; the adapter applies its own defaults.</param>
     /// <param name="onListening">
     /// Called once the subscription is in place and the listen window has opened — a message sent
     /// after that is guaranteed to be seen. Not called if the listen fails before getting there.
     /// A test suite uses it to start its Sends only once every Listen is ready (ADR 0002).
     /// </param>
-    Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null);
+    Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, BrokerOptions? options, CancellationToken cancellationToken, Action? onListening = null);
 }
