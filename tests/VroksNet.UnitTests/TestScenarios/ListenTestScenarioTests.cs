@@ -6,6 +6,7 @@ using VroksNet.Domain.CallRecords;
 using VroksNet.Domain.Connections;
 using VroksNet.Domain.MockEndpoints;
 using VroksNet.Domain.TestScenarios;
+using VroksNet.Infrastructure.Scheduling;
 using VroksNet.Infrastructure.SchemaValidation;
 using VroksNet.UnitTests.TestDoubles;
 
@@ -208,7 +209,7 @@ public class ListenTestScenarioTests
         Assert.False(stored!.LastRunSuccess);
     }
 
-    private CreateTestScenarioHandler CreateHandler => new(_scenarios, _specifications, _connections);
+    private CreateTestScenarioHandler CreateHandler => new(_scenarios, _specifications, _connections, new CronSchedule());
 
     private RunTestScenarioHandler RunHandler(FakeMessageListener listener) => TestRunHandlers.Run(
         _scenarios, _specifications, _connections,

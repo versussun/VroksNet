@@ -256,6 +256,63 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
         await Expect(history.Locator("tbody tr")).ToHaveCountAsync(1);
     }
 
+    [Fact]
+    public async Task Schedule_ShowsTheNextRunsOrWhatsWrong_AndTheListShowsIt()
+    {
+        var suffix = Guid.NewGuid();
+        var specTitle = $"E2E Schedule Petstore {suffix}";
+        var connectionName = $"E2E Schedule Connection {suffix}";
+        var scenarioName = $"E2E Scheduled Scenario {suffix}";
+
+        await Page.GotoAsync("/specifications");
+        await Page.Locator("input[type=file]").SetInputFilesAsync(new FilePayload
+        {
+            Name = "petstore.yaml",
+            MimeType = "application/yaml",
+            Buffer = Encoding.UTF8.GetBytes(BuildPetstoreYaml(specTitle)),
+        });
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = specTitle })).ToBeVisibleAsync();
+
+        await Page.GotoAsync("/settings");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add connection" }).ClickAsync();
+        await Page.GetByLabel("Name").FillAsync(connectionName);
+        await Page.GetByLabel("URL").FillAsync("https://api.example.com");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = connectionName })).ToBeVisibleAsync();
+
+        await Page.GotoAsync("/test-scenarios");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add test scenario" }).ClickAsync();
+        await Page.GetByLabel("Name").FillAsync(scenarioName);
+        await Page.GetByLabel("Specification").SelectOptionAsync(new SelectOptionValue { Label = $"{specTitle} (OpenApi)" });
+        await Expect(Page.Locator("#scenario-operation-select option")).ToHaveCountAsync(2);
+        await Page.GetByLabel("Operation").SelectOptionAsync(new SelectOptionValue { Label = "GET /pets" });
+        await Page.GetByLabel("Connection").SelectOptionAsync(new SelectOptionValue { Label = $"{connectionName} (Http)" });
+
+        // A mistyped expression (4 fields) says why, and can't be saved.
+        var schedule = Page.GetByLabel("Schedule (cron, optional)");
+        var help = Page.Locator("#scenario-schedule-help");
+        var add = Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true });
+        await schedule.FillAsync("0 0 1 *");
+        await Expect(help).ToContainTextAsync("isn't a valid cron expression");
+        await Expect(add).ToBeDisabledAsync();
+
+        // A valid one (once a year, so nothing actually runs during the test) lists its next runs.
+        await schedule.FillAsync("0 0 1 1 *");
+        await Page.GetByLabel("Time zone").FillAsync("Europe/Kyiv");
+        await Expect(help).ToContainTextAsync("Next runs:");
+        await Expect(add).ToBeEnabledAsync();
+        await add.ClickAsync();
+
+        var row = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = scenarioName });
+        await Expect(row).ToContainTextAsync("0 0 1 1 * · Europe/Kyiv");
+        await Expect(row).ToContainTextAsync("next ");
+
+        // Editing shows it again.
+        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Edit" }).ClickAsync();
+        await Expect(schedule).ToHaveValueAsync("0 0 1 1 *");
+        await Expect(Page.GetByLabel("Time zone")).ToHaveValueAsync("Europe/Kyiv");
+    }
+
     private static string BuildPetstoreYaml(string title) => $"""
         openapi: 3.0.3
         info:

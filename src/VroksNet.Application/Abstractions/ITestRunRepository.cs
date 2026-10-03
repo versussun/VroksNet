@@ -31,6 +31,15 @@ public interface ITestRunRepository
     /// <summary>Every Running run → Interrupted. For startup: anything still running then was cut off by the previous shutdown.</summary>
     Task<int> InterruptRunningAsync(DateTimeOffset at, string message, CancellationToken cancellationToken);
 
+    /// <summary>The scenario's scheduled run (<see cref="TestRunTrigger.Schedule"/>) with the latest <see cref="TestRun.ScheduledFor"/>, in any status — what the next one is planned from.</summary>
+    Task<TestRun?> FindLatestScheduledAsync(Guid testScenarioId, CancellationToken cancellationToken);
+
+    /// <summary>Deletes the scenario's queued scheduled runs — they never ran, so they aren't history. For a schedule that changed or a scenario that's gone.</summary>
+    Task<int> DeleteQueuedScheduledAsync(Guid testScenarioId, CancellationToken cancellationToken);
+
+    /// <summary>Queued scheduled runs due before <paramref name="before"/> → Cancelled with <paramref name="message"/>. For startup: they were missed while the app was down.</summary>
+    Task<int> SkipQueuedScheduledAsync(DateTimeOffset before, DateTimeOffset at, string message, CancellationToken cancellationToken);
+
     /// <summary>Deletes all but the newest <paramref name="keepPerScenario"/> finished runs of each scenario.</summary>
     Task<int> PruneAsync(int keepPerScenario, CancellationToken cancellationToken);
 }

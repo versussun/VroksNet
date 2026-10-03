@@ -46,7 +46,15 @@ else
             @foreach (var scenario in _scenarios)
             {
                 <tr>
-                    <td>@scenario.Name<ProvisionedBadge ProvisionedAt="scenario.ProvisionedAt" /></td>
+                    <td>
+                        @scenario.Name<ProvisionedBadge ProvisionedAt="scenario.ProvisionedAt" />
+                        @if (scenario.Schedule is not null)
+                        {
+                            <br />
+                            <span class="badge bg-light text-dark border" title="Runs in the background on this cron schedule">@scenario.Schedule · @(scenario.ScheduleTimeZone ?? "UTC")</span>
+                            <small class="text-muted ms-1">@(scenario.NextScheduledRunAt is { } next ? $"next {next.ToLocalTime():g}" : "no upcoming run")</small>
+                        }
+                    </td>
                     <td>@scenario.SpecificationTitle</td>
                     <td>
                         <code>@scenario.OperationKey</code>
@@ -264,6 +272,41 @@ else
             </div>
         }
 
+        <div class="mb-2">
+            <label class="form-label" for="scenario-schedule-input">Schedule (cron, optional)</label>
+            <input id="scenario-schedule-input" class="form-control font-monospace @(_schedulePreview?.Error is null ? "" : "is-invalid")"
+                   @bind="_formSchedule" @bind:event="oninput" @bind:after="RefreshSchedulePreviewAsync"
+                   placeholder="e.g. 0 9 * * 1-5" aria-describedby="scenario-schedule-help" />
+            <div id="scenario-schedule-help" class="@(_schedulePreview?.Error is null ? "form-text" : "invalid-feedback")" role="status">
+                @if (_schedulePreview?.Error is { } scheduleError)
+                {
+                    @scheduleError
+                }
+                else if (_schedulePreview is { NextRuns.Length: > 0 } preview)
+                {
+                    <text>Next runs: @string.Join(", ", preview.NextRuns.Select(run => run.ToLocalTime().ToString("g"))) (your local time).</text>
+                }
+                else
+                {
+                    <text>Runs it in the background: minute hour day-of-month month day-of-week. Leave blank to run it only by hand.</text>
+                }
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="scenario-timezone-input">Time zone</label>
+            <input id="scenario-timezone-input" class="form-control" list="scenario-timezone-options"
+                   @bind="_formScheduleTimeZone" @bind:event="oninput" @bind:after="RefreshSchedulePreviewAsync"
+                   placeholder="UTC" disabled="@string.IsNullOrWhiteSpace(_formSchedule)" aria-describedby="scenario-timezone-help" />
+            <datalist id="scenario-timezone-options">
+                @foreach (var zone in CommonTimeZones)
+                {
+                    <option value="@zone"></option>
+                }
+            </datalist>
+            <div id="scenario-timezone-help" class="form-text">An IANA name the schedule is read in, with its daylight-saving rules. Blank means UTC.</div>
+        </div>
+
         <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@(_isSaving || !CanSave)">
             @(_isSaving ? "Saving…" : _editingId is null ? "Add" : "Save changes")
         </button>
@@ -305,6 +348,15 @@ else
     private string _formPayloadOverride = string.Empty;
     private TestScenarioKind _formKind = TestScenarioKind.Send;
     private string _formListenTimeoutText = string.Empty;
+    private string _formSchedule = string.Empty;
+    private string _formScheduleTimeZone = string.Empty;
+    private SchedulePreview? _schedulePreview;
+    /// <summary>Bumped per preview request, so a slow answer to an older keystroke can't overwrite a newer one.</summary>
+    private int _schedulePreviewVersion;
+
+    /// <summary>Suggestions only — any IANA name the server knows is accepted.</summary>
+    private static readonly string[] CommonTimeZones =
+        ["UTC", "Europe/Kyiv", "Europe/London", "Europe/Berlin", "Europe/Warsaw", "America/New_York", "America/Chicago", "America/Los_Angeles", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"];
 
     /// <summary>Mirrors the server's TestScenarioListening.MaxTimeoutSeconds, only to give feedback before saving — the server still validates.</summary>
     private const int MaxListenTimeoutSeconds = 1800;
@@ -340,7 +392,8 @@ else
         && Guid.TryParse(_formSpecificationId, out _)
         && Guid.TryParse(_formMockEndpointId, out _)
         && Guid.TryParse(_formConnectionId, out _)
-        && (!IsListening || IsListenTimeoutValid);
+        && (!IsListening || IsListenTimeoutValid)
+        && _schedulePreview?.Error is null;
 
     private MockEndpointDetail? SelectedEndpoint => _specificationEndpoints?.FirstOrDefault(e => e.Id.ToString() == _formMockEndpointId);
 
@@ -403,7 +456,10 @@ else
         _formKind = scenario.Kind;
         _formListenTimeoutText = scenario.ListenTimeoutSeconds?.ToString() ?? string.Empty;
         _formExchange = scenario.Exchange ?? string.Empty;
+        _formSchedule = scenario.Schedule ?? string.Empty;
+        _formScheduleTimeZone = scenario.ScheduleTimeZone ?? string.Empty;
         errorMessage = null;
+        await RefreshSchedulePreviewAsync();
 
         await OnSpecificationChangedAsync();
         _formMockEndpointId = scenario.MockEndpointId.ToString();
@@ -427,7 +483,34 @@ else
         _formKind = TestScenarioKind.Send;
         _formListenTimeoutText = string.Empty;
         _formExchange = DefaultExchange;
+        _formSchedule = string.Empty;
+        _formScheduleTimeZone = string.Empty;
+        _schedulePreview = null;
         _specificationEndpoints = null;
+    }
+
+    private async Task RefreshSchedulePreviewAsync()
+    {
+        var version = ++_schedulePreviewVersion;
+        if (string.IsNullOrWhiteSpace(_formSchedule))
+        {
+            _schedulePreview = null;
+            return;
+        }
+
+        try
+        {
+            var preview = await TestScenarioApi.PreviewScheduleAsync(_formSchedule, _formScheduleTimeZone, _pageCts.Token);
+            if (version == _schedulePreviewVersion)
+            {
+                _schedulePreview = preview;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The server validates again on save; without a preview the form just shows its hint.
+            _schedulePreview = null;
+        }
     }
 
     private async Task SaveAsync()
@@ -451,7 +534,9 @@ else
             listening ? ListenTimeoutSeconds : null,
             SelectedConnection?.ServiceType == ConnectionServiceType.RabbitMq && !string.IsNullOrWhiteSpace(_formExchange)
                 ? _formExchange
-                : null);
+                : null,
+            string.IsNullOrWhiteSpace(_formSchedule) ? null : _formSchedule,
+            string.IsNullOrWhiteSpace(_formSchedule) || string.IsNullOrWhiteSpace(_formScheduleTimeZone) ? null : _formScheduleTimeZone);
 
         try
         {

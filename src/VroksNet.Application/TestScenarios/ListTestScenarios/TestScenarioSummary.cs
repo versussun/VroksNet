@@ -3,7 +3,7 @@ using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Application.TestScenarios.ListTestScenarios;
 
-/// <summary>A lightweight, denormalized projection for list views — display names instead of just the ids, resolved from whatever the specification/operation/connection currently are (or "(deleted ...)" if one no longer exists).</summary>
+/// <summary>A lightweight, denormalized projection for list views — display names instead of just the ids, resolved from whatever the specification/operation/connection currently are (or "(deleted ...)" if one no longer exists). <see cref="NextScheduledRunAt"/> is the schedule's next occurrence from now, null without a schedule.</summary>
 public sealed record TestScenarioSummary(
     Guid Id,
     string Name,
@@ -22,4 +22,7 @@ public sealed record TestScenarioSummary(
     DateTimeOffset? LastRunAt,
     bool? LastRunSuccess,
     string? LastRunMessage,
-    DateTimeOffset? ProvisionedAt);
+    DateTimeOffset? ProvisionedAt,
+    string? Schedule,
+    string? ScheduleTimeZone,
+    DateTimeOffset? NextScheduledRunAt);

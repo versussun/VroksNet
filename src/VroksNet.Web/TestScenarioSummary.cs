@@ -18,4 +18,7 @@ public sealed record TestScenarioSummary(
     DateTimeOffset? LastRunAt,
     bool? LastRunSuccess,
     string? LastRunMessage,
-    DateTimeOffset? ProvisionedAt);
+    DateTimeOffset? ProvisionedAt,
+    string? Schedule,
+    string? ScheduleTimeZone,
+    DateTimeOffset? NextScheduledRunAt);

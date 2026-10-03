@@ -8,6 +8,7 @@ using VroksNet.Infrastructure.Connections;
 using VroksNet.Infrastructure.Hosting;
 using VroksNet.Infrastructure.Persistence;
 using VroksNet.Infrastructure.Publishing;
+using VroksNet.Infrastructure.Scheduling;
 using VroksNet.Infrastructure.SchemaValidation;
 using VroksNet.Infrastructure.Specifications;
 using VroksNet.Infrastructure.Templating;
@@ -99,6 +100,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IMessageListener, MessageListener>();
         services.AddSingleton<IProviderSettings>(new ProviderSettings(configuration));
         services.AddSingleton<IAppVersionProvider, AppVersionProvider>();
+        services.AddSingleton<ICronSchedule, CronSchedule>();
         services.AddScoped<ISpecificationParser, OpenApiSpecificationParser>();
         services.AddScoped<IAsyncApiSpecificationParser, AsyncApiSpecificationParser>();
         // Stateless apart from the clock it reads for {{now}}.

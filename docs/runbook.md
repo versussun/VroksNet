@@ -170,6 +170,8 @@ done
 
 Stopping the container also stops publishing. Publishers stay enabled in the database and resume on the next start.
 
+**Scheduled test runs.** A scenario with a cron schedule runs in the background on it (the **Test Scenarios** page shows the schedule and the next run). Each run sends real traffic to the service under test, so a `*/1` schedule on many scenarios is a steady load; `TestRuns__MaxConcurrency` caps how many run at once. Runs missed while the container was stopped are skipped (shown as `Cancelled` with "Skipped" in the history), not caught up. To stop them, clear the schedule on the scenario. Schedules use the container's time-zone database; the image ships it.
+
 **Start from scratch:** stop the container and delete the volume (`docker volume rm vroksnet-data`). Everything is lost, including connections.
 
 ## Logs

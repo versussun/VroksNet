@@ -1,6 +1,6 @@
 # Implementation plan — ADRs 0001 and 0002
 
-**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), A2 (unique names), A3 (provisioning core), A4 (connections from variables, `/api/system/info`), A5 (provisioning badge, example), A6 (contract check in CI), B1 (background runs and history).
+**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), A2 (unique names), A3 (provisioning core), A4 (connections from variables, `/api/system/info`), A5 (provisioning badge, example), A6 (contract check in CI), B1 (background runs and history), B2 (cron scheduling).
 **Covers:** ADR 0001 (`docs/adr/0001-aspire-integration-and-provisioning.md`) and ADR 0002 (`docs/adr/0002-background-and-scheduled-test-runs.md`). The ADRs hold the decisions and their reasoning; this document only orders the work.
 
 Each step is one pull request that can be merged and shown on its own. Sizes: **S** — a day or so, **M** — a few days, **L** — a week or more.
@@ -87,7 +87,7 @@ The largest step of track A.
 - **UI:** a "Run in background" button, a run-history tab, status refreshed by polling.
 - **Done when:** a run survives closing the tab, a Listen waits longer than 80s, and a restart mid-run yields `Interrupted`.
 
-### B2. Cron scheduling (M) — after B1
+### B2. Cron scheduling (M) — after B1 ✅
 
 - `ICronSchedule` in Application, implemented in Infrastructure with Cronos (pinned version).
 - A cron expression and a time zone on `TestScenario` (migration), validated with a clear 400.

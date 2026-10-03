@@ -8,7 +8,9 @@ namespace VroksNet.Application.TestScenarios.GetTestScenario;
 public sealed class GetTestScenarioHandler(
     ITestScenarioRepository scenarios,
     IApiSpecificationRepository specifications,
-    IConnectionRepository connections) : IRequestHandler<GetTestScenario, TestScenarioSummary?>
+    IConnectionRepository connections,
+    ICronSchedule cron,
+    TimeProvider timeProvider) : IRequestHandler<GetTestScenario, TestScenarioSummary?>
 {
     public async ValueTask<TestScenarioSummary?> Handle(GetTestScenario request, CancellationToken cancellationToken)
     {
@@ -21,6 +23,6 @@ public sealed class GetTestScenarioHandler(
         var specification = await specifications.FindByIdAsync(scenario.SpecificationId, cancellationToken);
         var connection = await connections.FindByIdAsync(scenario.ConnectionId, cancellationToken);
 
-        return TestScenarioSummaryFactory.Build(scenario, specification, connection);
+        return TestScenarioSummaryFactory.Build(scenario, specification, connection, cron, timeProvider.GetUtcNow());
     }
 }

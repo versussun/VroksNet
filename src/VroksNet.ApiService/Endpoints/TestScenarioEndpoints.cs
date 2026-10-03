@@ -4,6 +4,7 @@ using VroksNet.Application.TestScenarios.CreateTestScenario;
 using VroksNet.Application.TestScenarios.DeleteTestScenario;
 using VroksNet.Application.TestScenarios.GetTestScenario;
 using VroksNet.Application.TestScenarios.ListTestScenarios;
+using VroksNet.Application.TestScenarios.PreviewSchedule;
 using VroksNet.Application.TestScenarios.RunTestScenario;
 using VroksNet.Application.TestScenarios.UpdateTestScenario;
 
@@ -28,6 +29,15 @@ public static class TestScenarioEndpoints
             return Results.Ok(scenarios);
         })
         .WithName("ListTestScenarios");
+
+        // The next run times of a cron schedule, or why it's invalid (ADR 0002) — the form calls it
+        // as the user types. Always 200: an invalid schedule is an answer here, not a bad request.
+        group.MapGet("/schedule-preview", async (string? schedule, string? timeZone, int? count, IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            var preview = await mediator.Send(new PreviewSchedule(schedule, timeZone, count ?? 5), cancellationToken);
+            return Results.Ok(preview);
+        })
+        .WithName("PreviewSchedule");
 
         // Also carries the scenario's last-run status (LastRunAt/LastRunSuccess/LastRunMessage)
         // — lets a caller poll one scenario's status without listing all of them.

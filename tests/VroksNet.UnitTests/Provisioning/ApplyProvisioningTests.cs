@@ -90,6 +90,9 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
         var settlements = await Get<ITestScenarioRepository>().FindByNameAsync("settlements", cancellationToken);
         Assert.Equal(TestScenarioKind.Listen, settlements!.Kind); // an AsyncAPI "send" defaults to Listen
         Assert.Equal(120, settlements.ListenTimeoutSeconds);
+        Assert.Null(settlements.Schedule);
+        var listBooks = await Get<ITestScenarioRepository>().FindByNameAsync("list-books", cancellationToken);
+        Assert.Equal(("0 9 * * 1-5", "Europe/Kyiv"), (listBooks!.Schedule, listBooks.ScheduleTimeZone));
 
         // Someone edits a provisioned Publisher in the UI…
         await Send(new UpdatePublisher(publisher.Id, "order-created", publisher.SpecificationId, publisher.MockEndpointId, publisher.ConnectionId, null, 5));
@@ -278,6 +281,7 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
             specification: Bookstore Sample API
             operation: "GET /books"
             connection: bookstore-http
+            schedule: { cron: "0 9 * * 1-5", timeZone: Europe/Kyiv }
           - name: settlements
             specification: Shop Events Kafka Sample
             operation: "shop.payments.{region}.settled:send"

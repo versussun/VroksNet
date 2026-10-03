@@ -134,6 +134,44 @@ public sealed class TestRunRepository(
         return updated;
     }
 
+    public async Task<TestRun?> FindLatestScheduledAsync(Guid testScenarioId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.TestRuns.AsNoTracking()
+            .Where(run => run.TestScenarioId == testScenarioId && run.Trigger == TestRunTrigger.Schedule)
+            .OrderByDescending(run => run.ScheduledFor)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<int> DeleteQueuedScheduledAsync(Guid testScenarioId, CancellationToken cancellationToken)
+    {
+        var deleted = 0;
+        await writeQueue.EnqueueAsync(async (context, ct) =>
+        {
+            deleted = await context.TestRuns
+                .Where(run => run.TestScenarioId == testScenarioId && run.Trigger == TestRunTrigger.Schedule && run.Status == TestRunStatus.Queued)
+                .ExecuteDeleteAsync(ct);
+        }, cancellationToken);
+
+        return deleted;
+    }
+
+    public async Task<int> SkipQueuedScheduledAsync(DateTimeOffset before, DateTimeOffset at, string message, CancellationToken cancellationToken)
+    {
+        var updated = 0;
+        await writeQueue.EnqueueAsync(async (context, ct) =>
+        {
+            updated = await context.TestRuns
+                .Where(run => run.Trigger == TestRunTrigger.Schedule && run.Status == TestRunStatus.Queued && run.ScheduledFor < before)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(run => run.Status, TestRunStatus.Cancelled)
+                    .SetProperty(run => run.FinishedAt, at)
+                    .SetProperty(run => run.Message, message), ct);
+        }, cancellationToken);
+
+        return updated;
+    }
+
     public async Task<int> PruneAsync(int keepPerScenario, CancellationToken cancellationToken)
     {
         var deleted = 0;

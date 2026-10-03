@@ -8,7 +8,7 @@ test scenarios created. How provisioning works: [ADR 0001](../../adr/0001-aspire
 |---|---|
 | `specs/bookstore-openapi.yaml` | the `Bookstore Sample API` REST mock |
 | `specs/shop-events-kafka-asyncapi.yaml` | the `Shop Events Kafka Sample` events |
-| [`vroksnet.yaml`](vroksnet.yaml) | the `bookstore-http` connection, a disabled operation, the `order-created` Publisher (off), the `list-books` and `payments-settled` scenarios |
+| [`vroksnet.yaml`](vroksnet.yaml) | the `bookstore-http` connection, a disabled operation, the `order-created` Publisher (off), the `list-books` (scheduled every 15 minutes) and `payments-settled` scenarios |
 | `Provisioning__Connections__0__*` | the `kafka` connection — declared by environment variables, the way the Aspire package passes `WithConnection(...)` |
 
 ## Run it

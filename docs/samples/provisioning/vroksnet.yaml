@@ -29,6 +29,7 @@ testScenarios:
     specification: Bookstore Sample API
     operation: "GET /books"
     connection: bookstore-http
+    schedule: { cron: "*/15 * * * *" }   # runs in the background every 15 minutes (UTC)
   - name: payments-settled
     specification: Shop Events Kafka Sample
     operation: "shop.payments.{region}.settled:send"

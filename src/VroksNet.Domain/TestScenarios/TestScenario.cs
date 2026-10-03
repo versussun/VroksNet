@@ -38,6 +38,16 @@ public sealed class TestScenario
     /// </summary>
     public string? Exchange { get; set; }
 
+    /// <summary>
+    /// A standard 5-field cron expression (ADR 0002) the background worker runs this scenario on,
+    /// e.g. <c>0 9 * * 1-5</c>; null when it isn't scheduled. Validated by the Application layer's
+    /// <c>ICronSchedule</c>, not here: Domain stays free of the parser.
+    /// </summary>
+    public string? Schedule { get; set; }
+
+    /// <summary>The IANA time zone <see cref="Schedule"/> is read in (<c>Europe/Kyiv</c>); null means UTC. Only set together with <see cref="Schedule"/>.</summary>
+    public string? ScheduleTimeZone { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

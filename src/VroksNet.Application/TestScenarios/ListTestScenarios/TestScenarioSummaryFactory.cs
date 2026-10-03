@@ -1,3 +1,4 @@
+using VroksNet.Application.Abstractions;
 using VroksNet.Domain.ApiSpecifications;
 using VroksNet.Domain.Connections;
 using VroksNet.Domain.TestScenarios;
@@ -7,7 +8,7 @@ namespace VroksNet.Application.TestScenarios.ListTestScenarios;
 /// <summary>Builds a <see cref="TestScenarioSummary"/> from a <see cref="TestScenario"/> plus its already-resolved specification/connection — shared by <c>ListTestScenariosHandler</c> and <c>GetTestScenarioHandler</c> so both denormalize the same way.</summary>
 internal static class TestScenarioSummaryFactory
 {
-    public static TestScenarioSummary Build(TestScenario scenario, ApiSpecification? specification, Connection? connection)
+    public static TestScenarioSummary Build(TestScenario scenario, ApiSpecification? specification, Connection? connection, ICronSchedule cron, DateTimeOffset now)
     {
         var endpoint = specification?.Endpoints.FirstOrDefault(e => e.Id == scenario.MockEndpointId);
 
@@ -29,6 +30,9 @@ internal static class TestScenarioSummaryFactory
             scenario.LastRunAt,
             scenario.LastRunSuccess,
             scenario.LastRunMessage,
-            scenario.ProvisionedAt);
+            scenario.ProvisionedAt,
+            scenario.Schedule,
+            scenario.ScheduleTimeZone,
+            scenario.Schedule is { } schedule ? cron.GetNextOccurrence(schedule, scenario.ScheduleTimeZone, now) : null);
     }
 }

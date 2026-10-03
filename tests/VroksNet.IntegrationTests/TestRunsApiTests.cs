@@ -75,6 +75,80 @@ public sealed class TestRunsApiTests(AppHostFixture fixture)
     }
 
     [Fact]
+    public async Task EveryMinuteSchedule_QueuesTheNextMinute_RunsIt_AndQueuesTheOneAfter()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = fixture.ApiServiceClient;
+        var suffix = Guid.NewGuid();
+        var scenarioId = await CreateHttpScenarioAsync(client, suffix, cancellationToken, schedule: "*/1 * * * *");
+
+        var scenario = (await client.GetFromJsonAsync<JsonNode>($"/api/test-scenarios/{scenarioId}", cancellationToken))!;
+        Assert.Equal("*/1 * * * *", scenario["schedule"]!.GetValue<string>());
+        var nextRunAt = scenario["nextScheduledRunAt"]!.GetValue<DateTimeOffset>();
+        Assert.Equal(0, nextRunAt.Second);
+
+        // The worker queues it within a tick or two, for the next minute…
+        var queued = await WaitForScheduledRunAsync(client, scenarioId, "Queued", run => true, cancellationToken);
+        var first = queued["scheduledFor"]!.GetValue<DateTimeOffset>();
+        Assert.InRange((first - DateTimeOffset.UtcNow).TotalSeconds, -2, 61);
+
+        // …runs it then, and queues the one a minute later.
+        var finished = await WaitForFinalStatusAsync(client, queued["id"]!.GetValue<Guid>(), cancellationToken, timeoutSeconds: 75);
+        Assert.Equal("Passed", finished["status"]!.GetValue<string>());
+        Assert.Equal("Schedule", finished["trigger"]!.GetValue<string>());
+        var next = await WaitForScheduledRunAsync(client, scenarioId, "Queued", run => run["scheduledFor"]!.GetValue<DateTimeOffset>() > first, cancellationToken);
+        Assert.Equal(first.AddMinutes(1), next["scheduledFor"]!.GetValue<DateTimeOffset>());
+
+        // Clearing the schedule drops the queued run, so nothing else is run.
+        var clear = await client.PutAsJsonAsync($"/api/test-scenarios/{scenarioId}", new
+        {
+            Name = $"TestRuns Http {suffix}",
+            SpecificationId = scenario["specificationId"]!.GetValue<Guid>(),
+            MockEndpointId = scenario["mockEndpointId"]!.GetValue<Guid>(),
+            ConnectionId = scenario["connectionId"]!.GetValue<Guid>()
+        }, cancellationToken);
+        Assert.Equal(HttpStatusCode.NoContent, clear.StatusCode);
+        var history = await client.GetFromJsonAsync<JsonNode>($"/api/test-runs?testScenarioId={scenarioId}&status=Queued", cancellationToken);
+        Assert.Empty(history!["items"]!.AsArray());
+    }
+
+    [Fact]
+    public async Task BadSchedules_AreA400WithTheReason_AndThePreviewSaysWhy()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = fixture.ApiServiceClient;
+        var suffix = Guid.NewGuid();
+        var scenarioId = await CreateHttpScenarioAsync(client, suffix, cancellationToken);
+        var scenario = (await client.GetFromJsonAsync<JsonNode>($"/api/test-scenarios/{scenarioId}", cancellationToken))!;
+
+        foreach (var (schedule, timeZone, reason) in new[]
+        {
+            ("every minute", (string?)null, "isn't a valid cron expression"),
+            ("0 9 * * *", "Mars/Olympus", "isn't a known time zone"),
+            (null, "Europe/Kyiv", "A time zone needs a schedule")
+        })
+        {
+            var response = await client.PutAsJsonAsync($"/api/test-scenarios/{scenarioId}", new
+            {
+                Name = $"TestRuns Http {suffix}",
+                SpecificationId = scenario["specificationId"]!.GetValue<Guid>(),
+                MockEndpointId = scenario["mockEndpointId"]!.GetValue<Guid>(),
+                ConnectionId = scenario["connectionId"]!.GetValue<Guid>(),
+                Schedule = schedule,
+                ScheduleTimeZone = timeZone
+            }, cancellationToken);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Contains(reason, (await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!["detail"]!.GetValue<string>());
+        }
+
+        var preview = (await client.GetFromJsonAsync<JsonNode>("/api/test-scenarios/schedule-preview?schedule=0%209%20*%20*%201-5&timeZone=Europe/Kyiv&count=3", cancellationToken))!;
+        Assert.Null(preview["error"]?.GetValue<string>());
+        Assert.Equal(3, preview["nextRuns"]!.AsArray().Count);
+        var invalid = (await client.GetFromJsonAsync<JsonNode>("/api/test-scenarios/schedule-preview?schedule=61%20*%20*%20*%20*", cancellationToken))!;
+        Assert.Contains("isn't a valid cron expression", invalid["error"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task UnknownIds_Are404()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -86,14 +160,32 @@ public sealed class TestRunsApiTests(AppHostFixture fixture)
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/test-runs?cursor=not-a-cursor", cancellationToken)).StatusCode);
     }
 
-    private static Task<JsonNode> WaitForFinalStatusAsync(HttpClient client, Guid runId, CancellationToken cancellationToken)
-        => WaitForStatusAsync(client, runId, null, cancellationToken);
+    private static Task<JsonNode> WaitForFinalStatusAsync(HttpClient client, Guid runId, CancellationToken cancellationToken, int timeoutSeconds = 60)
+        => WaitForStatusAsync(client, runId, null, cancellationToken, timeoutSeconds);
+
+    /// <summary>Polls the scenario's history until a scheduled run in <paramref name="status"/> matching <paramref name="match"/> shows up.</summary>
+    private static async Task<JsonNode> WaitForScheduledRunAsync(HttpClient client, Guid scenarioId, string status, Func<JsonNode, bool> match, CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (true)
+        {
+            var history = await client.GetFromJsonAsync<JsonNode>($"/api/test-runs?testScenarioId={scenarioId}&status={status}", cancellationToken);
+            var run = history!["items"]!.AsArray().FirstOrDefault(item => item!["trigger"]!.GetValue<string>() == "Schedule" && match(item));
+            if (run is not null)
+            {
+                return run;
+            }
+
+            Assert.True(DateTime.UtcNow < deadline, $"No {status} scheduled run of {scenarioId} yet.");
+            await Task.Delay(250, cancellationToken);
+        }
+    }
 
     /// <summary>Polls the run until it reaches <paramref name="status"/> — or, when null, any final status.</summary>
-    private static async Task<JsonNode> WaitForStatusAsync(HttpClient client, Guid runId, string? status, CancellationToken cancellationToken)
+    private static async Task<JsonNode> WaitForStatusAsync(HttpClient client, Guid runId, string? status, CancellationToken cancellationToken, int timeoutSeconds = 60)
     {
         string[] finalStatuses = ["Passed", "Failed", "Cancelled", "Interrupted"];
-        var deadline = DateTime.UtcNow.AddSeconds(60);
+        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
         while (true)
         {
             var run = (await client.GetFromJsonAsync<JsonNode>($"/api/test-runs/{runId}", cancellationToken))!;
@@ -108,7 +200,7 @@ public sealed class TestRunsApiTests(AppHostFixture fixture)
         }
     }
 
-    private async Task<Guid> CreateHttpScenarioAsync(HttpClient client, Guid suffix, CancellationToken cancellationToken)
+    private async Task<Guid> CreateHttpScenarioAsync(HttpClient client, Guid suffix, CancellationToken cancellationToken, string? schedule = null)
     {
         var (specificationId, endpointId) = await ImportAsync(client, "openapi", $"""
             openapi: 3.0.3
@@ -123,7 +215,7 @@ public sealed class TestRunsApiTests(AppHostFixture fixture)
                       description: OK
             """, cancellationToken);
         var connectionId = await CreateConnectionAsync(client, $"TestRuns Http {suffix}", "Http", fixture.ApiServiceHttpAddress.ToString(), cancellationToken);
-        return await CreateScenarioAsync(client, new { Name = $"TestRuns Http {suffix}", SpecificationId = specificationId, MockEndpointId = endpointId, ConnectionId = connectionId }, cancellationToken);
+        return await CreateScenarioAsync(client, new { Name = $"TestRuns Http {suffix}", SpecificationId = specificationId, MockEndpointId = endpointId, ConnectionId = connectionId, Schedule = schedule }, cancellationToken);
     }
 
     private async Task<Guid> CreateListenScenarioAsync(HttpClient client, Guid suffix, int timeoutSeconds, CancellationToken cancellationToken)
