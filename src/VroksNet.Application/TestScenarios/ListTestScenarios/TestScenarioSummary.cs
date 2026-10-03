@@ -21,4 +21,5 @@ public sealed record TestScenarioSummary(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? LastRunAt,
     bool? LastRunSuccess,
-    string? LastRunMessage);
+    string? LastRunMessage,
+    DateTimeOffset? ProvisionedAt);

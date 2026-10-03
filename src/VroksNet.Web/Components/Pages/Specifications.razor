@@ -52,7 +52,7 @@ else
             @foreach (var specification in specifications)
             {
                 <tr>
-                    <td><a href="@($"specifications/{specification.Id}")">@specification.Title</a></td>
+                    <td><a href="@($"specifications/{specification.Id}")">@specification.Title</a><ProvisionedBadge ProvisionedAt="specification.ProvisionedAt" /></td>
                     <td>@specification.Kind</td>
                     <td>@specification.EndpointCount</td>
                     <td>@specification.UpdatedAt.ToLocalTime().ToString("g")</td>

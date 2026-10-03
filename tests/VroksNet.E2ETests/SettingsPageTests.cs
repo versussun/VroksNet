@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using VroksNet.E2ETests.Fixtures;
 using static Microsoft.Playwright.Assertions;
 
@@ -67,5 +68,24 @@ public sealed class SettingsPageTests(AppHostFixture fixture) : PageTestBase(fix
 
         await Expect(Page.GetByText($"A connection named \"{name}\" already exists.")).ToBeVisibleAsync();
         await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = name })).ToHaveCountAsync(1);
+    }
+
+    [Fact]
+    public async Task ProvisionedConnection_CarriesTheBadge_AndUiCreatedOnesDont()
+    {
+        var name = $"E2E Unprovisioned Connection {Guid.NewGuid()}";
+        await Page.GotoAsync("/settings");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add connection" }).ClickAsync();
+        await Page.GetByLabel("Name").FillAsync(name);
+        await Page.GetByLabel("URL").FillAsync("https://api.example.com");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
+
+        var provisioned = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = AppHostFixture.ProvisionedConnectionName });
+        await Expect(provisioned.GetByText("Provisioned", new LocatorGetByTextOptions { Exact = true })).ToBeVisibleAsync();
+        await Expect(provisioned.GetByText("Provisioned", new LocatorGetByTextOptions { Exact = true })).ToHaveAttributeAsync("title", new Regex("^Managed by provisioning"));
+
+        var created = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = name });
+        await Expect(created).ToBeVisibleAsync();
+        await Expect(created.GetByText("Provisioned", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
     }
 }

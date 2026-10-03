@@ -20,4 +20,5 @@ public sealed record PublisherSummary(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? LastPublishedAt,
     bool? LastPublishSuccess,
-    string? LastPublishMessage);
+    string? LastPublishMessage,
+    DateTimeOffset? ProvisionedAt);

@@ -85,7 +85,7 @@ Startup fails on purpose (check `docker logs vroksnet`) when:
 
 ## Provisioning
 
-To start an instance already configured — specs imported, connections, Publishers and test scenarios created — mount a directory at `/app/provisioning`:
+To start an instance already configured — specs imported, connections, Publishers and test scenarios created — mount a directory at `/app/provisioning`. A runnable example built on the sample specs: [`docs/samples/provisioning/`](samples/provisioning/README.md).
 
 ```
 provisioning/
@@ -103,7 +103,7 @@ docker run -d --name vroksnet -p 8080:8080 -p 7353:7353 \
 
 - **The manifest** follows `docs/schemas/provisioning-manifest.v1.schema.json` (also in the image at `/app/provisioning-manifest.v1.schema.json`); ADR 0001 has a full example. Everything is referenced by name, specs by their `info.title`.
 - **Secrets:** a connection can take its value from configuration instead of the file — `valueFrom: ConnectionStrings:orders` reads the `ConnectionStrings__orders` variable.
-- **Every start applies it again.** Specs are re-imported (an update in place), and provisioned objects are brought back in line with the file — edits made to them in the UI are lost. Objects created in the UI aren't touched. Removing something from the manifest doesn't delete it.
+- **Every start applies it again.** Specs are re-imported (an update in place), and provisioned objects are brought back in line with the file — edits made to them in the UI are lost. The Admin UI marks them with a **Provisioned** badge, and the list endpoints return `provisionedAt` (null for objects created in the UI). Objects created in the UI aren't touched. Removing something from the manifest doesn't delete it.
 - **Readiness:** `/health` answers `503` until provisioning has been applied.
 - **Errors stop the container** with exit code `3`, after logging each one with its file or manifest entry (`docker logs vroksnet`). With `-e Provisioning__FailOnError=false` it keeps running with whatever did apply, and `/health` reports `Degraded` (still `200`).
 - A different directory: `Provisioning__Path`.

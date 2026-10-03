@@ -46,7 +46,7 @@ else
             @foreach (var scenario in _scenarios)
             {
                 <tr>
-                    <td>@scenario.Name</td>
+                    <td>@scenario.Name<ProvisionedBadge ProvisionedAt="scenario.ProvisionedAt" /></td>
                     <td>@scenario.SpecificationTitle</td>
                     <td>
                         <code>@scenario.OperationKey</code>

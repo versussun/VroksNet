@@ -18,7 +18,8 @@ public sealed class ListConnectionsHandler(IConnectionRepository repository)
                 connection.ServiceType,
                 connection.Value,
                 connection.CreatedAt,
-                connection.UpdatedAt))
+                connection.UpdatedAt,
+                connection.ProvisionedAt))
             .ToList();
     }
 }

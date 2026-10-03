@@ -8,4 +8,5 @@ public sealed record ConnectionSummary(
     ConnectionServiceType ServiceType,
     string Value,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? ProvisionedAt);

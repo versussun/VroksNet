@@ -15,6 +15,9 @@ curl -k -X POST https://localhost:7352/api/specifications/asyncapi \
   --data-binary @docs/samples/shop-events-kafka-asyncapi.yaml
 ```
 
+To start a container with some of them already imported and wired up, see
+[`provisioning/`](provisioning/README.md).
+
 `SampleSpecificationsTests` (unit tests) imports every file here and checks that each
 operation's example passes its own schema. If you edit a sample, run the unit tests.
 

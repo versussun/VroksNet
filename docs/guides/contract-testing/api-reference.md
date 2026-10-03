@@ -31,7 +31,7 @@ Names of connections, test scenarios and Publishers are unique within each kind,
 | Method & path | Body | Returns |
 |---|---|---|
 | `POST /api/test-scenarios` | see below | `{ "id" }` |
-| `GET /api/test-scenarios` | | list, with `lastRunAt`, `lastRunSuccess`, `lastRunMessage` |
+| `GET /api/test-scenarios` | | list, with `lastRunAt`, `lastRunSuccess`, `lastRunMessage`, `provisionedAt` |
 | `GET /api/test-scenarios/{id}` | | one scenario |
 | `PUT /api/test-scenarios/{id}` | same as create | `204` / `404` |
 | `DELETE /api/test-scenarios/{id}` | | `204` / `404` |
@@ -106,7 +106,7 @@ Not a contract test: a publisher publishes an AsyncAPI operation's message to a 
 
 | Method & path | Body | Returns |
 |---|---|---|
-| `GET /api/publishers` | | `[{ "id", "name", "operationKey", "connectionName", "exchange", "intervalSeconds", "isEnabled", "lastPublishedAt", "lastPublishSuccess", "lastPublishMessage", … }]` |
+| `GET /api/publishers` | | `[{ "id", "name", "operationKey", "connectionName", "exchange", "intervalSeconds", "isEnabled", "lastPublishedAt", "lastPublishSuccess", "lastPublishMessage", "provisionedAt", … }]` |
 | `POST /api/publishers` | see below | `{ "id" }`; `400 { "detail" }` with the reason |
 | `PUT /api/publishers/{id}` | same, without `enabled` | `204`; `400`; `404` |
 | `PUT /api/publishers/{id}/enabled` | `{ "enabled": true }` | `204`; `404` — start/stop the schedule |
