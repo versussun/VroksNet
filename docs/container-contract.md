@@ -14,6 +14,7 @@ Not covered here: the Admin UI's REST API (`docs/guides/contract-testing/api-ref
 - **Without bumping the version, only additions are allowed:** new optional variables, response fields, manifest keys with safe defaults.
 - **A breaking change bumps the version.** That's a removal or rename, a change of a default or of meaning, or a new required key. The change is recorded in a CHANGELOG, and the package checks the version before starting.
 - **The manifest is versioned separately**, by its `version` field. An image with contract `N` accepts manifests of versions `1..N`.
+- **Deprecated in v1, removed in v2:** the `exchange` field of publishers and test scenarios — in the manifest, the API and the export. Use `brokerOptions.exchange` (ADR 0003). Until v2 both are accepted, and the export keeps writing `exchange` so older images can read it.
 
 ## 2. Image
 
@@ -81,7 +82,7 @@ Names are given in .NET environment-variable form (`:` → `__`).
 | `GET /health` | `200 Healthy` / `503 Unhealthy` | readiness: Unhealthy until provisioning has been applied (Healthy at once when there's no provisioning directory; `Degraded`, still 200, when it failed with `FailOnError=false`). This is what `WaitFor(mocks)` waits for | exists |
 | `GET /api/system/info` | see below | version, contract, provisioning state. The package shows it in the dashboard; consumers' tests wait on it | exists |
 | `GET /api/system/provider` | `{ enabled, port, publicUrl, corsOrigins }` | provider mode settings | exists |
-| `GET /api/system/connection-types` | `[{ type, displayName, valueLabel, valueHint, isHttp, canListen, listenNote }]` | the connection types this image supports and what each can do (ADR 0003). New types are added to the list, never removed within a contract version | exists |
+| `GET /api/system/connection-types` | `[{ type, displayName, valueLabel, valueHint, isHttp, canListen, listenNote, options: [{ name, label, sendDescription, sendPlaceholder, listenDescription, listenPlaceholder, suggestedValue }] }]` | the connection types this image supports, what each can do, and the `brokerOptions` each accepts (ADR 0003). New types are added to the list, never removed within a contract version | exists |
 
 The `GET /api/system/info` response:
 

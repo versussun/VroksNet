@@ -1,0 +1,54 @@
+@* The inputs for a connection type's broker options (ADR 0003), from what its adapter declares.
+   Edits Values in place; blank means "the broker's default" and isn't sent (see ValuesFor). *@
+
+@foreach (var option in ApplicableOptions)
+{
+    var id = $"{IdPrefix}-option-{option.Name}";
+    <div class="mb-3">
+        <label class="form-label" for="@id">@option.Label</label>
+        <input id="@id" class="form-control" value="@Values.GetValueOrDefault(option.Name)"
+               @oninput="change => Values[option.Name] = change.Value?.ToString() ?? string.Empty"
+               placeholder="@(IsListening ? option.ListenPlaceholder : option.SendPlaceholder)" aria-describedby="@(id)-help" />
+        <div id="@(id)-help" class="form-text">@(IsListening ? option.ListenDescription : option.SendDescription)</div>
+    </div>
+}
+
+@code {
+    /// <summary>The selected connection type's options; empty when it has none (or none is selected).</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<BrokerOptionInfo> Options { get; set; } = [];
+
+    /// <summary>The form's option values by name, edited in place.</summary>
+    [Parameter, EditorRequired]
+    public Dictionary<string, string> Values { get; set; } = [];
+
+    /// <summary>A Listen scenario: shows the Listen texts and hides options that don't apply to Listen.</summary>
+    [Parameter]
+    public bool IsListening { get; set; }
+
+    /// <summary>Prefix for the inputs' ids, e.g. "scenario" → "scenario-option-exchange".</summary>
+    [Parameter, EditorRequired]
+    public string IdPrefix { get; set; } = string.Empty;
+
+    private IEnumerable<BrokerOptionInfo> ApplicableOptions => Options.Where(option => !IsListening || option.ListenDescription is not null);
+
+    /// <summary>
+    /// What to send as brokerOptions: the non-blank values of the options that apply — the other
+    /// type's leftovers and blanks are left out. Null when nothing is set.
+    /// </summary>
+    public static Dictionary<string, string>? ValuesFor(IEnumerable<BrokerOptionInfo> options, IReadOnlyDictionary<string, string> values, bool isListening)
+    {
+        var set = options
+            .Where(option => !isListening || option.ListenDescription is not null)
+            .Where(option => !string.IsNullOrWhiteSpace(values.GetValueOrDefault(option.Name)))
+            .ToDictionary(option => option.Name, option => values[option.Name].Trim());
+        return set.Count == 0 ? null : set;
+    }
+
+    /// <summary>What a new form starts with: each option's suggested value, if it has one.</summary>
+    public static Dictionary<string, string> SuggestedValues(IEnumerable<ConnectionTypeInfo> types)
+        => types.SelectMany(type => type.Options)
+            .Where(option => option.SuggestedValue is not null)
+            .DistinctBy(option => option.Name)
+            .ToDictionary(option => option.Name, option => option.SuggestedValue ?? string.Empty);
+}

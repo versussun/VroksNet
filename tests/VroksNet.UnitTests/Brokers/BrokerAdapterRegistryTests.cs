@@ -37,8 +37,10 @@ public class BrokerAdapterRegistryTests
     {
         public ConnectionServiceType Type => ConnectionServiceType.Nats;
 
+        public IReadOnlyList<Application.Abstractions.BrokerOptionDefinition> Options => [];
+
         public Task<Application.Abstractions.ConnectionTestResult> TestAsync(Connection connection, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<Application.Abstractions.MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, string? exchange, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Application.Abstractions.MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

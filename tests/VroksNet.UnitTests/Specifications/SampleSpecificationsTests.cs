@@ -1,3 +1,4 @@
+using VroksNet.Domain.Connections;
 using VroksNet.Application.Abstractions;
 using VroksNet.Domain.TestScenarios;
 using VroksNet.Infrastructure.SchemaValidation;
@@ -49,6 +50,19 @@ public sealed class SampleSpecificationsTests
             Assert.True(TestScenarioListening.CanListen(operation.OperationKey), $"{operation.OperationKey}: can't be listened to.");
             AssertValid(operation, operation.ResponseSchemaJson);
         }
+    }
+
+    /// <summary>R5: the servers' protocols, which decide which connections a form offers first.</summary>
+    [Theory]
+    [InlineData("shop-events-kafka-asyncapi.yaml", new[] { "kafka", "kafka-secure" }, new[] { ConnectionServiceType.Kafka })]
+    [InlineData("iot-telemetry-nats-asyncapi.yaml", new[] { "nats" }, new[] { ConnectionServiceType.Nats })]
+    [InlineData("notifications-rabbitmq-asyncapi.yaml", new[] { "amqp" }, new[] { ConnectionServiceType.RabbitMq })]
+    public async Task AsyncApiSample_ServerProtocols_PointAtItsBroker(string fileName, string[] protocols, ConnectionServiceType[] types)
+    {
+        var spec = await new AsyncApiSpecificationParser().ParseAsync(await ReadSampleAsync(fileName), TestContext.Current.CancellationToken);
+
+        Assert.Equal(protocols, spec.Protocols);
+        Assert.Equal(types, ServiceTypeTraits.TypesFor(spec.Protocols!));
     }
 
     [Fact]

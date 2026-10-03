@@ -24,6 +24,7 @@ public class ListenTestScenarioTests
     private readonly Guid _specificationId = Guid.NewGuid();
     private readonly Guid _brokerEndpointId = Guid.NewGuid();
     private readonly Guid _httpEndpointId = Guid.NewGuid();
+    private readonly Guid _slashEndpointId = Guid.NewGuid();
     private readonly Guid _rabbitConnectionId = Guid.NewGuid();
     private readonly Guid _httpConnectionId = Guid.NewGuid();
 
@@ -64,7 +65,7 @@ public class ListenTestScenarioTests
             TestContext.Current.CancellationToken);
 
         var stored = await _scenarios.FindByIdAsync(id, TestContext.Current.CancellationToken);
-        Assert.Null(stored!.Exchange);
+        Assert.Null(stored!.BrokerOptions?["exchange"]);
         Assert.Equal(5, stored.ListenTimeoutSeconds);
     }
 
@@ -102,7 +103,7 @@ public class ListenTestScenarioTests
         var stored = await _scenarios.FindByIdAsync(id, TestContext.Current.CancellationToken);
         Assert.Equal(TestScenarioKind.Send, stored!.Kind);
         Assert.Null(stored.ListenTimeoutSeconds);
-        Assert.Equal("my.exchange", stored.Exchange);
+        Assert.Equal("my.exchange", stored.BrokerOptions?["exchange"]);
     }
 
     [Fact]
@@ -114,7 +115,7 @@ public class ListenTestScenarioTests
             new CreateTestScenario("Http", _specificationId, _httpEndpointId, _httpConnectionId, null, TestScenarioKind.Send, Exchange: "my.exchange"),
             TestContext.Current.CancellationToken);
 
-        Assert.Null((await _scenarios.FindByIdAsync(id, TestContext.Current.CancellationToken))!.Exchange);
+        Assert.Null((await _scenarios.FindByIdAsync(id, TestContext.Current.CancellationToken))!.BrokerOptions?["exchange"]);
     }
 
     [Fact]
@@ -165,7 +166,7 @@ public class ListenTestScenarioTests
         await RunHandler(listener).Handle(new RunTestScenario(scenarioId), TestContext.Current.CancellationToken);
 
         Assert.Equal(TimeSpan.FromSeconds(TestScenarioListening.DefaultTimeoutSeconds), listener.LastListen!.Value.Timeout);
-        Assert.Equal(TestScenarioListening.DefaultRabbitMqExchange, listener.LastListen.Value.Exchange);
+        Assert.Null(listener.LastListen.Value.Exchange); // the RabbitMQ adapter applies its default (amq.topic)
     }
 
     [Fact]
@@ -201,7 +202,71 @@ public class ListenTestScenarioTests
         Assert.False(stored!.LastRunSuccess);
     }
 
-    private CreateTestScenarioHandler CreateHandler => new(_scenarios, _specifications, _connections, new CronSchedule());
+    [Fact]
+    public async Task Create_BrokerOptions_AreStoredUnderTheNameTheAdapterDeclares()
+    {
+        await ArrangeAsync();
+
+        var id = await CreateHandler.Handle(
+            new CreateTestScenario("Options", _specificationId, _brokerEndpointId, _rabbitConnectionId, null, BrokerOptions: new Dictionary<string, string?> { ["Exchange"] = " orders " }),
+            TestContext.Current.CancellationToken);
+
+        var stored = await _scenarios.FindByIdAsync(id, TestContext.Current.CancellationToken);
+        Assert.Equal(["exchange"], stored!.BrokerOptions!.Values.Keys);
+        Assert.Equal("orders", stored.BrokerOptions["exchange"]);
+    }
+
+    [Fact]
+    public async Task Create_ExchangeAndTheSameBrokerOption_IsFine()
+    {
+        await ArrangeAsync();
+
+        var id = await CreateHandler.Handle(
+            new CreateTestScenario("Both", _specificationId, _brokerEndpointId, _rabbitConnectionId, null, Exchange: "orders", BrokerOptions: new Dictionary<string, string?> { ["exchange"] = "orders" }),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("orders", (await _scenarios.FindByIdAsync(id, TestContext.Current.CancellationToken))!.BrokerOptions?["exchange"]);
+    }
+
+    [Theory]
+    [InlineData("qos", null, "Unknown broker option \"qos\"")]
+    [InlineData("exchange", "other", "disagree")]
+    public async Task Create_InvalidBrokerOptions_Throw(string option, string? exchange, string reason)
+    {
+        await ArrangeAsync();
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(async () => await CreateHandler.Handle(
+            new CreateTestScenario("Bad options", _specificationId, _brokerEndpointId, _rabbitConnectionId, null, Exchange: exchange, BrokerOptions: new Dictionary<string, string?> { [option] = "orders" }),
+            TestContext.Current.CancellationToken));
+
+        Assert.Contains(reason, error.Message);
+    }
+
+    [Fact]
+    public async Task Create_BrokerOptionsOnAnHttpConnection_Throw()
+    {
+        await ArrangeAsync();
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(async () => await CreateHandler.Handle(
+            new CreateTestScenario("Http options", _specificationId, _httpEndpointId, _httpConnectionId, null, BrokerOptions: new Dictionary<string, string?> { ["exchange"] = "orders" }),
+            TestContext.Current.CancellationToken));
+
+        Assert.Contains("takes no broker options", error.Message);
+    }
+
+    [Fact]
+    public async Task Create_ListenOnASlashChannelWithParametersThroughRabbitMq_Throws()
+    {
+        await ArrangeAsync();
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(async () => await CreateHandler.Handle(
+            new CreateTestScenario("Slash", _specificationId, _slashEndpointId, _rabbitConnectionId, null, TestScenarioKind.Listen),
+            TestContext.Current.CancellationToken));
+
+        Assert.Contains("\"/\"-separated segments", error.Message);
+    }
+
+    private CreateTestScenarioHandler CreateHandler => new(_scenarios, _specifications, _connections, new CronSchedule(), BrokerAdapters.Registry());
 
     private RunTestScenarioHandler RunHandler(FakeMessageListener listener) => TestRunHandlers.Run(
         _scenarios, _specifications, _connections,
@@ -219,7 +284,8 @@ public class ListenTestScenarioTests
             Endpoints =
             [
                 new MockEndpoint { Id = _brokerEndpointId, SpecificationId = _specificationId, OperationKey = "orders.created:send", ResponseSchema = OrderSchema },
-                new MockEndpoint { Id = _httpEndpointId, SpecificationId = _specificationId, OperationKey = "GET /pets" }
+                new MockEndpoint { Id = _httpEndpointId, SpecificationId = _specificationId, OperationKey = "GET /pets" },
+                new MockEndpoint { Id = _slashEndpointId, SpecificationId = _specificationId, OperationKey = "user/{userId}/signedup:send" }
             ]
         }, cancellationToken);
         await _connections.InsertAsync(new Connection { Id = _rabbitConnectionId, Name = "Broker", ServiceType = ConnectionServiceType.RabbitMq, Value = "amqp://localhost" }, cancellationToken);

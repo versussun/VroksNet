@@ -191,6 +191,21 @@ public sealed class ApiSpecificationRepositoryTests : IAsyncLifetime
         Assert.Null(schemas["404"]);
     }
 
+    /// <summary>R5: a spec stored before protocols were recorded gets them from its next import of the same file.</summary>
+    [Fact]
+    public async Task UpsertAsync_SameFileWithProtocols_FillsThemIn()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await _repository.UpsertAsync(CreateSpecification("Orders API", "orders.created:send"), cancellationToken);
+
+        var again = CreateSpecification("Orders API", "orders.created:send");
+        again.Protocols = ["kafka", "kafka-secure"];
+        await _repository.UpsertAsync(again, cancellationToken);
+
+        var stored = await _repository.FindByTitleAsync("Orders API", cancellationToken);
+        Assert.Equal(["kafka", "kafka-secure"], stored!.Protocols);
+    }
+
     private static ApiSpecification CreateSpecification(string title, params string[] operationKeys)
     {
         var specification = new ApiSpecification

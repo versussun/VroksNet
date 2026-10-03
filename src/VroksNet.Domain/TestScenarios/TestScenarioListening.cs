@@ -22,9 +22,6 @@ public static class TestScenarioListening
     public static bool RequiresBackgroundRun(TestScenarioKind kind, int? timeoutSeconds)
         => kind == TestScenarioKind.Listen && (timeoutSeconds ?? DefaultTimeoutSeconds) > MaxSynchronousTimeoutSeconds;
 
-    /// <summary>RabbitMQ's built-in topic exchange, used when a scenario names none.</summary>
-    public const string DefaultRabbitMqExchange = "amq.topic";
-
     /// <summary>
     /// Whether the operation is a broker channel that can be subscribed to. HTTP operations have no
     /// channel; an AsyncAPI address with a parameter that is only part of a segment

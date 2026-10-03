@@ -11,6 +11,7 @@ namespace VroksNet.Domain.Connections;
 /// <param name="ListenNote">Why it can't be listened on; null when it can.</param>
 /// <param name="ValueLabel">What <see cref="Connection.Value"/> holds for it — "URL" or "Connection string".</param>
 /// <param name="ValueHint">An example value, for the UI's placeholder.</param>
+/// <param name="Protocols">The AsyncAPI <c>servers.*.protocol</c> values it speaks (lower-case), so a spec can say which connections fit it.</param>
 public sealed record ServiceTypeTraits(
     ConnectionServiceType Type,
     string DisplayName,
@@ -18,7 +19,8 @@ public sealed record ServiceTypeTraits(
     bool CanListen,
     string? ListenNote,
     string ValueLabel,
-    string ValueHint)
+    string ValueHint,
+    IReadOnlyList<string> Protocols)
 {
     private const string ConnectionString = "Connection string";
 
@@ -27,17 +29,25 @@ public sealed record ServiceTypeTraits(
     [
         new(ConnectionServiceType.Http, "HTTP", IsHttp: true, CanListen: false,
             "An HTTP connection has no channel to listen on — Listen needs a broker connection.",
-            "URL", "https://api.example.com"),
+            // None: an AsyncAPI server's "http" can't take a broker operation through an HTTP connection.
+            "URL", "https://api.example.com", []),
         new(ConnectionServiceType.RabbitMq, "RabbitMQ", IsHttp: false, CanListen: true, null,
-            ConnectionString, "amqp://user:password@host:5672/vhost"),
+            ConnectionString, "amqp://user:password@host:5672/vhost", ["amqp", "amqps"]),
         new(ConnectionServiceType.Nats, "NATS", IsHttp: false, CanListen: true, null,
-            ConnectionString, "nats://user:password@host:4222"),
+            ConnectionString, "nats://user:password@host:4222", ["nats"]),
         new(ConnectionServiceType.Kafka, "Kafka", IsHttp: false, CanListen: true, null,
-            ConnectionString, "host:9092,host2:9092 — or bootstrap.servers=host:9092;security.protocol=SASL_SSL;…"),
+            ConnectionString, "host:9092,host2:9092 — or bootstrap.servers=host:9092;security.protocol=SASL_SSL;…", ["kafka", "kafka-secure"]),
     ];
 
     private static readonly Dictionary<ConnectionServiceType, ServiceTypeTraits> ByType = All.ToDictionary(traits => traits.Type);
 
     /// <summary>The traits of <paramref name="type"/>; null for a value that isn't a known type (e.g. a stray number from a request).</summary>
     public static ServiceTypeTraits? Find(ConnectionServiceType type) => ByType.GetValueOrDefault(type);
+
+    /// <summary>The types that speak any of <paramref name="protocols"/> (case-insensitive), in <see cref="All"/>'s order; empty when none does.</summary>
+    public static IReadOnlyList<ConnectionServiceType> TypesFor(IEnumerable<string> protocols)
+    {
+        var wanted = protocols.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return All.Where(traits => traits.Protocols.Any(wanted.Contains)).Select(traits => traits.Type).ToList();
+    }
 }

@@ -23,8 +23,8 @@ public sealed class Publisher
     /// <summary>Published instead of the operation's own example, if set. Either way it's a template: <c>{{uuid}}</c>/<c>{{now}}</c> are filled in per message.</summary>
     public string? PayloadOverride { get; set; }
 
-    /// <summary>RabbitMQ only (null for NATS): the exchange to publish to — the default exchange ("", straight into the queue named after the channel) if null.</summary>
-    public string? Exchange { get; set; }
+    /// <summary>The connection's broker-specific settings (ADR 0003), e.g. RabbitMQ's <c>exchange</c>; null when none are set. See <see cref="TestScenarios.TestScenario.BrokerOptions"/>.</summary>
+    public Connections.BrokerOptions? BrokerOptions { get; set; }
 
     /// <summary>Seconds between publishes, from <see cref="PublisherSchedule.MinIntervalSeconds"/> to <see cref="PublisherSchedule.MaxIntervalSeconds"/>.</summary>
     public int IntervalSeconds { get; set; }

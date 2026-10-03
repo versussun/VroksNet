@@ -29,6 +29,10 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
                     b.Property<int>("Kind")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Protocols")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTimeOffset?>("ProvisionedAt")
                         .HasColumnType("TEXT");
 
@@ -196,13 +200,13 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("BrokerOptions")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("ConnectionId")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Exchange")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("IntervalSeconds")
@@ -303,13 +307,13 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("BrokerOptions")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("ConnectionId")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Exchange")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Kind")

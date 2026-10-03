@@ -20,7 +20,7 @@ public class TestScenarioHandlersTests
     public async Task Create_HttpOperationAndHttpConnection_Succeeds()
     {
         var (specifications, connections, httpEndpointId, _, httpConnectionId, _) = await SeedAsync();
-        var handler = new CreateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new CronSchedule());
+        var handler = new CreateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new CronSchedule(), BrokerAdapters.Registry());
 
         var id = await handler.Handle(
             new CreateTestScenario("Send GET /pets", SpecId, httpEndpointId, httpConnectionId, null),
@@ -33,7 +33,7 @@ public class TestScenarioHandlersTests
     public async Task Create_HttpOperationThroughRabbitMqConnection_Throws()
     {
         var (specifications, connections, httpEndpointId, _, _, rabbitConnectionId) = await SeedAsync();
-        var handler = new CreateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new CronSchedule());
+        var handler = new CreateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new CronSchedule(), BrokerAdapters.Registry());
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             handler.Handle(new CreateTestScenario("Mismatched", SpecId, httpEndpointId, rabbitConnectionId, null), TestContext.Current.CancellationToken).AsTask());
@@ -43,7 +43,7 @@ public class TestScenarioHandlersTests
     public async Task Create_AsyncApiOperationAndRabbitMqConnection_Succeeds()
     {
         var (specifications, connections, _, asyncEndpointId, _, rabbitConnectionId) = await SeedAsync();
-        var handler = new CreateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new CronSchedule());
+        var handler = new CreateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new CronSchedule(), BrokerAdapters.Registry());
 
         var id = await handler.Handle(
             new CreateTestScenario("Publish order.created", SpecId, asyncEndpointId, rabbitConnectionId, null),
@@ -56,7 +56,7 @@ public class TestScenarioHandlersTests
     public async Task Create_UnknownSpecification_Throws()
     {
         var (specifications, connections, _, _, httpConnectionId, _) = await SeedAsync();
-        var handler = new CreateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new CronSchedule());
+        var handler = new CreateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new CronSchedule(), BrokerAdapters.Registry());
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             handler.Handle(new CreateTestScenario("x", Guid.NewGuid(), Guid.NewGuid(), httpConnectionId, null), TestContext.Current.CancellationToken).AsTask());
@@ -66,7 +66,7 @@ public class TestScenarioHandlersTests
     public async Task Create_BlankName_Throws()
     {
         var (specifications, connections, httpEndpointId, _, httpConnectionId, _) = await SeedAsync();
-        var handler = new CreateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new CronSchedule());
+        var handler = new CreateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new CronSchedule(), BrokerAdapters.Registry());
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             handler.Handle(new CreateTestScenario("  ", SpecId, httpEndpointId, httpConnectionId, null), TestContext.Current.CancellationToken).AsTask());
@@ -77,10 +77,10 @@ public class TestScenarioHandlersTests
     {
         var (specifications, connections, httpEndpointId, asyncEndpointId, httpConnectionId, rabbitConnectionId) = await SeedAsync();
         var repository = new FakeTestScenarioRepository();
-        var id = await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule()).Handle(
+        var id = await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule(), BrokerAdapters.Registry()).Handle(
             new CreateTestScenario("Original", SpecId, httpEndpointId, httpConnectionId, null), TestContext.Current.CancellationToken);
 
-        var updateHandler = new UpdateTestScenarioHandler(repository, specifications, connections, new FakeTestRunRepository(), new CronSchedule());
+        var updateHandler = new UpdateTestScenarioHandler(repository, specifications, connections, new FakeTestRunRepository(), new CronSchedule(), BrokerAdapters.Registry());
         var found = await updateHandler.Handle(
             new UpdateTestScenario(id, "Renamed", SpecId, asyncEndpointId, rabbitConnectionId, "{\"custom\":true}"),
             TestContext.Current.CancellationToken);
@@ -98,7 +98,7 @@ public class TestScenarioHandlersTests
     public async Task Update_UnknownId_ReturnsFalse()
     {
         var (specifications, connections, httpEndpointId, _, httpConnectionId, _) = await SeedAsync();
-        var handler = new UpdateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new FakeTestRunRepository(), new CronSchedule());
+        var handler = new UpdateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new FakeTestRunRepository(), new CronSchedule(), BrokerAdapters.Registry());
 
         var found = await handler.Handle(
             new UpdateTestScenario(Guid.NewGuid(), "x", SpecId, httpEndpointId, httpConnectionId, null), TestContext.Current.CancellationToken);
@@ -111,7 +111,7 @@ public class TestScenarioHandlersTests
     {
         var (specifications, connections, httpEndpointId, _, httpConnectionId, _) = await SeedAsync();
         var repository = new FakeTestScenarioRepository();
-        var id = await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule()).Handle(
+        var id = await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule(), BrokerAdapters.Registry()).Handle(
             new CreateTestScenario("Original", SpecId, httpEndpointId, httpConnectionId, null), TestContext.Current.CancellationToken);
 
         var found = await new DeleteTestScenarioHandler(repository, new FakeTestRunRepository()).Handle(new DeleteTestScenario(id), TestContext.Current.CancellationToken);
@@ -125,7 +125,7 @@ public class TestScenarioHandlersTests
     {
         var (specifications, connections, httpEndpointId, _, httpConnectionId, _) = await SeedAsync();
         var repository = new FakeTestScenarioRepository();
-        await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule()).Handle(
+        await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule(), BrokerAdapters.Registry()).Handle(
             new CreateTestScenario("Send GET /pets", SpecId, httpEndpointId, httpConnectionId, null), TestContext.Current.CancellationToken);
 
         var result = await new ListTestScenariosHandler(repository, specifications, connections, new CronSchedule(), TimeProvider.System)
@@ -146,7 +146,7 @@ public class TestScenarioHandlersTests
     {
         var (specifications, connections, httpEndpointId, _, httpConnectionId, _) = await SeedAsync();
         var repository = new FakeTestScenarioRepository();
-        var id = await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule()).Handle(
+        var id = await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule(), BrokerAdapters.Registry()).Handle(
             new CreateTestScenario("Send GET /pets", SpecId, httpEndpointId, httpConnectionId, null), TestContext.Current.CancellationToken);
 
         var ranAt = DateTimeOffset.UtcNow;
@@ -178,7 +178,7 @@ public class TestScenarioHandlersTests
     {
         var (specifications, connections, httpEndpointId, _, httpConnectionId, _) = await SeedAsync();
         var repository = new FakeTestScenarioRepository();
-        await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule()).Handle(
+        await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule(), BrokerAdapters.Registry()).Handle(
             new CreateTestScenario("Send GET /pets", SpecId, httpEndpointId, httpConnectionId, null), TestContext.Current.CancellationToken);
 
         await connections.DeleteAsync(httpConnectionId, TestContext.Current.CancellationToken);
@@ -195,7 +195,7 @@ public class TestScenarioHandlersTests
     {
         var (specifications, connections, httpEndpointId, _, httpConnectionId, _) = await SeedAsync();
         var repository = new FakeTestScenarioRepository();
-        var id = await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule()).Handle(
+        var id = await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule(), BrokerAdapters.Registry()).Handle(
             new CreateTestScenario("Weekday mornings", SpecId, httpEndpointId, httpConnectionId, null, Schedule: "  0  9 * * 1-5 ", ScheduleTimeZone: " Europe/Kyiv "),
             TestContext.Current.CancellationToken);
 
@@ -217,7 +217,7 @@ public class TestScenarioHandlersTests
     public async Task Create_WithABadSchedule_ThrowsWithTheReason(string? schedule, string? timeZone, string reason)
     {
         var (specifications, connections, httpEndpointId, _, httpConnectionId, _) = await SeedAsync();
-        var handler = new CreateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new CronSchedule());
+        var handler = new CreateTestScenarioHandler(new FakeTestScenarioRepository(), specifications, connections, new CronSchedule(), BrokerAdapters.Registry());
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => handler.Handle(
             new CreateTestScenario("Bad schedule", SpecId, httpEndpointId, httpConnectionId, null, Schedule: schedule, ScheduleTimeZone: timeZone),
@@ -232,10 +232,10 @@ public class TestScenarioHandlersTests
         var (specifications, connections, httpEndpointId, _, httpConnectionId, _) = await SeedAsync();
         var repository = new FakeTestScenarioRepository();
         var runs = new FakeTestRunRepository();
-        var id = await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule()).Handle(
+        var id = await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule(), BrokerAdapters.Registry()).Handle(
             new CreateTestScenario("Hourly", SpecId, httpEndpointId, httpConnectionId, null, Schedule: "0 * * * *"), cancellationToken);
         await runs.InsertAsync(new TestRun { Id = Guid.NewGuid(), TestScenarioId = id, Status = TestRunStatus.Queued, Trigger = TestRunTrigger.Schedule, ScheduledFor = DateTimeOffset.UtcNow.AddMinutes(30) }, cancellationToken);
-        var update = new UpdateTestScenarioHandler(repository, specifications, connections, runs, new CronSchedule());
+        var update = new UpdateTestScenarioHandler(repository, specifications, connections, runs, new CronSchedule(), BrokerAdapters.Registry());
 
         await update.Handle(new UpdateTestScenario(id, "Hourly, renamed", SpecId, httpEndpointId, httpConnectionId, null, Schedule: "0 * * * *"), cancellationToken);
         Assert.Single(runs.All); // same schedule: the queued run stands
@@ -251,7 +251,7 @@ public class TestScenarioHandlersTests
         var (specifications, connections, httpEndpointId, _, httpConnectionId, _) = await SeedAsync();
         var repository = new FakeTestScenarioRepository();
         var runs = new FakeTestRunRepository();
-        var id = await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule()).Handle(
+        var id = await new CreateTestScenarioHandler(repository, specifications, connections, new CronSchedule(), BrokerAdapters.Registry()).Handle(
             new CreateTestScenario("Hourly", SpecId, httpEndpointId, httpConnectionId, null, Schedule: "0 * * * *"), cancellationToken);
         await runs.InsertAsync(new TestRun { Id = Guid.NewGuid(), TestScenarioId = id, Status = TestRunStatus.Passed, Trigger = TestRunTrigger.Schedule, ScheduledFor = DateTimeOffset.UtcNow.AddMinutes(-30) }, cancellationToken);
         await runs.InsertAsync(new TestRun { Id = Guid.NewGuid(), TestScenarioId = id, Status = TestRunStatus.Queued, Trigger = TestRunTrigger.Schedule, ScheduledFor = DateTimeOffset.UtcNow.AddMinutes(30) }, cancellationToken);

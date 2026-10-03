@@ -11,4 +11,5 @@ public sealed record UpdatePublisher(
     Guid ConnectionId,
     string? PayloadOverride,
     int IntervalSeconds,
-    string? Exchange = null) : IRequest<bool>;
+    string? Exchange = null,
+    IReadOnlyDictionary<string, string?>? BrokerOptions = null) : IRequest<bool>;

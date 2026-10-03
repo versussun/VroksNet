@@ -19,6 +19,8 @@ public sealed class NatsBrokerAdapter : IListeningBrokerAdapter
 
     public ConnectionServiceType Type => ConnectionServiceType.Nats;
 
+    public IReadOnlyList<BrokerOptionDefinition> Options => [];
+
     public async Task<ConnectionTestResult> TestAsync(Connection connection, CancellationToken cancellationToken)
     {
         try
@@ -37,7 +39,7 @@ public sealed class NatsBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, string? exchange, CancellationToken cancellationToken)
+    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken)
     {
         var subject = OperationCompatibility.ChannelAddressOf(operationKey);
         if (subject is null)
@@ -63,11 +65,11 @@ public sealed class NatsBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public async Task<MessageListenResult> ListenAsync(Connection connection, ChannelPattern channel, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
+    public async Task<MessageListenResult> ListenAsync(Connection connection, ChannelPattern channel, TimeSpan timeout, BrokerOptions? options, CancellationToken cancellationToken, Action? onListening = null)
     {
         if (SubjectOf(channel) is not { } subject)
         {
-            return new MessageListenResult(false, $"Channel \"{channel.Address}\" has parameters between \"/\"-separated segments, and NATS wildcards only stand for whole \".\"-separated tokens — it can't be listened on through a Nats connection.");
+            return new MessageListenResult(false, CantListenMessage(channel));
         }
 
         var stage = ListenStage.Connecting;
@@ -105,6 +107,11 @@ public sealed class NatsBrokerAdapter : IListeningBrokerAdapter
             return new MessageListenResult(false, ex.Message);
         }
     }
+
+    public string? WhyCantListen(ChannelPattern channel) => SubjectOf(channel) is null ? CantListenMessage(channel) : null;
+
+    private static string CantListenMessage(ChannelPattern channel)
+        => $"Channel \"{channel.Address}\" has parameters between \"/\"-separated segments, and NATS wildcards only stand for whole \".\"-separated tokens — it can't be listened on through a Nats connection.";
 
     /// <summary>The subject to subscribe to for <paramref name="channel"/> ("orders.{region}.created" → "orders.*.created"); null if it has parameters but isn't "."-separated.</summary>
     public static string? SubjectOf(ChannelPattern channel)

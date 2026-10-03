@@ -9,7 +9,8 @@ public sealed class UpdateTestScenarioHandler(
     IApiSpecificationRepository specifications,
     IConnectionRepository connections,
     ITestRunRepository runs,
-    ICronSchedule cron) : IRequestHandler<UpdateTestScenario, bool>
+    ICronSchedule cron,
+    IBrokerRules brokerRules) : IRequestHandler<UpdateTestScenario, bool>
 {
     public async ValueTask<bool> Handle(UpdateTestScenario request, CancellationToken cancellationToken)
     {
@@ -25,8 +26,8 @@ public sealed class UpdateTestScenarioHandler(
 
         var target = await TestScenarioTargetResolver.ResolveAsync(
             specifications, connections, request.SpecificationId, request.MockEndpointId, request.ConnectionId, cancellationToken);
-        var (listenTimeoutSeconds, exchange) = TestScenarioTargetResolver.ValidateKindSettings(
-            target, request.Kind, request.ListenTimeoutSeconds, request.Exchange);
+        var (listenTimeoutSeconds, brokerOptions) = TestScenarioTargetResolver.ValidateKindSettings(
+            brokerRules, target, request.Kind, request.ListenTimeoutSeconds, request.Exchange, request.BrokerOptions);
         var (schedule, scheduleTimeZone) = TestScenarioSchedules.Normalize(cron, request.Schedule, request.ScheduleTimeZone);
         var scheduleChanged = schedule != scenario.Schedule || scheduleTimeZone != scenario.ScheduleTimeZone;
 
@@ -37,7 +38,7 @@ public sealed class UpdateTestScenarioHandler(
         scenario.PayloadOverride = request.PayloadOverride;
         scenario.Kind = request.Kind;
         scenario.ListenTimeoutSeconds = listenTimeoutSeconds;
-        scenario.Exchange = exchange;
+        scenario.BrokerOptions = brokerOptions;
         scenario.Schedule = schedule;
         scenario.ScheduleTimeZone = scheduleTimeZone;
         scenario.UpdatedAt = DateTimeOffset.UtcNow;

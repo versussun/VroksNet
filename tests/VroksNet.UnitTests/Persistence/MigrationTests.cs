@@ -15,6 +15,8 @@ public sealed class MigrationTests : IAsyncLifetime
     private const string MigrationBeforeResponseSchemasByStatus = "20260909113627_AddTestScenarioLastRun";
     private const string MigrationBeforeCallHistory = "20261001221321_AddResponseSchemasByStatusAndCallRecordContract";
     private const string MigrationBeforeUniqueNames = "20261003110717_AddTestRuns";
+    private const string MigrationBeforeBrokerOptions = "20261003172741_AddTestSuiteStartupAndProvisioning";
+    private const string MigrationBeforeProtocols = "20261003193146_MoveExchangeIntoBrokerOptions";
 
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"vroksnet-migration-test-{Guid.NewGuid():N}.db");
 
@@ -26,6 +28,55 @@ public sealed class MigrationTests : IAsyncLifetime
         SqliteConnection.ClearAllPools();
         File.Delete(_dbPath);
         return ValueTask.CompletedTask;
+    }
+
+    [Fact]
+    public async Task AddSpecificationProtocols_ExistingSpecRow_ReadsBackWithNoProtocols()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var context = new VroksNetDbContext(new DbContextOptionsBuilder<VroksNetDbContext>().UseSqlite($"Data Source={_dbPath}").Options);
+        var migrator = context.GetService<IMigrator>();
+
+        await migrator.MigrateAsync(MigrationBeforeProtocols, cancellationToken: cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO ApiSpecifications (Id, Title, Kind, RawContent, CreatedAt, UpdatedAt)
+            VALUES ('6F9619FF-8B86-D011-B42D-00C04FC964FF', 'Old spec', 1, 'raw', '2026-09-01 00:00:00+00:00', '2026-09-01 00:00:00+00:00');
+            """,
+            cancellationToken);
+
+        await migrator.MigrateAsync(cancellationToken: cancellationToken);
+
+        var specification = Assert.Single(await context.ApiSpecifications.AsNoTracking().ToListAsync(cancellationToken));
+        Assert.Empty(specification.Protocols);
+    }
+
+    [Fact]
+    public async Task MoveExchangeIntoBrokerOptions_ExistingRows_KeepTheirExchangeAsAnOption()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var context = new VroksNetDbContext(new DbContextOptionsBuilder<VroksNetDbContext>().UseSqlite($"Data Source={_dbPath}").Options);
+        var migrator = context.GetService<IMigrator>();
+
+        await migrator.MigrateAsync(MigrationBeforeBrokerOptions, cancellationToken: cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO TestScenarios (Id, Name, SpecificationId, MockEndpointId, ConnectionId, Kind, Exchange, CreatedAt, UpdatedAt)
+            VALUES ('11111111-0000-0000-0000-000000000000', 'With exchange', '6F9619FF-8B86-D011-B42D-00C04FC964FF', '6F9619FF-8B86-D011-B42D-00C04FC964FF', '6F9619FF-8B86-D011-B42D-00C04FC964FF', 1, 'orders', '2026-09-01 00:00:00+00:00', '2026-09-01 00:00:00+00:00'),
+                   ('22222222-0000-0000-0000-000000000000', 'Without exchange', '6F9619FF-8B86-D011-B42D-00C04FC964FF', '6F9619FF-8B86-D011-B42D-00C04FC964FF', '6F9619FF-8B86-D011-B42D-00C04FC964FF', 0, NULL, '2026-09-01 00:00:00+00:00', '2026-09-01 00:00:00+00:00');
+            INSERT INTO Publishers (Id, Name, SpecificationId, MockEndpointId, ConnectionId, Exchange, IntervalSeconds, IsEnabled, CreatedAt, UpdatedAt)
+            VALUES ('33333333-0000-0000-0000-000000000000', 'Publisher', '6F9619FF-8B86-D011-B42D-00C04FC964FF', '6F9619FF-8B86-D011-B42D-00C04FC964FF', '6F9619FF-8B86-D011-B42D-00C04FC964FF', 'amq "quoted"', 10, 0, '2026-09-01 00:00:00+00:00', '2026-09-01 00:00:00+00:00');
+            """,
+            cancellationToken);
+
+        await migrator.MigrateAsync(cancellationToken: cancellationToken);
+
+        var scenarios = await context.TestScenarios.AsNoTracking().OrderBy(scenario => scenario.Name).ToListAsync(cancellationToken);
+        Assert.Equal(["With exchange", "Without exchange"], scenarios.Select(scenario => scenario.Name));
+        Assert.Equal("orders", scenarios[0].BrokerOptions?["exchange"]);
+        Assert.Null(scenarios[1].BrokerOptions);
+        var publisher = Assert.Single(await context.Publishers.AsNoTracking().ToListAsync(cancellationToken));
+        Assert.Equal("amq \"quoted\"", publisher.BrokerOptions?["exchange"]);
     }
 
     [Fact]

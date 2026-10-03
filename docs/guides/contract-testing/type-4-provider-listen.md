@@ -85,7 +85,7 @@ SCENARIO=$(curl -s -X POST "$API/api/test-scenarios" -H "Content-Type: applicati
   \"payloadOverride\": null,
   \"kind\": \"Listen\",
   \"listenTimeoutSeconds\": 30,
-  \"exchange\": \"orders\"
+  \"brokerOptions\": { \"exchange\": \"orders\" }
 }" | jq -r .id)
 ```
 

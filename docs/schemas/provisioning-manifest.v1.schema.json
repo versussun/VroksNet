@@ -101,7 +101,8 @@
         "operation": { "$ref": "#/$defs/operationKey" },
         "connection": { "description": "Name of a RabbitMq/Nats/Kafka connection.", "type": "string", "minLength": 1 },
         "intervalSeconds": { "type": "integer", "minimum": 1, "maximum": 86400 },
-        "exchange": { "description": "RabbitMQ only; omitted = the default exchange.", "type": "string" },
+        "exchange": { "description": "Deprecated (ADR 0003; removed in contract v2): the same as brokerOptions.exchange. RabbitMQ only; omitted = the default exchange.", "type": "string", "deprecated": true },
+        "brokerOptions": { "description": "Broker-specific settings the connection's type accepts (ADR 0003), e.g. { \"exchange\": \"orders\" } for RabbitMQ; GET /api/system/connection-types lists each type's options. An option the type doesn't know is a provisioning error.", "type": "object", "additionalProperties": { "type": "string" } },
         "payloadOverride": { "description": "Message to publish instead of the spec's example; {{uuid}}/{{now}} are filled in.", "type": "string" },
         "enabled": { "type": "boolean", "default": true }
       }
@@ -136,7 +137,8 @@
           "enum": ["Send", "Listen"]
         },
         "listenTimeoutSeconds": { "description": "Up to 30 minutes; over 80 seconds the scenario only runs in the background.", "type": "integer", "minimum": 1, "maximum": 1800 },
-        "exchange": { "description": "RabbitMQ only.", "type": "string" },
+        "exchange": { "description": "Deprecated (ADR 0003; removed in contract v2): the same as brokerOptions.exchange. RabbitMQ only; omitted = the default exchange for a Send, amq.topic for a Listen.", "type": "string", "deprecated": true },
+        "brokerOptions": { "description": "Broker-specific settings the connection's type accepts (ADR 0003), e.g. { \"exchange\": \"orders\" } for RabbitMQ; GET /api/system/connection-types lists each type's options. An option the type doesn't know is a provisioning error.", "type": "object", "additionalProperties": { "type": "string" } },
         "schedule": {
           "description": "Runs the scenario in the background on a cron schedule (ADR 0002). Missed runs aren't caught up.",
           "type": "object",

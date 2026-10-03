@@ -243,7 +243,7 @@ else
             <label class="form-label" for="scenario-connection-select">Connection</label>
             <select id="scenario-connection-select" class="form-select" @bind="_formConnectionId">
                 <option value="">Select a connection…</option>
-                @foreach (var connection in CompatibleConnections)
+                @foreach (var connection in SpecConnectionHint.MatchingFirst(CompatibleConnections, _specConnectionTypes))
                 {
                     <option value="@connection.Id">@connection.Name (@connection.ServiceType)</option>
                 }
@@ -251,6 +251,10 @@ else
             @if (SelectedEndpoint is not null && _connections is { Length: > 0 } && !CompatibleConnections.Any())
             {
                 <div class="form-text text-danger">No @(SelectedEndpoint.RequiresHttpConnection ? "HTTP connections" : IsListening ? "broker connections that can be listened on" : "broker connections") yet — add one on the Settings page first.</div>
+            }
+            else
+            {
+                <SpecConnectionHint Protocols="_specProtocols" ConnectionTypes="_specConnectionTypes" Offered="CompatibleConnections" Types="_connectionTypes" />
             }
         </div>
 
@@ -277,24 +281,7 @@ else
             </div>
         }
 
-        @if (SelectedConnection?.ServiceType == RabbitMqType)
-        {
-            <div class="mb-3">
-                <label class="form-label" for="scenario-exchange-input">Exchange</label>
-                <input id="scenario-exchange-input" class="form-control" @bind="_formExchange" @bind:event="oninput"
-                       placeholder="@(IsListening ? DefaultExchange : "(default exchange)")" aria-describedby="scenario-exchange-help" />
-                <div id="scenario-exchange-help" class="form-text">
-                    @if (IsListening)
-                    {
-                        <text>A temporary queue is bound to this exchange with the channel address as binding key, so the service's own consumers still get every message. Blank means @DefaultExchange.</text>
-                    }
-                    else
-                    {
-                        <text>Published here with the channel address as routing key — a Listen scenario on the same exchange hears it. Blank publishes straight into the queue named after the channel (the default exchange).</text>
-                    }
-                </div>
-            </div>
-        }
+        <BrokerOptionsEditor Options="SelectedConnectionOptions" Values="_formOptions" IsListening="IsListening" IdPrefix="scenario" />
 
         @if (!IsListening)
         {
@@ -352,6 +339,9 @@ else
     private SpecificationSummary[]? _specifications;
     private ConnectionSummary[]? _connections;
     private MockEndpointDetail[]? _specificationEndpoints;
+    /// <summary>The selected spec's server protocols and the connection types that speak them (from the server) — matching connections are offered first.</summary>
+    private string[] _specProtocols = [];
+    private string[] _specConnectionTypes = [];
     private readonly Dictionary<Guid, CancellationTokenSource> _running = [];
     private readonly Dictionary<Guid, RunTestScenarioResult> _runResults = [];
     /// <summary>Scenario id → its background run being polled.</summary>
@@ -405,10 +395,12 @@ else
         || (int.TryParse(_formListenTimeoutText, out var seconds) && seconds is >= 1 and <= MaxListenTimeoutSeconds);
 
     private int? ListenTimeoutSeconds => int.TryParse(_formListenTimeoutText, out var seconds) ? seconds : null;
-    /// <summary>What a new scenario's Exchange starts as, so a new Send and Listen on the same operation meet; the server's default for a blank Listen exchange too.</summary>
-    private const string DefaultExchange = "amq.topic";
-
-    private string _formExchange = DefaultExchange;
+    /// <summary>
+    /// The broker option inputs' values by name (ADR 0003); only the selected type's are sent. A new
+    /// scenario starts with each option's suggested value (RabbitMQ: amq.topic, so a new Send and
+    /// Listen on the same operation meet).
+    /// </summary>
+    private Dictionary<string, string> _formOptions = [];
 
     /// <summary>The server decides which operations can be listened to (MockEndpointDetail.CanListen).</summary>
     private bool CanChooseMode => SelectedEndpoint?.CanListen == true;
@@ -442,8 +434,8 @@ else
             && type.IsHttp == SelectedEndpoint.RequiresHttpConnection
             && (!IsListening || type.CanListen));
 
-    /// <summary>The RabbitMQ exchange field is RabbitMQ-only until broker options replace it (ADR 0003).</summary>
-    private const string RabbitMqType = "RabbitMq";
+    private BrokerOptionInfo[] SelectedConnectionOptions =>
+        _connectionTypes.FirstOrDefault(type => type.Type == SelectedConnection?.ServiceType)?.Options ?? [];
 
     private ConnectionTypeInfo[] _connectionTypes = [];
 
@@ -454,6 +446,7 @@ else
         _specifications = await SpecificationApi.GetAllAsync();
         _connections = await ConnectionApi.GetAllAsync();
         _connectionTypes = await SystemApi.GetConnectionTypesAsync();
+        _formOptions = BrokerOptionsEditor.SuggestedValues(_connectionTypes);
         await LoadAsync();
 
         if (QuerySpecificationId is { } specificationId && _specifications.Any(s => s.Id == specificationId))
@@ -478,10 +471,14 @@ else
     {
         _formMockEndpointId = string.Empty;
         _specificationEndpoints = null;
+        _specProtocols = [];
+        _specConnectionTypes = [];
 
         if (Guid.TryParse(_formSpecificationId, out var specificationId))
         {
             var details = await SpecificationApi.GetByIdAsync(specificationId);
+            _specProtocols = details?.Protocols ?? [];
+            _specConnectionTypes = details?.ConnectionTypes ?? [];
             _specificationEndpoints = details?.Endpoints ?? [];
         }
     }
@@ -502,7 +499,7 @@ else
         _formPayloadOverride = scenario.PayloadOverride ?? string.Empty;
         _formKind = scenario.Kind;
         _formListenTimeoutText = scenario.ListenTimeoutSeconds?.ToString() ?? string.Empty;
-        _formExchange = scenario.Exchange ?? string.Empty;
+        _formOptions = new Dictionary<string, string>(scenario.BrokerOptions ?? []);
         _formSchedule = scenario.Schedule ?? string.Empty;
         _formScheduleTimeZone = scenario.ScheduleTimeZone ?? string.Empty;
         errorMessage = null;
@@ -529,11 +526,13 @@ else
         _formPayloadOverride = string.Empty;
         _formKind = TestScenarioKind.Send;
         _formListenTimeoutText = string.Empty;
-        _formExchange = DefaultExchange;
+        _formOptions = BrokerOptionsEditor.SuggestedValues(_connectionTypes);
         _formSchedule = string.Empty;
         _formScheduleTimeZone = string.Empty;
         _schedulePreview = null;
         _specificationEndpoints = null;
+        _specProtocols = [];
+        _specConnectionTypes = [];
     }
 
     private async Task RefreshSchedulePreviewAsync()
@@ -579,9 +578,7 @@ else
             listening || string.IsNullOrWhiteSpace(_formPayloadOverride) ? null : _formPayloadOverride,
             listening ? TestScenarioKind.Listen : TestScenarioKind.Send,
             listening ? ListenTimeoutSeconds : null,
-            SelectedConnection?.ServiceType == RabbitMqType && !string.IsNullOrWhiteSpace(_formExchange)
-                ? _formExchange
-                : null,
+            BrokerOptionsEditor.ValuesFor(SelectedConnectionOptions, _formOptions, listening),
             string.IsNullOrWhiteSpace(_formSchedule) ? null : _formSchedule,
             string.IsNullOrWhiteSpace(_formSchedule) || string.IsNullOrWhiteSpace(_formScheduleTimeZone) ? null : _formScheduleTimeZone);
 

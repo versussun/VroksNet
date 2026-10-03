@@ -265,7 +265,7 @@ public sealed class TestRunHandlersTests
     /// <summary>A broker listen that never receives anything and only ends when cancelled, like a real long Listen.</summary>
     private sealed class BlockingMessageListener : IMessageListener
     {
-        public async Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, string exchange, CancellationToken cancellationToken, Action? onListening = null)
+        public async Task<MessageListenResult> ListenAsync(Connection connection, string operationKey, TimeSpan timeout, BrokerOptions? options, CancellationToken cancellationToken, Action? onListening = null)
         {
             onListening?.Invoke();
             await Task.Delay(Timeout.Infinite, cancellationToken);

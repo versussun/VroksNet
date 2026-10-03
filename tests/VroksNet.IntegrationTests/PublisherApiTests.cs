@@ -144,6 +144,51 @@ public sealed class PublisherApiTests(AppHostFixture fixture)
         Assert.Contains("interval", problem!["detail"]!.GetValue<string>());
     }
 
+    /// <summary>ADR 0003: <c>brokerOptions</c> next to the deprecated <c>exchange</c>, which still reads and writes <c>brokerOptions.exchange</c>.</summary>
+    [Fact]
+    public async Task BrokerOptions_AreStoredAndListed_AndAnUnknownOneIs400()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = fixture.ApiServiceClient;
+        var suffix = Guid.NewGuid().ToString("N");
+
+        var connectionString = await fixture.App.GetConnectionStringAsync("rabbitmq", cancellationToken);
+        Assert.NotNull(connectionString);
+        var (specificationId, endpointId) = await ImportAsync(client, suffix, $"publisher.{suffix}.options", cancellationToken);
+        var connectionId = await CreateConnectionAsync(client, suffix, "RabbitMq", connectionString, cancellationToken);
+
+        var publisherId = await CreatePublisherAsync(client, new
+        {
+            Name = $"Options {suffix}",
+            SpecificationId = specificationId,
+            MockEndpointId = endpointId,
+            ConnectionId = connectionId,
+            IntervalSeconds = 3600,
+            BrokerOptions = new Dictionary<string, string> { ["exchange"] = "amq.topic" }
+        }, cancellationToken);
+
+        var listed = (await client.GetFromJsonAsync<JsonArray>("/api/publishers", cancellationToken))!
+            .Single(publisher => publisher!["id"]!.GetValue<Guid>() == publisherId)!;
+        Assert.Equal("amq.topic", listed["exchange"]!.GetValue<string>());
+        Assert.Equal("amq.topic", listed["brokerOptions"]!["exchange"]!.GetValue<string>());
+
+        var response = await client.PostAsJsonAsync("/api/publishers", new
+        {
+            Name = $"Unknown option {suffix}",
+            SpecificationId = specificationId,
+            MockEndpointId = endpointId,
+            ConnectionId = connectionId,
+            IntervalSeconds = 3600,
+            BrokerOptions = new Dictionary<string, string> { ["qos"] = "1" }
+        }, cancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken);
+        Assert.Contains("Unknown broker option \"qos\"", problem!["detail"]!.GetValue<string>());
+
+        await client.DeleteAsync($"/api/publishers/{publisherId}", cancellationToken);
+    }
+
     private static async Task<Guid> CreatePublisherAsync(HttpClient client, object body, CancellationToken cancellationToken)
     {
         var response = await client.PostAsJsonAsync("/api/publishers", body, cancellationToken);

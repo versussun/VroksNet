@@ -1,5 +1,6 @@
 using Mediator;
 using VroksNet.Application.Abstractions;
+using VroksNet.Domain.Connections;
 using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Application.Specifications.GetSpecificationDetails;
@@ -33,6 +34,8 @@ public sealed class GetSpecificationDetailsHandler(IApiSpecificationRepository r
                     OperationCompatibility.IsHttpOperation(endpoint.OperationKey),
                     TestScenarioListening.CanListen(endpoint.OperationKey),
                     TestScenarioListening.DefaultKindFor(endpoint.OperationKey)))
-                .ToList());
+                .ToList(),
+            specification.Protocols,
+            ServiceTypeTraits.TypesFor(specification.Protocols));
     }
 }

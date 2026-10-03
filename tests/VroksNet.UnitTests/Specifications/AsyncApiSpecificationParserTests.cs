@@ -63,5 +63,57 @@ public class AsyncApiSpecificationParserTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => _parser.ParseAsync(yaml, TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task ParseAsync_ServerProtocols_AreDistinctLowerCaseInOrder()
+    {
+        const string yaml = """
+            asyncapi: 3.0.0
+            info: { title: Protocols, version: "1" }
+            servers:
+              plain: { host: "broker:9092", protocol: Kafka }
+              secure: { host: "broker:9093", protocol: kafka-secure }
+              again: { host: "other:9092", protocol: " kafka " }
+            channels: {}
+            """;
+
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["kafka", "kafka-secure"], result.Protocols);
+    }
+
+    [Fact]
+    public async Task ParseAsync_ServerByRef_IsFollowed()
+    {
+        const string yaml = """
+            asyncapi: 3.0.0
+            info: { title: Server refs, version: "1" }
+            servers:
+              production:
+                $ref: "#/components/servers/production"
+            channels: {}
+            components:
+              servers:
+                production: { host: "broker:5672", protocol: amqp }
+            """;
+
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["amqp"], result.Protocols);
+    }
+
+    [Fact]
+    public async Task ParseAsync_NoServers_HasNoProtocols()
+    {
+        const string yaml = """
+            asyncapi: 3.0.0
+            info: { title: No servers, version: "1" }
+            channels: {}
+            """;
+
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+
+        Assert.Empty(result.Protocols!);
+    }
+
     private static string FixturePath(string fileName) => Path.Combine(AppContext.BaseDirectory, "Fixtures", fileName);
 }
