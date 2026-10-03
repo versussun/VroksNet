@@ -173,7 +173,7 @@ else
                 </button>
             </div>
 
-            <button type="button" class="btn btn-outline-primary btn-sm mt-2" @onclick="TestFormValueAsync" disabled="@(_isTestingForm || string.IsNullOrWhiteSpace(_formValue))">
+            <button type="button" class="btn btn-outline-primary btn-sm mt-2" @onclick="TestFormValueAsync" disabled="@(_isTestingForm || string.IsNullOrWhiteSpace(_formValue) || SelectedType is null)">
                 @(_isTestingForm ? "Testing…" : "Test connection")
             </button>
             @if (_formTestResult is not null)
@@ -214,7 +214,7 @@ else
     private bool _isTestingForm;
     private ConnectionTestResult? _formTestResult;
 
-    private bool CanSave => !string.IsNullOrWhiteSpace(_formName) && !string.IsNullOrWhiteSpace(_formValue);
+    private bool CanSave => !string.IsNullOrWhiteSpace(_formName) && !string.IsNullOrWhiteSpace(_formValue) && SelectedType is not null;
 
     private string EnvVarValue => $"Data Source={(string.IsNullOrWhiteSpace(_desiredStoragePath) ? "vroksnet.db" : _desiredStoragePath)}";
 
