@@ -11,8 +11,8 @@ namespace VroksNet.Infrastructure.Brokers;
 /// </summary>
 public interface IListeningBrokerAdapter : IBrokerAdapter
 {
-    /// <summary>Why its broker can't subscribe to <paramref name="channel"/> (e.g. its wildcards can't match the channel's parameters); null if it can.</summary>
-    string? WhyCantListen(ChannelPattern channel);
+    /// <summary>Why its broker can't subscribe to <paramref name="channel"/> with the scenario's <paramref name="options"/> (e.g. its wildcards can't match the channel's parameters); null if it can.</summary>
+    string? WhyCantListen(ChannelPattern channel, BrokerOptions? options);
 
     /// <param name="channel">
     /// The channel to subscribe to. The adapter renders it in its broker's own wildcard syntax, and

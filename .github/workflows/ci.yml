@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        family: [Mqtt]
+        family: [Mqtt, Redis]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6

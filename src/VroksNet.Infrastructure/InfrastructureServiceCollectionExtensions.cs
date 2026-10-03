@@ -10,6 +10,7 @@ using VroksNet.Infrastructure.Brokers.Kafka;
 using VroksNet.Infrastructure.Brokers.Mqtt;
 using VroksNet.Infrastructure.Brokers.Nats;
 using VroksNet.Infrastructure.Brokers.RabbitMq;
+using VroksNet.Infrastructure.Brokers.Redis;
 using VroksNet.Infrastructure.Connections;
 using VroksNet.Infrastructure.Hosting;
 using VroksNet.Infrastructure.Persistence;
@@ -145,6 +146,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IBrokerAdapter, NatsBrokerAdapter>();
         services.AddSingleton<IBrokerAdapter, KafkaBrokerAdapter>();
         services.AddSingleton<IBrokerAdapter, MqttBrokerAdapter>();
+        services.AddSingleton<IBrokerAdapter, RedisBrokerAdapter>();
         services.AddSingleton<BrokerAdapterRegistry>();
         services.AddSingleton<IBrokerRules>(provider => provider.GetRequiredService<BrokerAdapterRegistry>());
         return services;

@@ -39,6 +39,8 @@ public sealed record ServiceTypeTraits(
             ConnectionString, "host:9092,host2:9092 — or bootstrap.servers=host:9092;security.protocol=SASL_SSL;… — or an Event Hubs Endpoint=sb://…", ["kafka", "kafka-secure"]),
         new(ConnectionServiceType.Mqtt, "MQTT", IsHttp: false, CanListen: true, null,
             ConnectionString, "mqtt://user:password@host:1883 — or mqtts://… for TLS", ["mqtt", "secure-mqtt"]),
+        new(ConnectionServiceType.Redis, "Redis", IsHttp: false, CanListen: true, null,
+            ConnectionString, "host:6379,password=… — or redis://user:password@host:6379/0 (rediss://… for TLS)", ["redis"]),
     ];
 
     private static readonly Dictionary<ConnectionServiceType, ServiceTypeTraits> ByType = All.ToDictionary(traits => traits.Type);

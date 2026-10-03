@@ -14,7 +14,8 @@ public interface IBrokerRules
 
     /// <summary>
     /// Why a Listen on <paramref name="channelAddress"/> can't work through a <paramref name="type"/>
-    /// connection (e.g. its wildcards can't match the channel's parameters); null if it can.
+    /// connection with the scenario's (already normalized) <paramref name="options"/> — e.g. its
+    /// wildcards can't match the channel's parameters; null if it can.
     /// </summary>
-    string? WhyCantListen(ConnectionServiceType type, string channelAddress);
+    string? WhyCantListen(ConnectionServiceType type, string channelAddress, BrokerOptions? options);
 }

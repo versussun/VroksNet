@@ -1,0 +1,112 @@
+# Sample spec for local testing — NOT a real service spec. See docs/samples/README.md.
+#
+# AsyncAPI 3.0 for Redis. The channel address is a Pub/Sub channel or a stream key, depending on
+# the scenario's or Publisher's broker option "mode" (pubsub by default, or stream):
+# - chat.{room}.message: a Listen scenario in pubsub mode subscribes to the glob chat.*.message
+#   and hears every room (a message on chat.a.b.message is skipped: one segment per parameter).
+#   A Publisher/Send can't fill {room} in, so a concrete-channel operation (chat.lobby.message) is
+#   there for publishing a simulated user.
+# - audit.logins: a stream. Send and Listen it with mode=stream: Send adds an entry with the
+#   payload in its "payload" field; Listen waits for the next entry, without a consumer group. A
+#   stream is one key, so a channel with parameters can't be listened on in stream mode.
+asyncapi: 3.0.0
+info:
+  title: Chat Rooms Redis Sample
+  version: "1.0.0"
+  description: Chat messages go out over Redis Pub/Sub; logins are appended to an audit stream.
+servers:
+  local:
+    host: localhost:6379
+    protocol: redis
+    description: The AppHost "redis" resource (its connection string is in the Aspire dashboard).
+channels:
+  messageAnyRoom:
+    address: chat.{room}.message
+    parameters:
+      room:
+        description: Room name, e.g. lobby.
+    messages:
+      chatMessage:
+        $ref: "#/components/messages/ChatMessage"
+  messageLobby:
+    address: chat.lobby.message
+    description: The simulated user VroksNet can publish as.
+    messages:
+      chatMessage:
+        $ref: "#/components/messages/ChatMessage"
+  logins:
+    address: audit.logins
+    description: A Redis stream — use the broker option mode=stream.
+    messages:
+      login:
+        $ref: "#/components/messages/Login"
+operations:
+  postMessage:
+    action: send
+    channel:
+      $ref: "#/channels/messageAnyRoom"
+    summary: Every room's messages — listen here to check any of them.
+    messages:
+      - $ref: "#/channels/messageAnyRoom/messages/chatMessage"
+  simulateMessage:
+    action: send
+    channel:
+      $ref: "#/channels/messageLobby"
+    summary: Post to the lobby as a simulated user.
+    messages:
+      - $ref: "#/channels/messageLobby/messages/chatMessage"
+  recordLogin:
+    action: send
+    channel:
+      $ref: "#/channels/logins"
+    summary: The auth service appends one entry per login.
+    messages:
+      - $ref: "#/channels/logins/messages/login"
+components:
+  messages:
+    ChatMessage:
+      name: ChatMessage
+      payload:
+        $ref: "#/components/schemas/ChatMessage"
+      examples:
+        - payload:
+            messageId: "{{uuid}}"
+            author: "sim-user"
+            text: "Hello from VroksNet"
+            sentAt: "{{now}}"
+    Login:
+      name: Login
+      payload:
+        $ref: "#/components/schemas/Login"
+      examples:
+        - payload:
+            userId: "u-42"
+            method: "password"
+            at: "{{now}}"
+  schemas:
+    ChatMessage:
+      type: object
+      required: [messageId, author, text, sentAt]
+      properties:
+        messageId:
+          type: string
+        author:
+          type: string
+        text:
+          type: string
+          maxLength: 2000
+        sentAt:
+          type: string
+          format: date-time
+    Login:
+      type: object
+      required: [userId, method, at]
+      properties:
+        userId:
+          type: string
+        method:
+          type: string
+          enum: [password, sso, passkey]
+        at:
+          type: string
+          format: date-time

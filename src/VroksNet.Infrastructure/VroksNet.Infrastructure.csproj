@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <PackageReference Include="MQTTnet" />
+    <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="Cronos" />
     <PackageReference Include="JsonPath.Net" />

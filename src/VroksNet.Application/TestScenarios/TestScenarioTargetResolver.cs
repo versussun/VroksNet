@@ -76,7 +76,7 @@ public static class TestScenarioTargetResolver
         }
 
         // CanListen above already found the operation's channel address, so it isn't null here.
-        if (brokerRules.WhyCantListen(target.Connection.ServiceType, OperationCompatibility.ChannelAddressOf(target.Endpoint.OperationKey)!) is { } reason)
+        if (brokerRules.WhyCantListen(target.Connection.ServiceType, OperationCompatibility.ChannelAddressOf(target.Endpoint.OperationKey)!, options) is { } reason)
         {
             throw new ArgumentException(reason);
         }

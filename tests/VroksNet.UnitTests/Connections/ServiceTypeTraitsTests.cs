@@ -19,6 +19,7 @@ public class ServiceTypeTraitsTests
     [InlineData(new[] { "KAFKA-SECURE" }, new[] { ConnectionServiceType.Kafka })]
     [InlineData(new[] { "nats", "amqp" }, new[] { ConnectionServiceType.RabbitMq, ConnectionServiceType.Nats })]
     [InlineData(new[] { "secure-mqtt" }, new[] { ConnectionServiceType.Mqtt })]
+    [InlineData(new[] { "Redis" }, new[] { ConnectionServiceType.Redis })]
     [InlineData(new[] { "stomp" }, new ConnectionServiceType[0])]
     [InlineData(new[] { "http" }, new ConnectionServiceType[0])] // an AsyncAPI operation can't go through an HTTP connection
     public void TypesFor_MatchesProtocolsCaseInsensitively(string[] protocols, ConnectionServiceType[] expected)

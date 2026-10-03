@@ -32,6 +32,8 @@ operation's example passes its own schema. If you edit a sample, run the unit te
 | [orders-asyncapi.yaml](orders-asyncapi.yaml) | AsyncAPI 3.0 | The minimum AsyncAPI that still yields an example and a schema. Any broker. |
 | [shop-events-kafka-asyncapi.yaml](shop-events-kafka-asyncapi.yaml) | AsyncAPI 3.0 | Kafka: 5 operations (send + receive), a `{region}` channel parameter, Kafka bindings, rich nested payloads, several examples per message. |
 | [iot-telemetry-nats-asyncapi.yaml](iot-telemetry-nats-asyncapi.yaml) | AsyncAPI 3.0 | NATS: `devices.{deviceId}.telemetry` subjects, a simulated device to publish as, a message declared inline in its channel. |
+| [home-sensors-mqtt-asyncapi.yaml](home-sensors-mqtt-asyncapi.yaml) | AsyncAPI 3.0 | MQTT: `/`-separated topics, a `home/{room}/temperature` listen pattern (`+`), a simulated sensor to publish as. |
+| [chat-rooms-redis-asyncapi.yaml](chat-rooms-redis-asyncapi.yaml) | AsyncAPI 3.0 | Redis: a Pub/Sub `chat.{room}.message` listen pattern, a simulated user to publish as, and an `audit.logins` stream (broker option `mode=stream`). |
 | [notifications-rabbitmq-asyncapi.yaml](notifications-rabbitmq-asyncapi.yaml) | AsyncAPI 3.0 | RabbitMQ: a topic exchange, routing keys, AMQP bindings, a `notify.{channel}.delivered` listen pattern. |
 
 ## Trying them out
@@ -47,13 +49,14 @@ curl -k -X POST https://localhost:7352/mock/books -H "X-Request-Id: r-1" \
 ```
 
 **Async mocks.** Add a connection on **Settings** (the dev brokers' connection strings are in the
-Aspire dashboard: `rabbitmq`, `nats`, `kafka`; MQTT is `mqtt://localhost:<port>` of the `mqtt` resource), then:
+Aspire dashboard: `rabbitmq`, `nats`, `kafka`; MQTT is `mqtt://localhost:<port>` of the `mqtt` resource; Redis is the `redis` resource's connection string), then:
 
 | Sample | Publisher / Send scenario | Listen scenario |
 |---|---|---|
 | Kafka | `shop.orders.created:send` every 5s | `shop.payments.{region}.settled:send` hears every region's topic (the topics must exist) |
 | NATS | `devices.sim-001.telemetry:send` simulates a device | `devices.{deviceId}.telemetry:send` hears all devices |
 | MQTT | `home/kitchen/temperature:send` simulates a sensor | `home/{room}/temperature:send` hears every room (`home/+/temperature`) |
+| Redis | `chat.lobby.message:send` simulates a user; `audit.logins:send` with `mode=stream` appends a login | `chat.{room}.message:send` hears every room (`chat.*.message`); `audit.logins:send` with `mode=stream` waits for the next login |
 | RabbitMQ | `notify.email.requested:receive` with exchange `notifications` | `notify.{channel}.delivered:send` on exchange `notifications` |
 
 A Listen and a Send scenario on the same broker meet, so you can check a whole round trip

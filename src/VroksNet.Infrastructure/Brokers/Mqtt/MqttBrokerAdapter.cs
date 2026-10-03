@@ -183,7 +183,7 @@ public sealed class MqttBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public string? WhyCantListen(ChannelPattern channel) => TopicFilterOf(channel) is null ? CantListenMessage(channel) : null;
+    public string? WhyCantListen(ChannelPattern channel, BrokerOptions? options) => TopicFilterOf(channel) is null ? CantListenMessage(channel) : null;
 
     /// <summary>
     /// The topic filter for <paramref name="channel"/> ("devices/{id}/telemetry" → "devices/+/telemetry");

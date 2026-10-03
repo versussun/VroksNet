@@ -51,7 +51,7 @@
       "additionalProperties": false,
       "properties": {
         "name": { "$ref": "#/$defs/name" },
-        "type": { "enum": ["Http", "RabbitMq", "Nats", "Kafka", "Mqtt"] },
+        "type": { "enum": ["Http", "RabbitMq", "Nats", "Kafka", "Mqtt", "Redis"] },
         "value": {
           "description": "The connection value as-is. Avoid secrets here; prefer valueFrom.",
           "type": "string",
