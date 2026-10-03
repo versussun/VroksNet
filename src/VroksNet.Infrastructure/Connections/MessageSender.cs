@@ -134,7 +134,9 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
         try
         {
             await using var connection = new NatsConnection(new NatsOpts { Url = connectionString });
-            await connection.PublishAsync(subject, payload ?? string.Empty, cancellationToken: cancellationToken).AsTask().WaitAsync(Timeout, cancellationToken);
+            // PublishAsync only buffers the message; the PONG proves the server has it (it handles
+            // commands in order) before the connection is disposed, so "published" is true.
+            await PublishAndConfirmAsync(connection, subject, payload ?? string.Empty, cancellationToken).WaitAsync(Timeout, cancellationToken);
             return new MessageSendResult(true, $"Published to subject \"{subject}\".");
         }
         catch (TimeoutException)
@@ -145,6 +147,12 @@ public sealed class MessageSender(IHttpClientFactory httpClientFactory) : IMessa
         {
             return new MessageSendResult(false, ex.Message);
         }
+    }
+
+    private static async Task PublishAndConfirmAsync(NatsConnection connection, string subject, string payload, CancellationToken cancellationToken)
+    {
+        await connection.PublishAsync(subject, payload, cancellationToken: cancellationToken);
+        await connection.PingAsync(cancellationToken);
     }
 
     private static async Task<MessageSendResult> PublishKafkaAsync(string connectionString, string operationKey, string? payload, CancellationToken cancellationToken)

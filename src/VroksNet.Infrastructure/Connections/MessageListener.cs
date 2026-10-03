@@ -119,7 +119,9 @@ public sealed class MessageListener : IMessageListener
 
             using var setupCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             setupCts.CancelAfter(ConnectTimeout);
-            await using var subscription = await connection.SubscribeCoreAsync<string>(subject, cancellationToken: setupCts.Token);
+            // The token SubscribeCoreAsync gets ends the subscription when it fires, so it's the
+            // run's own token; the setup deadline only bounds the wait for the subscription.
+            await using var subscription = await connection.SubscribeCoreAsync<string>(subject, cancellationToken: cancellationToken).AsTask().WaitAsync(setupCts.Token);
 
             // SubscribeCoreAsync only queues SUB; the server handles commands in order, so the PONG
             // proves the subscription is registered before the listen window starts.
