@@ -1,7 +1,7 @@
 # VroksNet image contract
 
 **Contract version:** 1 (draft)
-**Status:** some items already work, some are still to be built; each table marks them ("exists" / "to add")
+**Status:** implemented; each table marks its items ("exists"), and CI verifies the image against it (§9)
 **Decision:** ADR 0001 (`docs/adr/0001-aspire-integration-and-provisioning.md`)
 
 This document fixes everything that code **outside** the container may rely on: ports, paths, environment variables, operational endpoints, the provisioning manifest format and exit codes. The main consumer is the Aspire hosting package, which lives in a **separate repository**. It must be able to start and configure VroksNet without knowing anything about the app's internals.
@@ -137,11 +137,11 @@ The package lives in its own repository. The table shows which contract item eac
 
 ## 9. How the contract is verified in this repository
 
-A CI job after `docker build` (**to add**):
-1. run the image with `docs/samples/` as `/app/provisioning/specs` and with `Provisioning__Connections__0__*`;
-2. wait for `/health`;
-3. check `GET /api/system/info`: `contractVersion`, `status = Applied`, the number of specs;
-4. check the `io.vroksnet.contract.version` label;
-5. run it with a deliberately broken spec and check exit code `3`.
+`scripts/verify-container-contract.sh <image>` checks a built image. The *Publish image* workflow builds the amd64 image, runs the script, and pushes nothing unless it passes — on pull requests that touch the image, the samples or the schema, too. It checks:
+1. §2/§3: the `io.vroksnet.contract.version` label equals `ContainerContract.Version` in the code, the OCI labels are set, the user is `1654`, the entry point is `tini`, ports `8080`/`7353` are exposed, `/app/data` is a volume, and the shipped schema matches `docs/schemas/`;
+2. §4–§6: with every `docs/samples/*.yaml` mounted file by file into `/app/provisioning/specs`, `docs/samples/provisioning/vroksnet.yaml` as the manifest and `Provisioning__Connections__0__*`: `/health` reaches 200, `/alive` is 200, `GET /api/system/info` reports `contractVersion`, a version, `status = Applied`, `source`, the expected counts and no errors;
+3. §7: `docker stop` exits `0`; a second container on the same volume creates no duplicates;
+4. §5: variables alone (no directory) provision, with `source = configuration`; nothing mounted gives `NotConfigured` and a healthy app;
+5. §7: a broken spec stops the container with exit code `3` and the log names the file; so does a connection named in both the manifest and a variable.
 
-That way a change that breaks the contract fails here, not in the package repository.
+That way a change that breaks the contract fails here, not in the package repository. Run it locally: `docker build -t vroksnet:local . && scripts/verify-container-contract.sh vroksnet:local` (needs `curl` and `jq`).

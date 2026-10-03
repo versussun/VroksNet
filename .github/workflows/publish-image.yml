@@ -4,8 +4,10 @@ name: Publish image
 # docs/container-contract.md §2:
 #   - a push to master       → `master`, `sha-<commit>`
 #   - a release tag vX.Y.Z   → `X.Y.Z`, `X.Y`, `latest` (so `latest` is always a release)
-# On pull requests that touch the image, it's only built (amd64, not pushed), so a broken
-# Dockerfile shows up before the merge.
+# Every run first builds the amd64 image locally and verifies it against the container contract
+# (scripts/verify-container-contract.sh, docs/container-contract.md §9); nothing is pushed unless
+# that passes. On pull requests that touch the image, that's all it does, so a broken Dockerfile
+# or a contract-breaking change shows up before the merge.
 on:
   push:
     branches: [master]
@@ -17,6 +19,9 @@ on:
       - .github/workflows/publish-image.yml
       - Directory.Packages.props
       - 'src/**'
+      - 'docs/samples/**'
+      - 'docs/schemas/**'
+      - scripts/verify-container-contract.sh
   workflow_dispatch:
 
 concurrency:
@@ -28,7 +33,7 @@ env:
 
 jobs:
   image:
-    name: Build & publish image
+    name: Build, verify & publish image
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -66,6 +71,25 @@ jobs:
             echo "value=0.0.0-${GITHUB_REF_NAME//\//-}.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           fi
 
+      # The contract check runs the image, so it needs one loaded into the local daemon: amd64
+      # only (the runner's platform). The multi-arch build below reuses its layers from the cache.
+      - name: Build image for the contract check
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: vroksnet:contract-check
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.version=${{ steps.version.outputs.value }}
+          build-args: VERSION=${{ steps.version.outputs.value }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify the container contract
+        run: scripts/verify-container-contract.sh vroksnet:contract-check
+
       - uses: docker/login-action@v4
         if: github.event_name != 'pull_request'
         with:
@@ -73,16 +97,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v7
+      - name: Build and push (multi-arch)
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
-          push: ${{ github.event_name != 'pull_request' }}
+          platforms: linux/amd64,linux/arm64
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
             ${{ steps.meta.outputs.labels }}
             org.opencontainers.image.version=${{ steps.version.outputs.value }}
-            io.vroksnet.contract.version=1
           build-args: VERSION=${{ steps.version.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
