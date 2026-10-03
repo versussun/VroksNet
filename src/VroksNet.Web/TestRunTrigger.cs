@@ -3,5 +3,6 @@ namespace VroksNet.Web;
 public enum TestRunTrigger
 {
     Manual,
-    Schedule
+    Schedule,
+    Delayed
 }

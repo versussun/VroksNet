@@ -95,7 +95,7 @@ A run **waits** for the next message, so start it first, then trigger the servic
 
 **UI:** **Run** shows *Listening…* until a message arrives or the time runs out. **Stop** cancels the wait.
 
-**Run in background** does the same on the server, so you can close the page, and is the only option for a wait over 80 seconds. **History** lists the scenario's recent runs.
+**Run in background** does the same on the server, so you can close the page, and is the only option for a wait over 80 seconds. **Run later** queues a single run at a time you pick (up to 30 days ahead), and a **Schedule** on the scenario runs it on a cron expression. **History** lists the scenario's recent runs, including the ones still waiting, which you can cancel there.
 
 **API:**
 

@@ -8,6 +8,7 @@ using VroksNet.Application.TestScenarios.PreviewSchedule;
 using VroksNet.Application.TestScenarios.RunTestScenario;
 using VroksNet.Application.TestScenarios.UpdateTestScenario;
 
+using VroksNet.ApiService.Endpoints.Requests;
 using VroksNet.ApiService.Endpoints.Responses;
 
 namespace VroksNet.ApiService.Endpoints;
@@ -93,14 +94,22 @@ public static class TestScenarioEndpoints
         })
         .WithName("RunTestScenario");
 
-        // A background run (ADR 0002): queued and picked up by the worker within a second. Poll
-        // GET /api/test-runs/{runId} for its status and result.
-        group.MapPost("/{id:guid}/runs", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
+        // A background run (ADR 0002): queued and picked up by the worker within a second — of now,
+        // or of the body's runAt/delaySeconds for a delayed run (a bad one is a 400 with the reason).
+        // Poll GET /api/test-runs/{runId} for its status and result.
+        group.MapPost("/{id:guid}/runs", async (Guid id, StartTestRunBody? body, IMediator mediator, CancellationToken cancellationToken) =>
         {
-            var runId = await mediator.Send(new StartTestRun(id), cancellationToken);
-            return runId is { } started
-                ? Results.Accepted($"/api/test-runs/{started}", new StartTestRunResult(started))
-                : Results.NotFound();
+            try
+            {
+                var runId = await mediator.Send(new StartTestRun(id, body?.RunAt, body?.DelaySeconds), cancellationToken);
+                return runId is { } started
+                    ? Results.Accepted($"/api/test-runs/{started}", new StartTestRunResult(started))
+                    : Results.NotFound();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex);
+            }
         })
         .WithName("StartTestRun");
 

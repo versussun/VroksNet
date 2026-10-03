@@ -161,7 +161,7 @@ Cheaper, but with no history and no way to cancel an individual run, and CI suit
 
 Later — not needed first:
 
-3. **Delayed runs** (`runAt`/`delaySeconds`).
+3. **Delayed runs** (`runAt`/`delaySeconds`). (Implementation note, B3: up to 30 days ahead; `runAt` in the past, both fields, or `delaySeconds` < 1 is a 400. A delayed run missed while the app was down runs at the next start — unlike a scheduled one, it's a single run someone asked for.)
 4. **Suites**: `TestSuite`, "Listens first" ordering, `GET …/runs/latest` for CI.
 5. **`runOnStartup` and `testSuites` in the manifest** — after ADR 0001's layer 1 and step 4.
 

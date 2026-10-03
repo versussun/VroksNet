@@ -1,8 +1,7 @@
 namespace VroksNet.Domain.TestRuns;
 
 /// <summary>
-/// What started a <see cref="TestRun"/>. Delayed runs and startup suites (ADR 0002) add their own
-/// values when they arrive.
+/// What started a <see cref="TestRun"/>. Startup suites (ADR 0002) add their own value when they arrive.
 /// </summary>
 public enum TestRunTrigger
 {
@@ -10,5 +9,8 @@ public enum TestRunTrigger
     Manual,
 
     /// <summary>The scenario's cron <see cref="TestScenarios.TestScenario.Schedule"/>, queued by the background worker.</summary>
-    Schedule
+    Schedule,
+
+    /// <summary>A one-off background run someone asked for at a later time (<c>runAt</c> or <c>delaySeconds</c>).</summary>
+    Delayed
 }

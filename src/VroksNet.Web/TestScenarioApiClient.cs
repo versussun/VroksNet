@@ -98,14 +98,21 @@ public sealed class TestScenarioApiClient(HttpClient httpClient)
         return await response.Content.ReadFromJsonAsync<RunTestScenarioResult>(JsonOptions, cancellationToken);
     }
 
-    /// <summary>Queues a background run. Returns the run's id, or null if no scenario with that id exists.</summary>
-    public async Task<Guid?> StartRunAsync(Guid id, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Queues a background run — now, or at <paramref name="runAt"/> for a delayed one. Returns the
+    /// run's id, or null if no scenario with that id exists; a time the server refuses throws with its reason.
+    /// </summary>
+    public async Task<Guid?> StartRunAsync(Guid id, CancellationToken cancellationToken = default, DateTimeOffset? runAt = null)
     {
-        using var response = await httpClient.PostAsync($"/api/test-scenarios/{id}/runs", null, cancellationToken);
+        using var response = runAt is { } at
+            ? await httpClient.PostAsJsonAsync($"/api/test-scenarios/{id}/runs", new { RunAt = at }, JsonOptions, cancellationToken)
+            : await httpClient.PostAsync($"/api/test-scenarios/{id}/runs", null, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
         }
+
+        await ThrowIfRejectedAsync(response, cancellationToken);
 
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<StartTestRunResult>(JsonOptions, cancellationToken))!.RunId;
