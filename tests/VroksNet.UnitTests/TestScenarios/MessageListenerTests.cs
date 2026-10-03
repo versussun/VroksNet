@@ -1,5 +1,6 @@
 using VroksNet.Domain.Connections;
 using VroksNet.Infrastructure.Connections;
+using VroksNet.UnitTests.TestDoubles;
 
 namespace VroksNet.UnitTests.TestScenarios;
 
@@ -10,7 +11,7 @@ namespace VroksNet.UnitTests.TestScenarios;
 /// </summary>
 public class MessageListenerTests
 {
-    private static readonly MessageListener Listener = new();
+    private static readonly MessageListener Listener = new(BrokerAdapters.Registry());
 
     [Fact]
     public async Task ListenAsync_HttpOperation_FailsWithoutConnecting()

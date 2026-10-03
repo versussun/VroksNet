@@ -18,6 +18,7 @@ Everything that isn't a full-graph test: handler tests, parser tests, repository
 - **Test real network classes against unreachable targets:** definitely-closed local ports and `.invalid` hostnames (RFC 2606). These tests are fast and deterministic and need no Docker.
   - `Connections/ConnectionTesterTests.cs` exercises the real `ConnectionTester`.
   - `TestScenarios/MessageSenderTests.cs` exercises the real `MessageSender`.
+  - Build them with `TestDoubles/BrokerAdapters.Registry()`, the real adapters registered as the app does it.
 - **Keep success-path coverage out of this project.** It belongs in `VroksNet.IntegrationTests` (see `.claude/rules/integration-tests.md`).
 
 ## Known gaps

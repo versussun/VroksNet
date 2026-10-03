@@ -1,6 +1,6 @@
-using Microsoft.Extensions.DependencyInjection;
 using VroksNet.Domain.Connections;
 using VroksNet.Infrastructure.Connections;
+using VroksNet.UnitTests.TestDoubles;
 
 namespace VroksNet.UnitTests.TestScenarios;
 
@@ -12,8 +12,7 @@ namespace VroksNet.UnitTests.TestScenarios;
 /// </summary>
 public class MessageSenderTests
 {
-    private static readonly MessageSender Sender = new(
-        new ServiceCollection().AddHttpClient().BuildServiceProvider().GetRequiredService<IHttpClientFactory>());
+    private static readonly MessageSender Sender = new(BrokerAdapters.Registry());
 
     [Fact]
     public async Task SendAsync_HttpOperationThroughRabbitMqConnection_FailsWithoutAttemptingAnyRequest()

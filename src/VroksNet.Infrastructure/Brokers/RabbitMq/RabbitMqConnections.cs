@@ -1,10 +1,9 @@
 using RabbitMQ.Client;
 
-namespace VroksNet.Infrastructure.Connections;
+namespace VroksNet.Infrastructure.Brokers.RabbitMq;
 
 /// <summary>
-/// Opens the short-lived RabbitMQ connections <see cref="ConnectionTester"/>,
-/// <see cref="MessageSender"/> and <see cref="MessageListener"/> use. The client's own timeouts are
+/// Opens the short-lived RabbitMQ connections <see cref="RabbitMqBrokerAdapter"/> uses. The client's own timeouts are
 /// set to match and the attempt is *cancelled* on timeout (not merely abandoned via WaitAsync), so a
 /// slow broker can't leave a connection opening in the background. Automatic recovery is off: a
 /// connection that lives for one operation has nothing to recover, and recovery would keep an

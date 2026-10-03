@@ -1,11 +1,10 @@
 using System.Text.RegularExpressions;
 using Confluent.Kafka;
 
-namespace VroksNet.Infrastructure.Connections;
+namespace VroksNet.Infrastructure.Brokers.Kafka;
 
 /// <summary>
-/// Builds the short-lived Kafka clients <see cref="ConnectionTester"/>, <see cref="MessageSender"/>
-/// and <see cref="MessageListener"/> use. A Kafka connection's value is either a plain
+/// Builds the short-lived Kafka clients <see cref="KafkaBrokerAdapter"/> uses. A Kafka connection's value is either a plain
 /// bootstrap-servers list ("host:9092[,host2:9092]", what Aspire's Kafka resource hands out) or
 /// librdkafka settings as "key=value;key=value" — the latter for clusters that need SASL/TLS.
 /// The client's own socket/delivery timeouts are set to the caller's budget so nothing outlives
