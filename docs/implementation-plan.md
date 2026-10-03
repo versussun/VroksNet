@@ -1,6 +1,6 @@
 # Implementation plan — ADRs 0001 and 0002
 
-**Status:** in progress. Done: step 0 (CI), A1 (image on GHCR), A2 (unique names), A3 (provisioning core), A4 (connections from variables, `/api/system/info`), A5 (provisioning badge, example), A6 (contract check in CI), B1 (background runs and history), B2 (cron scheduling), B3 (delayed runs), B4 (test suites), B5 (suites in the manifest, run on startup).
+**Status:** done — every step below is implemented: step 0 (CI), A1 (image on GHCR), A2 (unique names), A3 (provisioning core), A4 (connections from variables, `/api/system/info`), A5 (provisioning badge, example), A6 (contract check in CI), A7 (configuration export), B1 (background runs and history), B2 (cron scheduling), B3 (delayed runs), B4 (test suites), B5 (suites in the manifest, run on startup).
 **Covers:** ADR 0001 (`docs/adr/0001-aspire-integration-and-provisioning.md`) and ADR 0002 (`docs/adr/0002-background-and-scheduled-test-runs.md`). The ADRs hold the decisions and their reasoning; this document only orders the work.
 
 Each step is one pull request that can be merged and shown on its own. Sizes: **S** — a day or so, **M** — a few days, **L** — a week or more.
@@ -62,7 +62,7 @@ The largest step of track A.
 - **Done when:** a contract-breaking change fails CI here.
 - After this step the package repository has everything it needs: the container-to-container prototype and the package itself can start there.
 
-### A7. Configuration export (M) — after A3; can be deferred
+### A7. Configuration export (M) — after A3; can be deferred ✅
 
 - `GET /api/provisioning/export` (a zip of the specs and a manifest, with secrets replaced by `valueFrom`) and an "Export" button.
 

@@ -87,6 +87,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddSingleton<IProvisioningSource, Provisioning.FileProvisioningSource>();
         services.AddScoped<IProvisionedMarker, Provisioning.ProvisionedMarker>();
+        services.AddSingleton<IProvisioningPackageWriter, Provisioning.ProvisioningPackageWriter>();
         // Right after the write queue's consumer, so provisioning's writes are drained.
         services.AddHostedService<Provisioning.ProvisioningHostedService>();
 
