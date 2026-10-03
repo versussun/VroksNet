@@ -85,6 +85,7 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
 - **Report only the schema errors that matter:** walk the hierarchical evaluation and skip subschemas that passed. A passing `oneOf` still carries its failed branches, which read like real errors.
 - **`valueFrom` is resolved here, from `IConfiguration`,** so Application only ever sees values. Errors and logs name the key, never the value.
 - **`ProvisioningHostedService` runs `ApplyProvisioning` once at startup,** registered right after `DbWriteBackgroundService`. On failure with `Provisioning:FailOnError` (default true) it logs every error, sets `Environment.ExitCode = 3` and stops the app. `ProvisioningHealthCheck` is part of `/health`: Unhealthy until it has run, Degraded when it failed and the app kept running.
+- **`ProvisioningPackageWriter` writes the exported manifest by hand:** every string is a JSON-style double-quoted scalar, which YAML reads identically, so no value can change type or break the file. Don't switch it to a YAML serializer without keeping that guarantee.
 - **YAML → JSON goes through `Yaml/YamlJson`,** shared with `AsyncApiSpecificationParser`. A plain `null`/`~`/empty scalar is JSON null.
 
 ### Test runs (background worker)

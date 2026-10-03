@@ -88,4 +88,27 @@ public sealed class SettingsPageTests(AppHostFixture fixture) : PageTestBase(fix
         await Expect(created).ToBeVisibleAsync();
         await Expect(created.GetByText("Provisioned", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
     }
+
+    [Fact]
+    public async Task Export_DownloadsAProvisioningZip_WithoutConnectionValues()
+    {
+        await Page.GotoAsync("/settings");
+
+        var download = await Page.RunAndWaitForDownloadAsync(() =>
+            Page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Export", Exact = true }).ClickAsync());
+
+        Assert.Equal("vroksnet-provisioning.zip", download.SuggestedFilename);
+        // Playwright's download stream only reads asynchronously; ZipArchive reads synchronously.
+        await using var stream = await download.CreateReadStreamAsync();
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, TestContext.Current.CancellationToken);
+        buffer.Position = 0;
+        using var zip = new System.IO.Compression.ZipArchive(buffer);
+        using var manifest = new StreamReader(zip.GetEntry("vroksnet.yaml")!.Open());
+        var yaml = await manifest.ReadToEndAsync(TestContext.Current.CancellationToken);
+        // The test graph's provisioned connection, exported as a variable rather than its value.
+        Assert.Contains($"name: \"{AppHostFixture.ProvisionedConnectionName}\"", yaml);
+        Assert.Contains($"valueFrom: \"ConnectionStrings:{AppHostFixture.ProvisionedConnectionName}\"", yaml);
+        Assert.DoesNotContain("http://provisioned.invalid", yaml);
+    }
 }

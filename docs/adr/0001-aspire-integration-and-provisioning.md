@@ -134,6 +134,12 @@ The package depends only on `Aspire.Hosting`. It declares which contract version
 
 `GET /api/provisioning/export` returns a zip of `specs/` and a `vroksnet.yaml` built from the current state (secrets replaced by `valueFrom` placeholders), plus an "Export" button on Settings. The workflow: configure in the UI, export, commit to the consumer's repository. Without export, manifests are written by hand and the barrier to entry stays high.
 
+(Implementation note, A7:
+- **Every connection value is treated as a secret.** It becomes `valueFrom: ConnectionStrings:<name>`, with the name reduced to `[A-Za-z0-9_-]`, and the file's header lists the variables to set. `?inlineValues=true` (the "Export with connection values" button) keeps the values, for a file that stays private.
+- **Objects whose spec, operation or connection is gone are left out,** with a note in the header, so the export always provisions cleanly.
+- **Provider mode is all-or-nothing in the manifest.** A spec serving only some operations at their real paths is exported as `providerMode: true`, with a note.
+- **Tested as a round trip:** export, provision an empty instance from it, get the same objects back.)
+
 ## Options considered
 
 ### A. Only an Aspire package that configures everything through the REST API after the container starts

@@ -22,6 +22,7 @@ An internal mock server and contract-testing tool for **OpenAPI** and **AsyncAPI
   | 4. Provider (broker) | listen on a broker and validate what a service publishes |
 
 - **Runs in the background, on a schedule and in CI.** A run can outlive the browser tab, wait up to 30 minutes for a message, run later or on a cron schedule, and keeps a history. **Test suites** run several scenarios together (Listens subscribe before Sends go out); `scripts/run-test-suite.sh` runs one from a pipeline and fails the build when it fails.
+- **Provisioning.** Start a container already configured from a directory of specs and a `vroksnet.yaml` (or environment variables) — the base for using VroksNet as an Aspire resource. Configure in the UI, then **Export** that directory.
 - **Call history.** Every mock call, test run and publish is recorded with its bodies and contract-check result, and can be filtered.
 - **Admin UI** (Blazor WebAssembly) for all of the above: specifications, connections, test scenarios and suites, Publishers, call history.
 

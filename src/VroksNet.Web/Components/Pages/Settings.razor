@@ -56,6 +56,20 @@
     }
 </section>
 
+<section class="mb-4" aria-labelledby="export-heading">
+    <h2 id="export-heading">Export configuration</h2>
+    <p class="text-muted">
+        Download everything configured here — specifications, connections, Publishers, test scenarios and suites — as a provisioning directory:
+        <code>specs/</code> and <code>vroksnet.yaml</code>. Commit it, and mount it at <code>/app/provisioning</code> (or pass it to the Aspire package) to start VroksNet already set up.
+    </p>
+    <a class="btn btn-outline-primary btn-sm" href="@SystemApi.ExportUrl(inlineValues: false)" download>Export</a>
+    <a class="btn btn-outline-secondary btn-sm ms-2" href="@SystemApi.ExportUrl(inlineValues: true)" download
+       title="The file then holds credentials — keep it private">Export with connection values</a>
+    <div class="form-text">
+        By default connection values stay out of the file: each becomes <code>valueFrom: ConnectionStrings:&lt;name&gt;</code>, and the file's header lists the variables to set.
+    </div>
+</section>
+
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
         <h2>Connections</h2>
