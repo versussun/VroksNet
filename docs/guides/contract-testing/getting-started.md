@@ -61,7 +61,9 @@ For each operation VroksNet keeps the example (used as the message to send or th
 | RabbitMQ | AMQP connection string | `amqp://user:password@rabbit:5672/vhost` |
 | NATS | NATS URL | `nats://user:password@nats:4222` |
 | MQTT | `mqtt://` URL, or `mqtts://` for TLS (MQTT 5) | `mqtt://user:password@broker:1883` |
-| Kafka | bootstrap servers, or librdkafka `key=value;…` settings with `bootstrap.servers` (for SASL/TLS) | `kafka1:9092,kafka2:9092` or `bootstrap.servers=kafka:9093;security.protocol=SASL_SSL;sasl.mechanism=PLAIN;sasl.username=u;sasl.password=p` |
+| Kafka | bootstrap servers, or librdkafka `key=value;…` settings with `bootstrap.servers` (for SASL/TLS; put a value in double quotes to use `;` or `=` in it), or an Azure Event Hubs connection string | `kafka1:9092,kafka2:9092` or `bootstrap.servers=kafka:9093;security.protocol=SASL_SSL;sasl.mechanism=PLAIN;sasl.username=u;sasl.password=p` or `Endpoint=sb://shop.servicebus.windows.net/;SharedAccessKeyName=…;SharedAccessKey=…` |
+
+**Azure Event Hubs** is used through its Kafka endpoint, as a **Kafka** connection: paste the namespace's connection string as the value. VroksNet connects to `<namespace>:9093` over SASL_SSL with the connection string as the password — the [standard Event Hubs Kafka settings](https://learn.microsoft.com/azure/event-hubs/azure-event-hubs-apache-kafka-overview#security-and-authentication). An event hub is a topic, so the AsyncAPI channel address must be the event hub's name. For the [Event Hubs emulator](https://learn.microsoft.com/azure/event-hubs/test-locally-with-event-hub-emulator), use its connection string (`…;UseDevelopmentEmulator=true`): VroksNet then uses port 9092 without TLS, so the emulator's Kafka port must be published as 9092. Send, Listen and Test connection all work against the emulator (verified with its default setup). Other settings — OAuth, a different port — go in the `key=value` form, with the password quoted: `sasl.password="Endpoint=sb://…;SharedAccessKeyName=…;SharedAccessKey=…"`.
 
 Use **Test connection** in the form (or the **Test** button in the list) to check it's reachable.
 
