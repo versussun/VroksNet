@@ -34,12 +34,12 @@ Out of scope by design: authentication, multi-tenancy, clustering. VroksNet is m
 docker run -d --name vroksnet \
   -p 8080:8080 -p 7353:7353 \
   -v vroksnet-data:/app/data \
-  ghcr.io/versussun/vroksnet:master
+  ghcr.io/versussun/vroksnet:latest
 ```
 
 - **Ports:** `8080` serves the API and the Admin UI (open `http://localhost:8080`); `7353` is the provider port, with the mocks at their real paths.
 - **The image** supports `linux/amd64` and `linux/arm64` and runs as an unprivileged user.
-- **Tags:** `master` is the latest build of `master`; releases are tagged `X.Y.Z`, with `latest` pointing at the newest release.
+- **Tags:** `latest` is the newest release, `X.Y.Z` / `X.Y` are releases, and `master` is the latest build of `master`. Pin a version (`:0.1.0`) for anything you depend on.
 
 Import a sample spec and call its mock:
 
