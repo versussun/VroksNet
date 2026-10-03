@@ -57,11 +57,16 @@ public sealed class AsyncApiSpecificationParser : IAsyncApiSpecificationParser
         return Task.FromResult(new ParsedSpecification(title, operations, ProtocolsOf(root)));
     }
 
-    /// <summary>The distinct <c>servers.*.protocol</c> values, trimmed and lower-cased, in the order they appear — the same shape in AsyncAPI 2 and 3.</summary>
+    /// <summary>
+    /// The distinct <c>servers.*.protocol</c> values, trimmed and lower-cased, in the order they
+    /// appear — the same shape in AsyncAPI 2 and 3. A server may be a local <c>$ref</c>
+    /// (<c>#/components/servers/prod</c>); it's followed one hop, like channels and messages.
+    /// </summary>
     private static List<string> ProtocolsOf(YamlMappingNode root)
         => root.Child("servers") is YamlMappingNode servers
             ? servers.Children
-                .Select(server => server.Value.Child("protocol").AsString()?.Trim().ToLowerInvariant())
+                .Select(server => (server.Value.Child("$ref").AsString() is { } pointer ? Resolve(root, pointer) : server.Value)
+                    .Child("protocol").AsString()?.Trim().ToLowerInvariant())
                 .OfType<string>()
                 .Where(protocol => protocol.Length > 0)
                 .Distinct()

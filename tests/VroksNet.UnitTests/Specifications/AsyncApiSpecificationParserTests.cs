@@ -82,6 +82,26 @@ public class AsyncApiSpecificationParserTests
     }
 
     [Fact]
+    public async Task ParseAsync_ServerByRef_IsFollowed()
+    {
+        const string yaml = """
+            asyncapi: 3.0.0
+            info: { title: Server refs, version: "1" }
+            servers:
+              production:
+                $ref: "#/components/servers/production"
+            channels: {}
+            components:
+              servers:
+                production: { host: "broker:5672", protocol: amqp }
+            """;
+
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["amqp"], result.Protocols);
+    }
+
+    [Fact]
     public async Task ParseAsync_NoServers_HasNoProtocols()
     {
         const string yaml = """
