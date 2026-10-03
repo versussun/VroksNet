@@ -7,7 +7,9 @@ namespace VroksNet.Application.TestScenarios.UpdateTestScenario;
 public sealed class UpdateTestScenarioHandler(
     ITestScenarioRepository repository,
     IApiSpecificationRepository specifications,
-    IConnectionRepository connections) : IRequestHandler<UpdateTestScenario, bool>
+    IConnectionRepository connections,
+    ITestRunRepository runs,
+    ICronSchedule cron) : IRequestHandler<UpdateTestScenario, bool>
 {
     public async ValueTask<bool> Handle(UpdateTestScenario request, CancellationToken cancellationToken)
     {
@@ -25,6 +27,8 @@ public sealed class UpdateTestScenarioHandler(
             specifications, connections, request.SpecificationId, request.MockEndpointId, request.ConnectionId, cancellationToken);
         var (listenTimeoutSeconds, exchange) = TestScenarioTargetResolver.ValidateKindSettings(
             target, request.Kind, request.ListenTimeoutSeconds, request.Exchange);
+        var (schedule, scheduleTimeZone) = TestScenarioSchedules.Normalize(cron, request.Schedule, request.ScheduleTimeZone);
+        var scheduleChanged = schedule != scenario.Schedule || scheduleTimeZone != scenario.ScheduleTimeZone;
 
         scenario.Name = name;
         scenario.SpecificationId = request.SpecificationId;
@@ -34,8 +38,21 @@ public sealed class UpdateTestScenarioHandler(
         scenario.Kind = request.Kind;
         scenario.ListenTimeoutSeconds = listenTimeoutSeconds;
         scenario.Exchange = exchange;
+        scenario.Schedule = schedule;
+        scenario.ScheduleTimeZone = scheduleTimeZone;
         scenario.UpdatedAt = DateTimeOffset.UtcNow;
 
-        return await repository.UpdateAsync(scenario, cancellationToken);
+        if (!await repository.UpdateAsync(scenario, cancellationToken))
+        {
+            return false;
+        }
+
+        // The queued run was planned on the old schedule; the worker plans the next one on the new.
+        if (scheduleChanged)
+        {
+            await runs.DeleteQueuedScheduledAsync(scenario.Id, cancellationToken);
+        }
+
+        return true;
     }
 }

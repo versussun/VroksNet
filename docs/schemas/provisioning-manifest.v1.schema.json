@@ -116,6 +116,16 @@
         },
         "listenTimeoutSeconds": { "description": "Up to 30 minutes; over 80 seconds the scenario only runs in the background.", "type": "integer", "minimum": 1, "maximum": 1800 },
         "exchange": { "description": "RabbitMQ only.", "type": "string" },
+        "schedule": {
+          "description": "Runs the scenario in the background on a cron schedule (ADR 0002). Missed runs aren't caught up.",
+          "type": "object",
+          "required": ["cron"],
+          "additionalProperties": false,
+          "properties": {
+            "cron": { "description": "Standard 5 fields: minute hour day-of-month month day-of-week, e.g. \"0 9 * * 1-5\". No seconds field.", "type": "string", "minLength": 1 },
+            "timeZone": { "description": "IANA time zone the expression is read in, e.g. \"Europe/Kyiv\". UTC if omitted.", "type": "string", "minLength": 1 }
+          }
+        },
         "payloadOverride": { "type": "string" }
       }
     }

@@ -7,6 +7,8 @@ using VroksNet.Application.TestRuns.ExecuteTestRun;
 using VroksNet.Application.TestRuns.InterruptRunningTestRuns;
 using VroksNet.Application.TestRuns.ListDueTestRuns;
 using VroksNet.Application.TestRuns.PruneTestRunHistory;
+using VroksNet.Application.TestRuns.QueueScheduledTestRuns;
+using VroksNet.Application.TestRuns.SkipMissedScheduledTestRuns;
 
 namespace VroksNet.Infrastructure.TestRuns;
 
@@ -17,7 +19,9 @@ namespace VroksNet.Infrastructure.TestRuns;
 /// runs it started — a Listen run can wait up to 30 minutes — so it tracks them itself:
 /// <list type="bullet">
 /// <item>at most one run per scenario at a time, and at most <c>TestRuns:MaxConcurrency</c> (4) in all;</item>
-/// <item>at startup, runs left Running by the previous process become Interrupted;</item>
+/// <item>at startup, runs left Running by the previous process become Interrupted, and scheduled runs
+/// missed while it was down are skipped;</item>
+/// <item>every tick, scheduled scenarios get their next run queued (<see cref="QueueScheduledTestRuns"/>);</item>
 /// <item>every few minutes, history beyond <c>TestRuns:RetentionPerScenario</c> (100) per scenario is deleted;</item>
 /// <item>on shutdown, running runs are cancelled (ending as Interrupted) and awaited.</item>
 /// </list>
@@ -41,6 +45,7 @@ public sealed class TestRunBackgroundService(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await SendSafelyAsync(new InterruptRunningTestRuns(), "Marking runs left over from the last shutdown as interrupted", stoppingToken);
+        await SendSafelyAsync(new SkipMissedScheduledTestRuns(), "Skipping scheduled runs missed while the app was down", stoppingToken);
         var lastPrune = DateTimeOffset.MinValue;
 
         using var timer = new PeriodicTimer(Tick, timeProvider);
@@ -50,6 +55,7 @@ public sealed class TestRunBackgroundService(
             {
                 try
                 {
+                    await SendSafelyAsync(new QueueScheduledTestRuns(timeProvider.GetUtcNow()), "Queueing scheduled runs", stoppingToken, LogLevel.Debug);
                     await StartDueRunsAsync(stoppingToken);
 
                     if (timeProvider.GetUtcNow() - lastPrune >= PruneEvery)
@@ -126,7 +132,7 @@ public sealed class TestRunBackgroundService(
         }
     }
 
-    private async Task SendSafelyAsync(IRequest<int> request, string what, CancellationToken stoppingToken)
+    private async Task SendSafelyAsync(IRequest<int> request, string what, CancellationToken stoppingToken, LogLevel level = LogLevel.Information)
     {
         try
         {
@@ -134,7 +140,7 @@ public sealed class TestRunBackgroundService(
             var affected = await scope.ServiceProvider.GetRequiredService<IMediator>().Send(request, stoppingToken);
             if (affected > 0)
             {
-                logger.LogInformation("{What}: {Count} run(s).", what, affected);
+                logger.Log(level, "{What}: {Count} run(s).", what, affected);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

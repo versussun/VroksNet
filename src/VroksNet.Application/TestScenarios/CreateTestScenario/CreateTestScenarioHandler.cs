@@ -8,7 +8,8 @@ namespace VroksNet.Application.TestScenarios.CreateTestScenario;
 public sealed class CreateTestScenarioHandler(
     ITestScenarioRepository repository,
     IApiSpecificationRepository specifications,
-    IConnectionRepository connections) : IRequestHandler<CreateTestScenario, Guid>
+    IConnectionRepository connections,
+    ICronSchedule cron) : IRequestHandler<CreateTestScenario, Guid>
 {
     public async ValueTask<Guid> Handle(CreateTestScenario request, CancellationToken cancellationToken)
     {
@@ -19,6 +20,7 @@ public sealed class CreateTestScenarioHandler(
             specifications, connections, request.SpecificationId, request.MockEndpointId, request.ConnectionId, cancellationToken);
         var (listenTimeoutSeconds, exchange) = TestScenarioTargetResolver.ValidateKindSettings(
             target, request.Kind, request.ListenTimeoutSeconds, request.Exchange);
+        var (schedule, scheduleTimeZone) = TestScenarioSchedules.Normalize(cron, request.Schedule, request.ScheduleTimeZone);
 
         var scenario = new TestScenario
         {
@@ -31,6 +33,8 @@ public sealed class CreateTestScenarioHandler(
             Kind = request.Kind,
             ListenTimeoutSeconds = listenTimeoutSeconds,
             Exchange = exchange,
+            Schedule = schedule,
+            ScheduleTimeZone = scheduleTimeZone,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };

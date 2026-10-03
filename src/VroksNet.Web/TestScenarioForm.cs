@@ -1,6 +1,6 @@
 namespace VroksNet.Web;
 
-/// <summary>The body of a Test Scenario create/update. <see cref="ListenTimeoutSeconds"/> only matters for <see cref="TestScenarioKind.Listen"/>, <see cref="Exchange"/> only for a RabbitMQ connection; null means "use the server's default".</summary>
+/// <summary>The body of a Test Scenario create/update. <see cref="ListenTimeoutSeconds"/> only matters for <see cref="TestScenarioKind.Listen"/>, <see cref="Exchange"/> only for a RabbitMQ connection; null means "use the server's default". A null <see cref="Schedule"/> means not scheduled.</summary>
 public sealed record TestScenarioForm(
     string Name,
     Guid SpecificationId,
@@ -9,4 +9,6 @@ public sealed record TestScenarioForm(
     string? PayloadOverride,
     TestScenarioKind Kind,
     int? ListenTimeoutSeconds,
-    string? Exchange);
+    string? Exchange,
+    string? Schedule,
+    string? ScheduleTimeZone);

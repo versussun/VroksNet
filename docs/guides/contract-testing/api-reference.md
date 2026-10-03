@@ -31,12 +31,13 @@ Names of connections, test scenarios and Publishers are unique within each kind,
 | Method & path | Body | Returns |
 |---|---|---|
 | `POST /api/test-scenarios` | see below | `{ "id" }` |
-| `GET /api/test-scenarios` | | list, with `lastRunAt`, `lastRunSuccess`, `lastRunMessage`, `provisionedAt` |
+| `GET /api/test-scenarios` | | list, with `lastRunAt`, `lastRunSuccess`, `lastRunMessage`, `provisionedAt`, `schedule`, `scheduleTimeZone`, `nextScheduledRunAt` |
 | `GET /api/test-scenarios/{id}` | | one scenario |
 | `PUT /api/test-scenarios/{id}` | same as create | `204` / `404` |
 | `DELETE /api/test-scenarios/{id}` | | `204` / `404` |
 | `POST /api/test-scenarios/{id}/run` | | runs it synchronously: `{ "success", "message", "responseBody", "statusCode", "contractValidation": { "isValid", "errors" } \| null }` |
 | `POST /api/test-scenarios/{id}/runs` | | runs it in the background: `202 { "runId" }` with `Location: /api/test-runs/{runId}`; `404` |
+| `GET /api/test-scenarios/schedule-preview?schedule=&timeZone=&count=` | | `{ "error", "nextRuns": [UTC times] }` — always `200`; `error` says why the schedule can't be saved. `count` 1–20, default 5 |
 
 Create/update body:
 
@@ -49,13 +50,17 @@ Create/update body:
   "payloadOverride": null,
   "kind": "Send",
   "listenTimeoutSeconds": null,
-  "exchange": null
+  "exchange": null,
+  "schedule": null,
+  "scheduleTimeZone": null
 }
 ```
 
 - `kind`: `"Send"` (HTTP request or broker publish, the default) or `"Listen"` (broker operations only).
 - `listenTimeoutSeconds`: 1–1800 (30 minutes), `null` = 30. Listen only. Over 80, the scenario can only run in the background: the synchronous `/run` returns `success: false` with a message saying so, without running.
 - `exchange`: RabbitMQ only (dropped for NATS/HTTP). Send publishes to it with routing key = channel address, `null` = the default exchange `""` (straight into the queue named after the channel); Listen binds to it, `null` = `amq.topic`. A missing exchange fails the run with a readable message. (Was `listenExchange`, Listen only.)
+- `schedule`: a standard 5-field cron expression (minute hour day-of-month month day-of-week, no seconds), e.g. `"0 9 * * 1-5"`; `null` = not scheduled. The background worker queues the next run (`trigger: "Schedule"`), so it shows in `/api/test-runs` as `Queued` until its time. Runs missed while the app was down aren't caught up. Changing or clearing the schedule drops the queued run.
+- `scheduleTimeZone`: an IANA name (`"Europe/Kyiv"`) the schedule is read in, with its daylight-saving rules; `null` = UTC. Only with a `schedule`. An invalid expression or unknown zone is a `400` with the reason.
 - An operation/connection mismatch (an HTTP operation through a broker connection, etc.) is rejected.
 
 ## Test runs

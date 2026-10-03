@@ -202,7 +202,9 @@ public sealed class ApplyProvisioningHandler(
                 PayloadOverride: scenario.PayloadOverride,
                 Kind: kind,
                 ListenTimeoutSeconds: scenario.ListenTimeoutSeconds,
-                Exchange: scenario.Exchange), cancellationToken);
+                Exchange: scenario.Exchange,
+                Schedule: scenario.Schedule,
+                ScheduleTimeZone: scenario.ScheduleTimeZone), cancellationToken);
         }
         else
         {
@@ -216,7 +218,9 @@ public sealed class ApplyProvisioningHandler(
                 PayloadOverride: scenario.PayloadOverride,
                 Kind: kind,
                 ListenTimeoutSeconds: scenario.ListenTimeoutSeconds,
-                Exchange: scenario.Exchange), cancellationToken);
+                Exchange: scenario.Exchange,
+                Schedule: scenario.Schedule,
+                ScheduleTimeZone: scenario.ScheduleTimeZone), cancellationToken);
         }
 
         await marker.MarkAsync(ProvisionedObject.TestScenario, id, run.At, cancellationToken);

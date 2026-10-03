@@ -11,6 +11,7 @@
     <PackageVersion Include="Aspire.NATS.Net" Version="13.6.0" />
     <PackageVersion Include="Aspire.RabbitMQ.Client" Version="13.6.0" />
     <PackageVersion Include="Confluent.Kafka" Version="2.15.0" />
+    <PackageVersion Include="Cronos" Version="0.13.0" />
     <PackageVersion Include="coverlet.collector" Version="6.0.2" />
     <PackageVersion Include="JsonPath.Net" Version="2.1.1" />
     <PackageVersion Include="JsonSchema.Net" Version="7.3.4" />

@@ -8,6 +8,7 @@ using VroksNet.Domain.ApiSpecifications;
 using VroksNet.Domain.Connections;
 using VroksNet.Domain.MockEndpoints;
 using VroksNet.Domain.TestScenarios;
+using VroksNet.Infrastructure.Scheduling;
 using VroksNet.UnitTests.TestDoubles;
 
 namespace VroksNet.UnitTests;
@@ -33,8 +34,8 @@ public sealed class UniqueNamesTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await ArrangeAsync();
-        var create = new CreateTestScenarioHandler(_scenarios, _specifications, _connections);
-        var update = new UpdateTestScenarioHandler(_scenarios, _specifications, _connections);
+        var create = new CreateTestScenarioHandler(_scenarios, _specifications, _connections, new CronSchedule());
+        var update = new UpdateTestScenarioHandler(_scenarios, _specifications, _connections, new FakeTestRunRepository(), new CronSchedule());
 
         var first = await create.Handle(new CreateTestScenario("  Get pets  ", _specificationId, _httpEndpointId, _httpConnectionId, null), cancellationToken);
         var second = await create.Handle(new CreateTestScenario("Get pets again", _specificationId, _httpEndpointId, _httpConnectionId, null), cancellationToken);

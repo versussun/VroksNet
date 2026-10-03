@@ -89,7 +89,8 @@ The Clean Architecture Infrastructure layer. It implements Application's interfa
 ### Test runs (background worker)
 
 - **`TestRunBackgroundService` (`Infrastructure/TestRuns`) only schedules,** like the Publishers worker: `ListDueTestRuns` every second, then `ExecuteTestRun` per run. Unlike it, a tick **doesn't wait** for the runs it started (a Listen can last 30 minutes); it tracks them itself, starting at most one per scenario and at most `TestRuns:MaxConcurrency` (4) in all.
-- **At startup it sends `InterruptRunningTestRuns`**: anything still `Running` was cut off by the previous process. Every 5 minutes it prunes history to `TestRuns:RetentionPerScenario` (100) finished runs per scenario; queued and running runs are never pruned.
+- **At startup it sends `InterruptRunningTestRuns`**: anything still `Running` was cut off by the previous process; then `SkipMissedScheduledTestRuns`. Every tick, before starting due runs, it sends `QueueScheduledTestRuns(now)`.
+- **`ICronSchedule` → `Scheduling/CronSchedule`** (Cronos, pinned in `Directory.Packages.props`, standard 5-field format, IANA zones via `TimeZoneInfo`). It returns null rather than throwing for an expression or zone that stopped being valid, so one bad scenario can't break the tick. Every 5 minutes it prunes history to `TestRuns:RetentionPerScenario` (100) finished runs per scenario; queued and running runs are never pruned.
 - **It's registered after `DbWriteBackgroundService`,** so it stops first on shutdown and its runs can still record themselves as `Interrupted` through the write queue.
 - **`TestRun.ScheduledFor`/`StartedAt`/`FinishedAt` are UTC ticks**, like `CallRecord.Timestamp`: the history is ordered and "due" runs are selected by `ScheduledFor` in SQL.
 

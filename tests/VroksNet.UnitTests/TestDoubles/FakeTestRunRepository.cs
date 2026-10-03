@@ -69,6 +69,25 @@ internal sealed class FakeTestRunRepository : ITestRunRepository
         return Task.FromResult(running.Count);
     }
 
+    public Task<TestRun?> FindLatestScheduledAsync(Guid testScenarioId, CancellationToken cancellationToken)
+        => Task.FromResult(_runs.Where(run => run.TestScenarioId == testScenarioId && run.Trigger == TestRunTrigger.Schedule).MaxBy(run => run.ScheduledFor));
+
+    public Task<int> DeleteQueuedScheduledAsync(Guid testScenarioId, CancellationToken cancellationToken)
+        => Task.FromResult(_runs.RemoveAll(run => run.TestScenarioId == testScenarioId && run.Trigger == TestRunTrigger.Schedule && run.Status == TestRunStatus.Queued));
+
+    public Task<int> SkipQueuedScheduledAsync(DateTimeOffset before, DateTimeOffset at, string message, CancellationToken cancellationToken)
+    {
+        var missed = _runs.Where(run => run.Trigger == TestRunTrigger.Schedule && run.Status == TestRunStatus.Queued && run.ScheduledFor < before).ToList();
+        foreach (var run in missed)
+        {
+            run.Status = TestRunStatus.Cancelled;
+            run.FinishedAt = at;
+            run.Message = message;
+        }
+
+        return Task.FromResult(missed.Count);
+    }
+
     public Task<int> PruneAsync(int keepPerScenario, CancellationToken cancellationToken)
     {
         var stale = _runs

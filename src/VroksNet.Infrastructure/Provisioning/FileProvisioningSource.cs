@@ -216,7 +216,8 @@ public sealed class FileProvisioningSource(IConfiguration configuration) : IProv
                 publisher.Exchange, publisher.PayloadOverride, publisher.Enabled ?? true)).ToList(),
             (document.TestScenarios ?? []).Select(scenario => new ManifestTestScenario(
                 scenario.Name, scenario.Specification, scenario.Operation, scenario.Connection, scenario.Kind,
-                scenario.ListenTimeoutSeconds, scenario.Exchange, scenario.PayloadOverride)).ToList());
+                scenario.ListenTimeoutSeconds, scenario.Exchange, scenario.PayloadOverride,
+                scenario.Schedule?.Cron, scenario.Schedule?.TimeZone)).ToList());
     }
 
     /// <summary>
@@ -271,5 +272,7 @@ public sealed class FileProvisioningSource(IConfiguration configuration) : IProv
 
     private sealed record TestScenarioEntry(
         string Name, string Specification, string Operation, string Connection, TestScenarioKind? Kind,
-        int? ListenTimeoutSeconds, string? Exchange, string? PayloadOverride);
+        int? ListenTimeoutSeconds, string? Exchange, string? PayloadOverride, ScheduleEntry? Schedule);
+
+    private sealed record ScheduleEntry(string Cron, string? TimeZone);
 }

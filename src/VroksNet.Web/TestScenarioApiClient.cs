@@ -19,6 +19,14 @@ public sealed class TestScenarioApiClient(HttpClient httpClient)
         return scenarios ?? [];
     }
 
+    /// <summary>The next run times of a cron schedule in a time zone, or the reason it's invalid.</summary>
+    public async Task<SchedulePreview> PreviewScheduleAsync(string schedule, string? timeZone, CancellationToken cancellationToken = default)
+    {
+        var query = $"schedule={Uri.EscapeDataString(schedule)}&timeZone={Uri.EscapeDataString(timeZone ?? string.Empty)}&count=3";
+        var preview = await httpClient.GetFromJsonAsync<SchedulePreview>($"/api/test-scenarios/schedule-preview?{query}", JsonOptions, cancellationToken);
+        return preview ?? new SchedulePreview("No answer from the server.", []);
+    }
+
     /// <summary>Includes the scenario's last-run status. Returns null if no scenario with that id exists.</summary>
     public async Task<TestScenarioSummary?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
