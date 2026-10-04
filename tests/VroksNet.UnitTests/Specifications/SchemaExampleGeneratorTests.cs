@@ -28,6 +28,12 @@ public class SchemaExampleGeneratorTests
     [InlineData("""{"type":"object","properties":{"email":{"type":"string","format":"email"},"site":{"type":"string","format":"uri"},"day":{"type":"string","format":"date"}}}""")]
     [InlineData("""{"type":"string","maxLength":3}""")]
     [InlineData("""{"type":"integer","exclusiveMaximum":-5}""")]
+    [InlineData("""{"type":"number","exclusiveMinimum":0,"exclusiveMaximum":1}""")]       // a step of 1 would reach the maximum
+    [InlineData("""{"type":"number","exclusiveMinimum":0,"maximum":0.5}""")]
+    [InlineData("""{"type":"integer","maximum":-1,"multipleOf":2}""")]                    // rounding up would cross the maximum
+    [InlineData("""{"type":"integer","maximum":-3,"multipleOf":2}""")]
+    [InlineData("""{"type":"number","minimum":0.25,"multipleOf":0.1}""")]
+    [InlineData("""{"type":"integer","exclusiveMinimum":3,"multipleOf":3}""")]
     public void Generate_MatchesItsOwnSchema(string schema)
     {
         var example = SchemaExampleGenerator.Generate(schema);
@@ -38,6 +44,17 @@ public class SchemaExampleGeneratorTests
         var validation = Validator.Validate(schema, rendered.Text);
         Assert.True(validation.IsValid, $"{rendered.Text}\n{string.Join("\n", validation.Errors)}");
     }
+
+    [Theory]
+    [InlineData("""{"type":"number","exclusiveMinimum":0,"exclusiveMaximum":1}""", 0.5)]
+    [InlineData("""{"type":"number","minimum":0,"exclusiveMinimum":true,"maximum":1}""", 0.5)] // OpenAPI 3.0's flag form
+    [InlineData("""{"type":"integer","maximum":-1,"multipleOf":2}""", -2)]
+    [InlineData("""{"type":"integer","maximum":-3,"multipleOf":2}""", -4)]
+    [InlineData("""{"type":"number","minimum":0.25,"multipleOf":0.1}""", 0.3)]
+    [InlineData("""{"type":"integer","exclusiveMinimum":3,"multipleOf":3}""", 6)]
+    [InlineData("""{"type":"integer","minimum":-10,"maximum":10}""", 0)]                    // 0 fits, so it stays
+    public void Generate_Numbers_StayWithinTheirBounds(string schema, double expected)
+        => Assert.Equal(expected, double.Parse(SchemaExampleGenerator.Generate(schema)!, System.Globalization.CultureInfo.InvariantCulture), 10);
 
     [Fact]
     public void Generate_UsesTheValuesTheSchemaGives_AtAnyLevel()

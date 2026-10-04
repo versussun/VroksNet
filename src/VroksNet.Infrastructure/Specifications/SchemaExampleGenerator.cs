@@ -271,39 +271,65 @@ public static class SchemaExampleGenerator
             return text;
         }
 
-        /// <summary>0, moved into the schema's bounds (exclusive ones by a step) and onto its multipleOf.</summary>
+        /// <summary>
+        /// A number within the schema's bounds and on its multipleOf: 0 if that fits, else the value
+        /// nearest the lower bound, else the one nearest the upper. An exclusive bound on a number
+        /// that isn't on a grid takes the midpoint of the two bounds (or one away from a lone bound).
+        /// </summary>
         private static double NumberOf(JsonObject node, bool integer)
         {
-            var step = DoubleOf(node, "multipleOf") is > 0 and var multipleOf ? multipleOf : 1;
-            var lower = DoubleOf(node, "minimum");
-            var upper = DoubleOf(node, "maximum");
-            // JSON Schema draft 6+ gives exclusive bounds as numbers; draft 4 (and OpenAPI 3.0) as flags.
-            if (DoubleOf(node, "exclusiveMinimum") is { } exclusiveLower)
+            var multipleOf = DoubleOf(node, "multipleOf") is > 0 and var given ? given : (double?)null;
+            // An integer's grid: its multipleOf if that's whole, else 1. A number has none without one.
+            double? grid = integer ? (multipleOf is { } whole && whole == Math.Floor(whole) ? whole : 1) : multipleOf;
+
+            var (lower, lowerExclusive) = BoundOf(node, "minimum", "exclusiveMinimum");
+            var (upper, upperExclusive) = BoundOf(node, "maximum", "exclusiveMaximum");
+
+            bool Fits(double value)
+                => (lower is not { } low || (lowerExclusive ? value > low : value >= low))
+                    && (upper is not { } high || (upperExclusive ? value < high : value <= high))
+                    && (grid is not { } step || Math.Abs(value / step - Math.Round(value / step)) < 1e-9);
+
+            double? nearLower = lower is { } min
+                ? grid is { } lowStep
+                    ? Snap(Math.Ceiling(min / lowStep) * lowStep is var up && lowerExclusive && up <= min ? up + lowStep : up)
+                    : lowerExclusive ? (upper is { } max ? (min + max) / 2 : min + 1) : min
+                : null;
+            double? nearUpper = upper is { } top
+                ? grid is { } highStep
+                    ? Snap(Math.Floor(top / highStep) * highStep is var down && upperExclusive && down >= top ? down - highStep : down)
+                    : upperExclusive ? (lower is { } bottom ? (bottom + top) / 2 : top - 1) : top
+                : null;
+
+            foreach (var candidate in new[] { 0, nearLower, nearUpper })
             {
-                lower = exclusiveLower + step;
-            }
-            else if (lower is not null && node["exclusiveMinimum"] is JsonValue flag && flag.TryGetValue<bool>(out var exclusive) && exclusive)
-            {
-                lower += step;
+                if (candidate is { } value && Fits(value))
+                {
+                    return value;
+                }
             }
 
-            if (DoubleOf(node, "exclusiveMaximum") is { } exclusiveUpper)
-            {
-                upper = exclusiveUpper - step;
-            }
-            else if (upper is not null && node["exclusiveMaximum"] is JsonValue flag && flag.TryGetValue<bool>(out var exclusive) && exclusive)
-            {
-                upper -= step;
-            }
-
-            var number = lower is > 0 ? lower.Value : upper is < 0 ? upper.Value : 0;
-            if (step != 1 || integer)
-            {
-                number = Math.Ceiling(number / step) * step;
-            }
-
-            return integer ? Math.Ceiling(number) : number;
+            return nearLower ?? nearUpper ?? 0;
         }
+
+        /// <summary>
+        /// A bound and whether it's exclusive: draft 6+ (and OpenAPI 3.1) give an exclusive bound as
+        /// its own number, draft 4 (and OpenAPI 3.0) as a flag on the inclusive one.
+        /// </summary>
+        private static (double? Bound, bool Exclusive) BoundOf(JsonObject node, string inclusive, string exclusive)
+        {
+            if (DoubleOf(node, exclusive) is { } exclusiveBound)
+            {
+                return (exclusiveBound, true);
+            }
+
+            var bound = DoubleOf(node, inclusive);
+            var flagged = node[exclusive] is JsonValue flag && flag.GetValueKind() is JsonValueKind.True;
+            return (bound, bound is not null && flagged);
+        }
+
+        /// <summary>Drops the floating-point noise a grid step leaves (0.1 * 3 → 0.3).</summary>
+        private static double Snap(double value) => Math.Round(value, 10);
 
         /// <summary>The schema's type: its "type" (the first that isn't "null", if it lists several), else what its keywords imply.</summary>
         private static string? TypeOf(JsonObject node)
