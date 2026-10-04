@@ -105,19 +105,32 @@ public sealed class AppHostFixture : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         // InitializeAsync may have stopped part-way (webfrontend outlasting the startup timeout,
-        // say): dispose only what exists, so its failure is the one reported — and put the
-        // patched appsettings file back whatever happens, or it stays modified in the working tree.
+        // say): dispose only what exists, so its failure is the one reported. Each step runs even
+        // if the one before threw (a crashed browser, a HEADED window closed by hand): the
+        // containers still stop, and the patched appsettings file is put back, or it stays
+        // modified in the working tree.
         try
         {
-            if (Browser is not null)
+            try
             {
-                await Browser.CloseAsync();
+                if (Browser is not null)
+                {
+                    await Browser.CloseAsync();
+                }
             }
-
-            _playwright?.Dispose();
-            if (App is not null)
+            finally
             {
-                await App.DisposeAsync();
+                try
+                {
+                    _playwright?.Dispose();
+                }
+                finally
+                {
+                    if (App is not null)
+                    {
+                        await App.DisposeAsync();
+                    }
+                }
             }
         }
         finally
