@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.EntityFrameworkCore;
 using VroksNet.Application.Abstractions;
 using VroksNet.Infrastructure.Brokers;
+using VroksNet.Infrastructure.Brokers.Aws;
 using VroksNet.Infrastructure.Brokers.Http;
 using VroksNet.Infrastructure.Brokers.Kafka;
 using VroksNet.Infrastructure.Brokers.Mqtt;
@@ -149,6 +150,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IBrokerAdapter, MqttBrokerAdapter>();
         services.AddSingleton<IBrokerAdapter, RedisBrokerAdapter>();
         services.AddSingleton<IBrokerAdapter, ServiceBusBrokerAdapter>();
+        services.AddSingleton<IBrokerAdapter, SqsBrokerAdapter>();
+        services.AddSingleton<IBrokerAdapter, SnsBrokerAdapter>();
         services.AddSingleton<BrokerAdapterRegistry>();
         services.AddSingleton<IBrokerRules>(provider => provider.GetRequiredService<BrokerAdapterRegistry>());
         return services;

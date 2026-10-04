@@ -4,7 +4,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 // below, all of them when it isn't set — so local development always gets every broker. The
 // integration tests set it to start only what a test collection needs (step R6 of
 // docs/broker-adapters-plan.md); "--Brokers=" starts none.
-string[] knownBrokers = ["rabbitmq", "nats", "kafka", "mqtt", "redis", "servicebus"];
+string[] knownBrokers = ["rabbitmq", "nats", "kafka", "mqtt", "redis", "servicebus", "localstack"];
 var brokers = builder.Configuration["Brokers"] is { } configured
     ? configured.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.OrdinalIgnoreCase)
     : knownBrokers.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -81,6 +81,20 @@ if (brokers.Contains("servicebus"))
     serviceBus.AddServiceBusTopic("servicebus-stock", "warehouse.stock.changed")
         .AddServiceBusSubscription("servicebus-stock-vroksnet", "vroksnet");
     apiService.WaitFor(serviceBus);
+}
+
+if (brokers.Contains("localstack"))
+{
+    // AWS SQS and SNS (plus STS, which the connection check uses) emulated by LocalStack: there's
+    // no Aspire connection string for AWS, so a Connection's value is built from its endpoint
+    // (Region=us-east-1;AccessKeyId=test;SecretAccessKey=test;ServiceUrl=http://localhost:<port>).
+    // The init script creates the entities of docs/samples/order-events-aws-asyncapi.yaml.
+    var localstack = builder.AddContainer("localstack", "localstack/localstack", "4.14")
+        .WithEnvironment("SERVICES", "sqs,sns,sts")
+        .WithBindMount("localstack/init-aws.sh", "/etc/localstack/init/ready.d/init-aws.sh", isReadOnly: true)
+        .WithHttpEndpoint(targetPort: 4566, name: "gateway")
+        .WithHttpHealthCheck("/_localstack/health", endpointName: "gateway");
+    apiService.WaitFor(localstack);
 }
 
 // VroksNet.Web is a standalone Blazor WebAssembly app (Microsoft.NET.Sdk.BlazorWebAssembly).

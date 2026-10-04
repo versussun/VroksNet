@@ -1,0 +1,112 @@
+# Sample spec for local testing — NOT a real service spec. See docs/samples/README.md.
+#
+# AsyncAPI 3.0 for AWS SQS and SNS. The channel address is the queue's or topic's name (or the
+# queue's URL / the topic's ARN). SQS and SNS names can't contain ".", so these use "-", and they
+# have no wildcards, so there are no channel parameters. The AppHost's LocalStack creates them
+# (src/VroksNet.AppHost/localstack/init-aws.sh):
+# - order-fulfilment: an SQS queue — use an Sqs connection. Send only: its consumers compete for
+#   messages, so listening on it would take them away.
+# - order-placed: an SNS topic — use an Sns connection. Send publishes to it; Listen subscribes a
+#   temporary SQS queue for the run, or reads the queue named in the broker option "queue"
+#   (vroksnet-order-placed is one, already subscribed).
+asyncapi: 3.0.0
+info:
+  title: Order Events AWS Sample
+  version: "1.0.0"
+  description: Fulfilment requests go to an SQS queue; placed orders are published to an SNS topic.
+servers:
+  queues:
+    host: localhost:4566
+    protocol: sqs
+    description: The AppHost "localstack" resource's SQS.
+  topics:
+    host: localhost:4566
+    protocol: sns
+    description: The AppHost "localstack" resource's SNS.
+channels:
+  fulfilment:
+    address: order-fulfilment
+    description: An SQS queue — Send only.
+    messages:
+      fulfilmentRequested:
+        $ref: "#/components/messages/FulfilmentRequested"
+  placed:
+    address: order-placed
+    description: An SNS topic — Listen through an SQS queue subscribed to it.
+    messages:
+      orderPlaced:
+        $ref: "#/components/messages/OrderPlaced"
+operations:
+  requestFulfilment:
+    action: receive
+    channel:
+      $ref: "#/channels/fulfilment"
+    summary: The fulfilment service takes requests from this queue — send one as the order service would.
+    messages:
+      - $ref: "#/channels/fulfilment/messages/fulfilmentRequested"
+  publishOrderPlaced:
+    action: send
+    channel:
+      $ref: "#/channels/placed"
+    summary: The order service publishes every placed order — listen here to check them.
+    messages:
+      - $ref: "#/channels/placed/messages/orderPlaced"
+components:
+  messages:
+    FulfilmentRequested:
+      name: FulfilmentRequested
+      payload:
+        $ref: "#/components/schemas/FulfilmentRequested"
+      examples:
+        - payload:
+            requestId: "{{uuid}}"
+            orderId: "ord-2001"
+            warehouse: "dub-1"
+            requestedAt: "{{now}}"
+    OrderPlaced:
+      name: OrderPlaced
+      payload:
+        $ref: "#/components/schemas/OrderPlaced"
+      examples:
+        - payload:
+            orderId: "ord-2001"
+            customerId: "cus-42"
+            total:
+              amount: 59.9
+              currency: "EUR"
+            placedAt: "{{now}}"
+  schemas:
+    FulfilmentRequested:
+      type: object
+      required: [requestId, orderId, warehouse, requestedAt]
+      properties:
+        requestId:
+          type: string
+        orderId:
+          type: string
+        warehouse:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+    OrderPlaced:
+      type: object
+      required: [orderId, customerId, total, placedAt]
+      properties:
+        orderId:
+          type: string
+        customerId:
+          type: string
+        total:
+          type: object
+          required: [amount, currency]
+          properties:
+            amount:
+              type: number
+              minimum: 0
+            currency:
+              type: string
+              pattern: "^[A-Z]{3}$"
+        placedAt:
+          type: string
+          format: date-time

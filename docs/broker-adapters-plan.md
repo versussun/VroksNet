@@ -1,6 +1,6 @@
 # Plan: broker adapters, then new brokers
 
-**Status:** accepted — decisions in ADR 0003 (`docs/adr/0003-broker-adapters.md`). Steps R0–R6 are the refactoring; N1–N5 add brokers on top of it. **Progress:** R0–R6 done; the new brokers' status is in their table rows below.
+**Status:** accepted — decisions in ADR 0003 (`docs/adr/0003-broker-adapters.md`). Steps R0–R6 are the refactoring; N1–N5 add brokers on top of it. **Progress:** R0–R6 and N1–N5 done; see the table rows below.
 **Why:** VroksNet speaks RabbitMQ, NATS and Kafka, and more are wanted (MQTT, Redis, Azure Service Bus, AWS SQS/SNS). Today each broker is a branch in several places, so every new one would touch all of them.
 
 ## Where broker-specific code lives today
@@ -131,7 +131,7 @@ Record the decisions and ask the open questions (see the end):
 | N2 | MQTT | S | yes: plain subscription | **Done.** MQTTnet 5; `+` per `/`-separated parameter; `qos`/`retain` options (with allowed values, a new `BrokerOptionDefinition.AllowedValues`); retained messages ignored by Listen; Mosquitto container; the first broker-integration matrix family |
 | N3 | Redis | S | Pub/Sub: subscription; Streams: `XREAD` from `$`, no consumer group | **Done.** StackExchange.Redis 2.13.17 (as Aspire's client); the Aspire Redis resource; option `mode` (pubsub/stream). Pub/Sub listens with a `PSUBSCRIBE` glob and skips channels that don't strictly match; stream Listen polls `XREAD` (the client doesn't block) and refuses a channel with parameters. `IBrokerRules.WhyCantListen` now gets the scenario's options for that. The value is what Aspire hands out (`host:port,password=…`) or a `redis://` URL |
 | N4 | Azure Service Bus | M | topics only, through a subscription (option `subscription`; a temporary one when the connection may manage entities) | **Done.** Azure.Messaging.ServiceBus 7.20.2 (as Aspire's client); the Aspire emulator with its entities declared up front. Queues: Send only. A named subscription is read after skipping what's already waiting (found by peeking); a temporary one is created through the administration client and deleted afterwards. `subscription` is the first Listen-only option, so `BrokerOptionDefinition.SendDescription` became nullable. The emulator can't create subscriptions and doesn't check keys, so those paths are only covered offline |
-| N5 | AWS SQS / SNS | M | SNS: a temporary SQS queue subscribed to the topic; plain SQS: Send only | LocalStack in tests |
+| N5 | AWS SQS / SNS | M | SNS: a temporary SQS queue subscribed to the topic; plain SQS: Send only | **Done.** Two types, `Sqs` (Send only, by its traits) and `Sns`, sharing one connection value (`Region=…;AccessKeyId=…;SecretAccessKey=…[;ServiceUrl=…]`, or the default AWS credentials) — Aspire has no AWS connection string. AWSSDK 4.x; STS checks the connection. SNS Listen: a temporary queue, or an existing one in option `queue` (an SQS queue rather than ADR 0003's `subscription`, since a subscription is read through its queue), read after a marker message as SQS keeps no order. LocalStack 4.14 in AppHost and the matrix |
 
 **Checklist for each new broker:**
 1. A `ConnectionServiceType` value. It's additive for the manifest schema's `type` enum and contract §5; tell the Aspire package repository.

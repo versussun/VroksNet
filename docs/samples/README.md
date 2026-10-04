@@ -35,6 +35,7 @@ operation's example passes its own schema. If you edit a sample, run the unit te
 | [home-sensors-mqtt-asyncapi.yaml](home-sensors-mqtt-asyncapi.yaml) | AsyncAPI 3.0 | MQTT: `/`-separated topics, a `home/{room}/temperature` listen pattern (`+`), a simulated sensor to publish as. |
 | [chat-rooms-redis-asyncapi.yaml](chat-rooms-redis-asyncapi.yaml) | AsyncAPI 3.0 | Redis: a Pub/Sub `chat.{room}.message` listen pattern, a simulated user to publish as, and an `audit.logins` stream (broker option `mode=stream`). |
 | [warehouse-servicebus-asyncapi.yaml](warehouse-servicebus-asyncapi.yaml) | AsyncAPI 3.0 | Azure Service Bus: a queue (Send only) and a topic listened on through the emulator's `vroksnet` subscription. |
+| [order-events-aws-asyncapi.yaml](order-events-aws-asyncapi.yaml) | AsyncAPI 3.0 | AWS: an SQS queue (Send only) and an SNS topic listened on through a temporary queue or the `vroksnet-order-placed` queue. |
 | [notifications-rabbitmq-asyncapi.yaml](notifications-rabbitmq-asyncapi.yaml) | AsyncAPI 3.0 | RabbitMQ: a topic exchange, routing keys, AMQP bindings, a `notify.{channel}.delivered` listen pattern. |
 
 ## Trying them out
@@ -50,7 +51,7 @@ curl -k -X POST https://localhost:7352/mock/books -H "X-Request-Id: r-1" \
 ```
 
 **Async mocks.** Add a connection on **Settings** (the dev brokers' connection strings are in the
-Aspire dashboard: `rabbitmq`, `nats`, `kafka`; MQTT is `mqtt://localhost:<port>` of the `mqtt` resource; Redis and Service Bus are the `redis` and `servicebus` resources' connection strings), then:
+Aspire dashboard: `rabbitmq`, `nats`, `kafka`; MQTT is `mqtt://localhost:<port>` of the `mqtt` resource; Redis and Service Bus are the `redis` and `servicebus` resources' connection strings; SQS/SNS is `Region=us-east-1;AccessKeyId=test;SecretAccessKey=test;ServiceUrl=http://localhost:<port>` of the `localstack` resource), then:
 
 | Sample | Publisher / Send scenario | Listen scenario |
 |---|---|---|
@@ -59,6 +60,7 @@ Aspire dashboard: `rabbitmq`, `nats`, `kafka`; MQTT is `mqtt://localhost:<port>`
 | MQTT | `home/kitchen/temperature:send` simulates a sensor | `home/{room}/temperature:send` hears every room (`home/+/temperature`) |
 | Redis | `chat.lobby.message:send` simulates a user; `audit.logins:send` with `mode=stream` appends a login | `chat.{room}.message:send` hears every room (`chat.*.message`); `audit.logins:send` with `mode=stream` waits for the next login |
 | Service Bus | `warehouse.picking.requested:receive` sends a picking request to the queue | `warehouse.stock.changed:send` with `subscription=vroksnet` waits for the next stock change (a queue can't be listened on) |
+| AWS | `order-fulfilment:receive` through an Sqs connection sends a fulfilment request | `order-placed:send` through an Sns connection waits for the next placed order (a temporary queue, or `queue=vroksnet-order-placed`) |
 | RabbitMQ | `notify.email.requested:receive` with exchange `notifications` | `notify.{channel}.delivered:send` on exchange `notifications` |
 
 A Listen and a Send scenario on the same broker meet, so you can check a whole round trip

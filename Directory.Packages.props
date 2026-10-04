@@ -12,6 +12,9 @@
     <PackageVersion Include="Aspire.Hosting.Testing" Version="13.6.0" />
     <PackageVersion Include="Aspire.NATS.Net" Version="13.6.0" />
     <PackageVersion Include="Aspire.RabbitMQ.Client" Version="13.6.0" />
+    <PackageVersion Include="AWSSDK.SecurityToken" Version="4.0.101.1" />
+    <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.0.100.16" />
+    <PackageVersion Include="AWSSDK.SQS" Version="4.0.100.15" />
     <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.20.2" />
     <PackageVersion Include="Confluent.Kafka" Version="2.15.0" />
     <PackageVersion Include="Cronos" Version="0.13.0" />
