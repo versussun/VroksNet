@@ -4,7 +4,7 @@
 **Stack:** .NET 10, .NET Aspire, Clean Architecture, Blazor WebAssembly, Docker
 **Users:** single internal team, no auth on MVP
 
-An internal server for API mocking and contract testing against OpenAPI and AsyncAPI specifications — a Microcks equivalent on the .NET stack.
+An internal server for API mocking and contract testing against OpenAPI and AsyncAPI specifications, built on the .NET stack.
 
 > Code structure and style rules live in `.claude/CLAUDE.md`. This document is about the product: why, what's in the MVP, architecture and plan.
 
@@ -12,7 +12,7 @@ An internal server for API mocking and contract testing against OpenAPI and Asyn
 
 The team needs a tool for two related jobs: (1) API mocking, so the frontend and neighboring services can be built and tested independently of whether the real backend is ready; and (2) contract testing, to check that real services actually conform to their declared specifications.
 
-Unlike Microcks, the scope is deliberately narrow: no multi-tenancy, no built-in authentication, no CI/CD integration in the first stage. The service is deployed through .NET Aspire (in development, and as a container orchestrator) and as a single Docker setup in production inside the team's infrastructure.
+The scope is deliberately narrow: no multi-tenancy, no built-in authentication, no CI/CD integration in the first stage. The service is deployed through .NET Aspire (in development, and as a container orchestrator) and as a single Docker setup in production inside the team's infrastructure.
 
 ## 2. MVP scope
 
@@ -50,7 +50,7 @@ It works on top of the specification's examples: the engine takes the example as
 
 Decided: re-importing a specification **always replaces** the previous version. There's no version history; only the latest import is active.
 
-Whether an import "updates an existing spec rather than adding a new one" is decided by the **name/title inside the spec itself** (`info.title` in OpenAPI and AsyncAPI), not by the file name: a file can be renamed, while `info.title` is the service's meaningful identifier — the same approach Microcks takes.
+Whether an import "updates an existing spec rather than adding a new one" is decided by the **name/title inside the spec itself** (`info.title` in OpenAPI and AsyncAPI), not by the file name: a file can be renamed, while `info.title` is the service's meaningful identifier.
 
 Re-importing is an **idempotent update in place** (✅ implemented): operations are matched by key (`METHOD /path`, or `channel:action` for AsyncAPI; repeated keys are paired by their order in the spec).
 - An operation still in the spec keeps its id, its enabled/disabled state and "Serve at real path"; only its example, status and schemas are refreshed. So Test Scenarios, Publishers and call records that reference it keep working.
