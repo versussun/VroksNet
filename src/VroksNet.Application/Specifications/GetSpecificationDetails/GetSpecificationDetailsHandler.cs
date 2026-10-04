@@ -32,6 +32,8 @@ public sealed class GetSpecificationDetailsHandler(IApiSpecificationRepository r
                     endpoint.ServeAtRealPath,
                     endpoint.ExampleTemplate,
                     endpoint.ExampleIsGenerated,
+                    endpoint.RequestExampleTemplate,
+                    endpoint.RequestExampleIsGenerated,
                     OperationCompatibility.IsHttpOperation(endpoint.OperationKey),
                     TestScenarioListening.CanListen(endpoint.OperationKey),
                     TestScenarioListening.DefaultKindFor(endpoint.OperationKey)))
