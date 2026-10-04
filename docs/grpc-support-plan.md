@@ -1,6 +1,6 @@
 # Plan: gRPC support
 
-**Status:** draft. Decisions to confirm are at the end; once they're settled, they go into ADR 0004 (step G0).
+**Status:** draft. The open questions were answered on 2026-10-04 (see "Decisions" at the end); they go into ADR 0004 together with the spike's findings (step G0).
 **Why:** services talk to each other over gRPC as well as REST and brokers. VroksNet should mock a gRPC service from its `.proto` file and check a real one against it, the way it already does for OpenAPI.
 
 ## What "gRPC support" means here
@@ -14,7 +14,7 @@ The same contract-testing types as for HTTP (`docs/contract-testing-plan.md`, se
 | Type 3, Provider | Calls coming in to the mock are decoded and validated against the request message, and recorded in the call history. | G4 |
 | Types 2/4 (async publish/listen) | Not applicable: gRPC isn't a broker. | — |
 
-Unary RPCs come first. Streaming RPCs are imported and listed from the start, but they get mock behaviour later (G7).
+The first release is unary only. Streaming RPCs are imported and listed from the start, and the mock answers them with `UNIMPLEMENTED` until G7.
 
 ## Where the code has to change
 
@@ -37,9 +37,8 @@ Unary RPCs come first. Streaming RPCs are imported and listed from the start, bu
 - **Library:** [`protobuf-net.Reflection`](https://www.nuget.org/packages/protobuf-net.Reflection). It parses `.proto` text into `FileDescriptorProto`s in managed code, with readable errors (file, line, column).
   - Running `protoc` at runtime would mean shipping a native binary per platform in the image. `Grpc.Tools` is build-time only.
 - **Imports:** `google/protobuf/*.proto` (the well-known types) must resolve without the user supplying them. The G0 spike checks whether the library ships them, or whether we embed them.
-- **Other imports:**
-  - Provisioning resolves them relative to the specs folder.
-  - The UI accepts one file at first. Uploading several files or a `.zip` comes later (G8).
+- **Other imports:** resolved among the files given together — the provisioning `specs` folder, or the files of one UI upload (several `.proto` files or one `.zip`, in G2). An import that isn't among them fails the import with its file and line.
+- **Which files become specs:** every file that declares at least one `service` becomes its own specification. Files without services are only imports. The same rule holds for provisioning and the UI.
 - **What's stored:** the parsed `FileDescriptorSet` (binary, the spec plus everything it imports) on `ApiSpecification`, in a new column. Every later step works from it, so the `.proto` text is never parsed twice.
 
 ### 2. No generated code: our own JSON ↔ protobuf transcoder
@@ -64,15 +63,21 @@ Unary RPCs come first. Streaming RPCs are imported and listed from the start, bu
 - **Validation is two-stage.** First the bytes must decode as the message; a decode failure is a contract violation. Then the decoded canonical JSON is checked against the schema, for enum values and similar rules.
 - The canonical decoder never emits unknown keys, so the schemas can use `additionalProperties: false`.
 
-### 4. Operation key
+### 4. Specification title
 
-- **Proposal:** `RPC /package.Service/Method`. The path part is the real gRPC path (`POST /package.Service/Method` on HTTP/2), so the key reads naturally in the UI and the call history.
+- **Title** (the re-import key): the `package`, followed by the file's service names in parentheses, sorted by name: `shop.orders.v1 (Orders, Payments)`. Sorting keeps the title stable when services are reordered in the file.
+- A file without a `package` uses its file name (without `.proto`) instead.
+- **Consequence:** adding or removing a service changes the title, so the import creates a new specification instead of replacing the old one. The import result says so when an existing spec has the same package, so the user can delete the old one.
+
+### 5. Operation key
+
+- **Format:** `RPC /package.Service/Method`. The path part is the real gRPC path (`POST /package.Service/Method` on HTTP/2), so the key reads naturally in the UI and the call history.
 - `OperationCompatibility` checks the `RPC ` prefix before the space rule. An `RPC` key fits only connections whose shape is `Rpc`, so it can't fall into the HTTP or AsyncAPI branch.
 - Streaming kind (unary, server, client, bidi) is stored on `MockEndpoint`, not in the key. Changing a method's streaming kind is a re-import change, not a different operation.
 
-### 5. The mock's gRPC port
+### 6. The mock's gRPC port
 
-- **Port:** a dedicated Kestrel endpoint, `Grpc__Port`, default `7354`, with `Protocols = Http2`.
+- **Port:** a dedicated Kestrel endpoint, `Grpc__Port`, default `7354` (next to the provider port `7353`), with `Protocols = Http2`.
   - Without TLS, Kestrel accepts HTTP/2 only by prior knowledge, and only on an HTTP/2-only endpoint. That's what gRPC clients use for `http://`.
   - TLS on this port is out of scope: in production a proxy terminates it.
   - Aspire endpoint name: `grpc`.
@@ -90,7 +95,7 @@ Unary RPCs come first. Streaming RPCs are imported and listed from the start, bu
   - Enabling a second one is refused with the name of the spec that already serves it, following the `OperationOverlap` pattern.
 - **Placeholders:** request metadata feeds `{{request.header.*}}`. `{{request.path.*}}` and `{{request.query.*}}` don't apply and resolve with the usual warning.
 
-### 6. Send through a `Grpc` connection (Type 1)
+### 7. Send through a `Grpc` connection (Type 1)
 
 - **Connection value:** a URL, `http://host:5001` (h2c) or `https://host:5001`.
 - **Test:** a raw call to `grpc.health.v1.Health/Check`. Any gRPC response, `UNIMPLEMENTED` included, proves the server is reachable, matching how the Http check counts any HTTP status.
@@ -102,7 +107,7 @@ Unary RPCs come first. Streaming RPCs are imported and listed from the start, bu
   - On `OK`, the response is validated as in decision 3.
   - `MessageSendResult` gets the gRPC status code next to the HTTP one.
 
-### 7. Server reflection on the mock port
+### 8. Server reflection on the mock port
 
 - Serve `grpc.reflection.v1` (and `v1alpha`, which many tools still use) from the stored descriptor sets, using `FileDescriptor.BuildFromByteStrings`.
 - Then `grpcurl -plaintext localhost:7354 list`, Postman and Kreya discover the mocked services with no `.proto` on the client side.
@@ -113,7 +118,7 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
 
 ### G0. ADR 0004 + spike (S)
 
-- Record decisions 1–7 and the answers to the questions below.
+- Record decisions 1–8 and the decisions at the end of this plan.
 - **Spike:**
   - `protobuf-net.Reflection` on the sample files: imports, well-known types, error messages;
   - an h2c Kestrel endpoint inside the published container, called by `grpcurl`;
@@ -127,20 +132,20 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
 - `ServiceTypeTraits`: an operation shape instead of `IsHttp`, and the `Grpc` entry, with `CanListen: false` and a note saying gRPC has no channel to listen on.
 - **Done when:** current behaviour is unchanged (existing tests green), and unit tests cover all three shapes.
 
-### G2. Import `.proto` (M) — after G1
+### G2. Import `.proto` (L) — after G1
 
 - **Parser:** `ProtoSpecificationParser`.
-  - Title: see question 1.
+  - Title and which files become specs: decisions 1 and 4.
   - One `ParsedOperation` per RPC, with schemas from decision 3, a generated example and the streaming kind.
   - Proto2 groups/extensions are refused with a readable error.
 - **Storage:** the `FileDescriptorSet` column on `ApiSpecification` (a migration).
 - **Entry points:**
-  - `POST /api/specifications/proto`;
+  - `POST /api/specifications/proto` — multipart with one or more `.proto` files, or a single `.zip`; imports resolve among the uploaded files;
   - `.proto` in provisioning, with imports resolved from the specs folder;
-  - the import picker in the UI.
+  - the import picker in the UI, with multi-select and `.zip`. The result lists each spec created or replaced, and the files used only as imports.
 - **Re-import:** works by title, as today.
 - **Samples:** `docs/samples/greeter.proto` and `docs/samples/shop-orders.proto`. The second one uses imports, `Timestamp`, nested messages, enum, `oneof`, `map`, `repeated` and a server-streaming RPC.
-- **Done when:** both samples import through the UI and provisioning and show their RPCs with generated examples, and a broken `.proto` fails provisioning with its file and line.
+- **Done when:** both samples import through the UI (as several files and as a `.zip`) and provisioning and show their RPCs with generated examples; an upload with a missing import, and a broken `.proto`, fail with the file and line.
 
 ### G3. JSON ↔ protobuf transcoder (L) — can run in parallel with G2
 
@@ -151,7 +156,7 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
 ### G4. The gRPC mock, unary (L) — after G2 and G3
 
 - **Serving:**
-  - the gRPC port with framing, compression, deadlines and trailers (decision 5);
+  - the gRPC port with framing, compression, deadlines and trailers (decision 6);
   - `InvokeRpcMock` through Mediator;
   - request validation;
   - the call history (kind `Mock`, request line `RPC /pkg.Service/Method`, gRPC status);
@@ -168,7 +173,7 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
 
 ### G5. Send through a `Grpc` connection (M) — after G3; uses G4 as its test target
 
-- `GrpcBrokerAdapter` (decision 6).
+- `GrpcBrokerAdapter` (decision 7).
 - The optional send context in `IMessageSender`, and the executor's RPC branch: gRPC status, decode, validation.
 - The UI offers `Grpc` connections for RPC operations.
 - **Done when:**
@@ -178,10 +183,10 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
 
 ### G6. Server reflection (S) — after G4
 
-- Decision 7.
+- Decision 8.
 - **Done when:** `grpcurl -plaintext <host>:7354 list` and `describe` work with no `.proto` on the client. The contract check covers it.
 
-### G7. Streaming (M) — after G4/G5; only if wanted (question 3)
+### G7. Streaming (M) — after G4/G5; not in the first release
 
 - **Mock:**
   - server streaming sends the example N times (an option per operation, default 1);
@@ -191,7 +196,6 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
 
 ### G8. Polish (S)
 
-- Multi-file or `.zip` upload in the UI.
 - `docs/guides/contract-testing/` pages for gRPC.
 - The runbook.
 - Configuration export: the `.proto` files go into the package's `specs` folder; the descriptor set isn't exported.
@@ -217,10 +221,12 @@ G0 ── G1 ── G2 ──┐
 - **h2c through proxies and Aspire.** Some proxies downgrade to HTTP/1.1, which breaks gRPC. G0 checks the container case, and the runbook documents it.
 - **Contract v1 grows.** A new port and new values in the connection-type list are additive, which v1 allows. The Aspire package needs a release to expose the `grpc` endpoint.
 
-## Questions to answer before G0
+## Decisions
 
-1. **Spec title** (the re-import key). A `.proto` file has no `info.title`. The proposal is the `package` name (`shop.orders.v1`), falling back to the file name when the file declares no package.
-2. **Operation key format:** is `RPC /package.Service/Method` acceptable (decision 4)?
-3. **Streaming:** is the first release unary only, with streaming RPCs listed but answering `UNIMPLEMENTED`? Or is G7 needed right away?
-4. **Port:** `7354` as the default gRPC port, or something else?
-5. **Multi-file specs:** is provisioning (a folder with imports) enough at first, or is UI upload of several files needed in G2?
+Answered on 2026-10-04:
+
+1. **Spec title:** the `package` plus the sorted service names — `shop.orders.v1 (Orders, Payments)`; the file name when there's no package (decision 4).
+2. **Operation key:** `RPC /package.Service/Method` (decision 5).
+3. **Streaming:** the first release is unary only. Streaming RPCs are listed with a badge and answer `UNIMPLEMENTED`; G7 comes later.
+4. **Port:** `7354`, overridable with `Grpc__Port`.
+5. **Multi-file specs:** in the UI from the start — G2 accepts several `.proto` files or a `.zip`, not only provisioning folders.
