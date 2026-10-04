@@ -1,0 +1,56 @@
+openapi: 3.0.3
+info:
+  title: Named Examples Sample
+  version: "1.0"
+paths:
+  /items/{id}:
+    get:
+      responses:
+        "200":
+          description: Two named examples — the first is the mock's answer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+              examples:
+                lamp:
+                  summary: The first one
+                  value: { id: 1, name: lamp }
+                desk:
+                  value: { id: 2, name: desk }
+  /items:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewItem"
+            examples:
+              chair:
+                $ref: "#/components/examples/NewChair"
+      responses:
+        "201":
+          description: The first named example is only a URL, which isn't fetched — the next one is used.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+              examples:
+                remote:
+                  externalValue: https://example.com/items/3.json
+                chair:
+                  value: { id: 3, name: chair }
+components:
+  examples:
+    NewChair:
+      value: { name: chair }
+  schemas:
+    Item:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+    NewItem:
+      type: object
+      properties:
+        name: { type: string }

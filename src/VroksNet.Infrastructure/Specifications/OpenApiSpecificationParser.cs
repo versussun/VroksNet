@@ -81,12 +81,13 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
             .Select(response => (response.Key, MediaType: JsonMediaTypeOf(response.Value.Content)))
             .FirstOrDefault(response => response.MediaType is not null) ?? default;
 
-        // Prefers the first (by status code) JSON response example, falling back to the request
-        // body's; null if the spec has neither. The mock answers with the status of the response
+        // Prefers the first (by status code) JSON response's example (its "example", else its first
+        // named "examples" entry), falling back to the request body's; null if the spec has neither. The mock answers with the status of the response
         // the example came from — otherwise (no example, or the request body's) with the lowest
         // declared 2xx (docs/contract-testing-plan.md 3.8).
-        var example = firstJsonResponse?.Example ?? requestMediaType?.Example;
-        var exampleStatusCode = (firstJsonResponse?.Example is not null ? StatusCodeOf(firstJsonStatusKey!) : null)
+        var responseExample = ExampleOf(firstJsonResponse);
+        var example = responseExample ?? ExampleOf(requestMediaType);
+        var exampleStatusCode = (responseExample is not null ? StatusCodeOf(firstJsonStatusKey!) : null)
             ?? LowestSuccessStatusCode(operation.Responses?.Keys);
 
         // Every declared response, not just the first — a contract check has to validate whatever
@@ -103,7 +104,7 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
             ? SchemaExampleGenerator.Generate(SchemaOfStatus(responseSchemasByStatus, exampleStatusCode) ?? requestSchemaJson)
             : null;
         // What an HTTP Send sends: the request body's own example, else one built from its schema.
-        var requestExample = requestMediaType?.Example?.ToJsonString(ExampleJsonOptions);
+        var requestExample = ExampleOf(requestMediaType)?.ToJsonString(ExampleJsonOptions);
         var generatedRequestExample = requestExample is null ? SchemaExampleGenerator.Generate(requestSchemaJson) : null;
         return new ParsedOperation(
             operationKey,
@@ -153,6 +154,16 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
             .Select(StatusCodeOf)
             .Where(code => code is >= 200 and < 300)
             .Min();
+
+    /// <summary>
+    /// The media type's example: its <c>example</c>, else the first of its named <c>examples</c>
+    /// that has a value inline (<c>dataValue</c> or <c>value</c>; a <c>$ref</c> into
+    /// <c>components/examples</c> is resolved by the reader, an <c>externalValue</c> URL isn't fetched).
+    /// Null if it has none — the caller then builds one from the schema.
+    /// </summary>
+    private static JsonNode? ExampleOf(IOpenApiMediaType? mediaType)
+        => mediaType?.Example
+            ?? mediaType?.Examples?.Values.Select(example => example.DataValue ?? example.Value).FirstOrDefault(value => value is not null);
 
     private static IOpenApiMediaType? JsonMediaTypeOf(IDictionary<string, IOpenApiMediaType>? content)
         => content is not null && content.TryGetValue("application/json", out var mediaType) ? mediaType : null;
