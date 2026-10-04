@@ -1,6 +1,6 @@
 # ADR 0004 — gRPC support
 
-**Status:** Proposed (2026-10-04)
+**Status:** Accepted (2026-10-04)
 **Date:** 2026-10-04
 **Related:** `docs/grpc-support-plan.md` (steps G0–G8 that carry this out), ADR 0003 (adapters and `ServiceTypeTraits`), `docs/contract-testing-plan.md` (the contract-testing types), `docs/container-contract.md` §3 (ports)
 

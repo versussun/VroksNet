@@ -1,6 +1,6 @@
 # Plan: gRPC support
 
-**Status:** proposed — decisions in ADR 0004 (`docs/adr/0004-grpc-support.md`). **Progress:** G0 done (the spike passed; findings in the ADR); G1–G8 not started.
+**Status:** accepted — decisions in ADR 0004 (`docs/adr/0004-grpc-support.md`). **Progress:** G0 done (the spike passed; findings in the ADR); G1–G8 not started.
 **Why:** services talk to each other over gRPC as well as REST and brokers. VroksNet should mock a gRPC service from its `.proto` file and check a real one against it, the way it already does for OpenAPI.
 
 ## What "gRPC support" means here
