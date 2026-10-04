@@ -44,6 +44,7 @@ public class OpenApiSpecificationParserTests
 
         var getPetById = result.Operations.Single(operation => operation.OperationKey == "GET /pets/{petId}");
         Assert.NotNull(getPetById.ExampleJson);
+        Assert.False(getPetById.ExampleIsGenerated);
         Assert.Contains("\"name\": \"Fido\"", getPetById.ExampleJson);
     }
 
@@ -114,6 +115,63 @@ public class OpenApiSpecificationParserTests
         var yaml = await File.ReadAllTextAsync(FixturePath("invalid-openapi.yaml"), TestContext.Current.CancellationToken);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => _parser.ParseAsync(yaml, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ParseAsync_NoExample_BuildsOneFromTheSchemaOfTheStatusTheMockAnswersWith()
+    {
+        var operation = await ParseNoExamplesAsync("GET /orders/{id}");
+
+        // The 200's schema (not the 404's), through the components' $refs; formats become placeholders.
+        Assert.Equal((200, true), (operation.ExampleStatusCode, operation.ExampleIsGenerated));
+        var example = System.Text.Json.Nodes.JsonNode.Parse(operation.ExampleJson!)!;
+        Assert.Equal(("{{uuid}}", "placed", "{{now}}", "EUR"), ((string)example["id"]!, (string)example["status"]!, (string)example["placedAt"]!, (string)example["total"]!["currency"]!));
+        Assert.True((double)example["total"]!["amount"]! > 0); // OpenAPI 3.0's exclusiveMinimum flag
+        Assert.Null(example["error"]);
+    }
+
+    [Fact]
+    public async Task ParseAsync_NoExample_ANoBodyStatus_FallsBackToTheRequestBodySchema()
+    {
+        var operation = await ParseNoExamplesAsync("POST /orders");
+
+        Assert.Equal(202, operation.ExampleStatusCode);
+        Assert.Contains("\"quantity\": 1", operation.ExampleJson);
+        Assert.DoesNotContain("error", operation.ExampleJson); // the declared 202 wins over "default", body or not
+    }
+
+    [Fact]
+    public async Task ParseAsync_NoExample_ARangeKey_AndARecursiveSchema()
+    {
+        var operation = await ParseNoExamplesAsync("GET /categories");
+
+        var category = System.Text.Json.Nodes.JsonNode.Parse(operation.ExampleJson!)!.AsArray().Single()!;
+        Assert.Equal("string", (string)category["name"]!);
+    }
+
+    [Theory]
+    [InlineData("GET /orders/{id}")]
+    [InlineData("POST /orders")]
+    [InlineData("GET /categories")]
+    public async Task ParseAsync_NoExample_TheBuiltOneMatchesTheSchemaTheMockValidatesAgainst(string operationKey)
+    {
+        var operation = await ParseNoExamplesAsync(operationKey);
+        var schema = operation.ResponseSchemasByStatus!.GetValueOrDefault(operation.ExampleStatusCode!.Value.ToString())
+            ?? operation.ResponseSchemasByStatus!.GetValueOrDefault("2XX")
+            ?? operation.RequestSchemaJson!;
+        var rendered = new VroksNet.Infrastructure.Templating.ResponseTemplateEngine(TimeProvider.System)
+            .Render(operation.ExampleJson!, new(new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, string>(), null));
+
+        var validation = new SchemaValidator().Validate(schema, rendered.Text);
+
+        Assert.True(validation.IsValid, string.Join("\n", validation.Errors));
+    }
+
+    private async Task<VroksNet.Application.Abstractions.ParsedOperation> ParseNoExamplesAsync(string operationKey)
+    {
+        var yaml = await File.ReadAllTextAsync(FixturePath("no-examples-openapi.yaml"), TestContext.Current.CancellationToken);
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+        return result.Operations.Single(operation => operation.OperationKey == operationKey);
     }
 
     private static string FixturePath(string fileName) => Path.Combine(AppContext.BaseDirectory, "Fixtures", fileName);

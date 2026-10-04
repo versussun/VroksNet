@@ -25,7 +25,7 @@ public sealed class InvokeMockEndpointHandler(
     ILogger<InvokeMockEndpointHandler> logger)
     : IRequestHandler<InvokeMockEndpoint, MockInvocationResult>
 {
-    /// <summary>Stands in for an operation the spec gave no example for, until schema-based generation exists.</summary>
+    /// <summary>Stands in for an operation with no example — the spec gave none and the parser couldn't build one from a schema.</summary>
     private const string EmptyExampleBody = "{}";
 
     /// <summary>For an operation imported before its status was tracked, or one that declares no 2xx and gave no example.</summary>

@@ -118,6 +118,7 @@ public sealed class ApiSpecificationRepositoryTests : IAsyncLifetime
         var incoming = changed.Endpoints.Single();
         incoming.ExampleTemplate = "{\"v\":2}";
         incoming.ExampleStatusCode = 201;
+        incoming.ExampleIsGenerated = true; // a spec that dropped its example gets one built from the schema
         incoming.ResponseSchemasByStatus = new Dictionary<string, string?> { ["201"] = "{\"type\":\"object\"}" };
         changed.RawContent = "raw v2";
         await _repository.UpsertAsync(changed, cancellationToken);
@@ -126,6 +127,7 @@ public sealed class ApiSpecificationRepositoryTests : IAsyncLifetime
         Assert.Equal(originalId, stored.Id);
         Assert.Equal("{\"v\":2}", stored.ExampleTemplate);
         Assert.Equal(201, stored.ExampleStatusCode);
+        Assert.True(stored.ExampleIsGenerated);
         Assert.Equal("{\"type\":\"object\"}", stored.ResponseSchemasByStatus["201"]);
     }
 

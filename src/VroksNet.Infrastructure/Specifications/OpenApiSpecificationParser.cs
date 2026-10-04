@@ -13,8 +13,9 @@ namespace VroksNet.Infrastructure.Specifications;
 /// into a minimal <see cref="ParsedSpecification"/> — a flat operation list, each carrying the
 /// spec's own example (if any) pretty-printed as JSON, plus its request/response JSON Schemas
 /// (see <see cref="ParsedOperation"/>) for the contract-testing checks described in
-/// docs/contract-testing-plan.md, and the status the mock answers with. There's no schema-based
-/// example generation for operations with no example in the spec — the mock answers those "{}".
+/// docs/contract-testing-plan.md, and the status the mock answers with. An operation with no
+/// example in the spec gets one built from the schema of the response the mock answers with (or of
+/// its request body, the same fallback as for a given example) by <see cref="SchemaExampleGenerator"/>.
 /// </summary>
 public sealed class OpenApiSpecificationParser : ISpecificationParser
 {
@@ -97,13 +98,38 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
             responseSchemasByStatus[statusKey] = await ExtractSchemaJsonAsync(JsonMediaTypeOf(response.Value.Content)?.Schema, componentSchemas, cancellationToken);
         }
 
+        var requestSchemaJson = await ExtractSchemaJsonAsync(requestMediaType?.Schema, componentSchemas, cancellationToken);
+        var generatedExample = example is null
+            ? SchemaExampleGenerator.Generate(SchemaOfStatus(responseSchemasByStatus, exampleStatusCode) ?? requestSchemaJson)
+            : null;
         return new ParsedOperation(
             operationKey,
-            example?.ToJsonString(ExampleJsonOptions),
-            await ExtractSchemaJsonAsync(requestMediaType?.Schema, componentSchemas, cancellationToken),
+            example?.ToJsonString(ExampleJsonOptions) ?? generatedExample,
+            requestSchemaJson,
             await ExtractSchemaJsonAsync(firstJsonResponse?.Schema, componentSchemas, cancellationToken),
             responseSchemasByStatus,
-            exampleStatusCode);
+            exampleStatusCode,
+            ExampleIsGenerated: generatedExample is not null);
+    }
+
+    /// <summary>
+    /// The body schema of the response the mock answers <paramref name="statusCode"/> with — the
+    /// same choice as <c>MockEndpoint.TryGetDeclaredResponse</c>: the first of the exact code, its
+    /// range ("2XX") and "default" that's declared. Null if that response declares no JSON body —
+    /// a later key isn't tried then, or a 204 would get the "default" error's shape.
+    /// </summary>
+    private static string? SchemaOfStatus(IReadOnlyDictionary<string, string?> schemasByStatus, int? statusCode)
+    {
+        string[] keys = statusCode is { } code ? [code.ToString(CultureInfo.InvariantCulture), $"{code / 100}XX", "default"] : ["default"];
+        foreach (var key in keys)
+        {
+            if (schemasByStatus.TryGetValue(key, out var schema))
+            {
+                return schema;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>"201" → 201, "2XX" → 200; null for "default" or anything unrecognizable.</summary>

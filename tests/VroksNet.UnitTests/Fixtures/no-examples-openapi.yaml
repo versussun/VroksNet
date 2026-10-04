@@ -1,0 +1,75 @@
+openapi: 3.0.3
+info:
+  title: No Examples Sample
+  version: "1.0"
+paths:
+  /orders/{id}:
+    get:
+      responses:
+        "200":
+          description: The order — its schema is all there is, no example.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string, example: not-found }
+  /orders:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewOrder"
+      responses:
+        "202":
+          description: Accepted, no body — the example falls back to the request body's schema.
+        default:
+          description: An error — not what the mock answers with, so not what the example is built from.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+  /categories:
+    get:
+      responses:
+        "2XX":
+          description: A range key.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Category" }
+components:
+  schemas:
+    Order:
+      type: object
+      required: [id, status, total, placedAt]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [placed, paid, shipped] }
+        total: { $ref: "#/components/schemas/Money" }
+        placedAt: { type: string, format: date-time }
+    Money:
+      type: object
+      properties:
+        amount: { type: number, minimum: 0, exclusiveMinimum: true }
+        currency: { type: string, minLength: 3, maxLength: 3, example: EUR }
+    NewOrder:
+      type: object
+      properties:
+        sku: { type: string }
+        quantity: { type: integer, minimum: 1 }
+    Category:
+      type: object
+      properties:
+        name: { type: string }
+        parent: { $ref: "#/components/schemas/Category" }

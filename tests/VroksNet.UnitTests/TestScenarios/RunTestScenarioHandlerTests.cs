@@ -111,6 +111,69 @@ public class RunTestScenarioHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ExamplePlaceholders_AreFilledInBeforeSending_LikeAPublishers()
+    {
+        var specifications = new FakeApiSpecificationRepository();
+        var connections = new FakeConnectionRepository();
+        var scenarios = new FakeTestScenarioRepository();
+        var callRecords = new FakeCallRecordRepository();
+        var sender = new FakeMessageSender(new MessageSendResult(true, "Published", null));
+        var specificationId = Guid.NewGuid();
+        var endpointId = Guid.NewGuid();
+        var connectionId = Guid.NewGuid();
+        await specifications.UpsertAsync(new ApiSpecification
+        {
+            Id = specificationId,
+            Title = "Orders",
+            Kind = SpecificationKind.AsyncApi,
+            // What an example built from a schema looks like, plus a placeholder a Send can't fill.
+            Endpoints = [new MockEndpoint { Id = endpointId, SpecificationId = specificationId, OperationKey = "orders.created:send", ExampleTemplate = "{\"id\":\"{{uuid}}\",\"at\":\"{{now}}\",\"path\":\"{{request.path.id}}\"}", ExampleIsGenerated = true }]
+        }, TestContext.Current.CancellationToken);
+        await connections.InsertAsync(new Connection { Id = connectionId, Name = "Broker", ServiceType = ConnectionServiceType.RabbitMq, Value = "amqp://localhost" }, TestContext.Current.CancellationToken);
+        var scenarioId = Guid.NewGuid();
+        await scenarios.InsertAsync(new TestScenario { Id = scenarioId, Name = "Publish order", SpecificationId = specificationId, MockEndpointId = endpointId, ConnectionId = connectionId }, TestContext.Current.CancellationToken);
+
+        var handler = TestRunHandlers.Run(scenarios, specifications, connections, sender, new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), callRecords);
+        await handler.Handle(new RunTestScenario(scenarioId), TestContext.Current.CancellationToken);
+
+        var payload = System.Text.Json.Nodes.JsonNode.Parse(sender.LastSend!.Value.Payload!)!;
+        Assert.True(Guid.TryParse((string)payload["id"]!, out _), payload.ToJsonString());
+        Assert.True(DateTimeOffset.TryParse((string)payload["at"]!, out _));
+        var record = Assert.Single(callRecords.Inserted);
+        Assert.Equal(sender.LastSend.Value.Payload, record.RequestSnapshot); // the history holds what was sent
+        Assert.Contains("request.path.id", record.Warnings);
+    }
+
+    [Theory]
+    [InlineData(true, null)]   // built from the response schema: not a request body, so none is sent
+    [InlineData(false, "[]")]  // the spec's own example: sent as before
+    public async Task Handle_HttpSend_DoesntSendAnExampleBuiltFromTheSchema(bool generated, string? expectedPayload)
+    {
+        var specifications = new FakeApiSpecificationRepository();
+        var connections = new FakeConnectionRepository();
+        var scenarios = new FakeTestScenarioRepository();
+        var sender = new FakeMessageSender(new MessageSendResult(true, "200 OK", "[]", 200));
+        var specificationId = Guid.NewGuid();
+        var endpointId = Guid.NewGuid();
+        var connectionId = Guid.NewGuid();
+        await specifications.UpsertAsync(new ApiSpecification
+        {
+            Id = specificationId,
+            Title = "Petstore",
+            Kind = SpecificationKind.OpenApi,
+            Endpoints = [new MockEndpoint { Id = endpointId, SpecificationId = specificationId, OperationKey = "GET /pets", ExampleTemplate = "[]", ExampleIsGenerated = generated }]
+        }, TestContext.Current.CancellationToken);
+        await connections.InsertAsync(new Connection { Id = connectionId, Name = "Pets API", ServiceType = ConnectionServiceType.Http, Value = "https://api.example.com" }, TestContext.Current.CancellationToken);
+        var scenarioId = Guid.NewGuid();
+        await scenarios.InsertAsync(new TestScenario { Id = scenarioId, Name = "Send GET /pets", SpecificationId = specificationId, MockEndpointId = endpointId, ConnectionId = connectionId }, TestContext.Current.CancellationToken);
+
+        var handler = TestRunHandlers.Run(scenarios, specifications, connections, sender, new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), new FakeCallRecordRepository());
+        await handler.Handle(new RunTestScenario(scenarioId), TestContext.Current.CancellationToken);
+
+        Assert.Equal(expectedPayload, sender.LastSend!.Value.Payload);
+    }
+
+    [Fact]
     public async Task Handle_UnknownScenario_ReturnsNull()
     {
         var handler = TestRunHandlers.Run(

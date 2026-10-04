@@ -21,7 +21,7 @@ Both specification kinds at once, with no "REST first, async later" split.
 | Area | What it does |
 |---|---|
 | Specification import | Import OpenAPI (Swagger 2.0 and OpenAPI 3.0/3.1) and AsyncAPI **3.0** files, YAML or JSON, through the UI and the REST API. An AsyncAPI 2.x file imports without an error but with **zero operations** — the parser reads only the 3.0 layout (top-level `operations`) |
-| REST mocks | Answer with the operation's example from the spec, templated (see "Response dynamics"), at the status the example came from. Matched on **method and path only** (path parameters included); query and body aren't used for matching. An operation without an example answers `{}` — there's no schema-based generation |
+| REST mocks | Answer with the operation's example from the spec, templated (see "Response dynamics"), at the status the example came from. Matched on **method and path only** (path parameters included); query and body aren't used for matching. An operation without an example answers with one built from its response schema at import (formats `uuid`/`date-time` become `{{uuid}}`/`{{now}}`); only an operation with no JSON body schema at all answers `{}` |
 | Async mocks | **Publishers**: publish an AsyncAPI operation's example message to NATS, RabbitMQ or Kafka every 1s–24h, or on demand ("Publish now") |
 | Mock management | A Blazor panel: imported specifications, per-operation enable/disable and "Serve at real path" (provider mode), a try-it call per HTTP operation. Examples can't be edited in the UI — change the spec and re-import it |
 | Call history | Every incoming mock call (matched or not), every test-scenario run (HTTP request, broker publish, received broker message) and every Publisher publish, with request/response bodies (capped at 64K) and the contract-check result; filterable, with "Clear history" |
@@ -139,7 +139,7 @@ A Clean Architecture + Aspire solution (`VroksNet.slnx`, all projects under `src
 **Result:** `dotnet run --project VroksNet.AppHost` brings up the whole stack, infrastructure included
 
 ### Phase 01 — OpenAPI → REST mocks ✅ done
-OpenAPI import with replace-by-title, dynamic routing under `/mock`, templated responses with the status from the spec (done as Phase F of `docs/contract-testing-plan.md`, 4.6). There's no schema-based response generation for operations without an example — they answer `{}`.
+OpenAPI import with replace-by-title, dynamic routing under `/mock`, templated responses with the status from the spec (done as Phase F of `docs/contract-testing-plan.md`, 4.6). Operations without an example get one built from their schema at import (`SchemaExampleGenerator`), marked as generated in the UI; only those with no JSON body schema answer `{}`.
 
 Loading and parsing OpenAPI (matched by `info.title`, replaced on re-import), answering with the spec's example with placeholder substitution (`{{request...}}`, `{{uuid}}`, `{{now}}`), dynamic request routing in `VroksNet.ApiService`.
 **Result:** import a spec — get a working REST mock for its endpoints, with templated responses

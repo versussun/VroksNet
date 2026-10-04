@@ -2,6 +2,7 @@ using VroksNet.Application.Abstractions;
 using VroksNet.Application.TestRuns;
 using VroksNet.Application.TestScenarios;
 using VroksNet.Application.TestScenarios.RunTestScenario;
+using VroksNet.Infrastructure.Templating;
 
 namespace VroksNet.UnitTests.TestDoubles;
 
@@ -33,5 +34,5 @@ internal static class TestRunHandlers
         IMessageListener listener,
         ISchemaValidator schemaValidator,
         ICallRecordRepository callRecords)
-        => new(scenarios, specifications, connections, sender, listener, schemaValidator, callRecords);
+        => new(scenarios, specifications, connections, sender, listener, schemaValidator, new ResponseTemplateEngine(TimeProvider.System), callRecords);
 }

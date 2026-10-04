@@ -16,7 +16,15 @@
     <div class="card-body">
         @if (Endpoint.ExampleTemplate is not null)
         {
-            <p class="fw-semibold mb-1">Example from spec</p>
+            @if (Endpoint.ExampleIsGenerated)
+            {
+                <p class="fw-semibold mb-1">Example built from the schema</p>
+                <p class="form-text mb-1">The spec has no example for this operation, so one was built from its schema at import. Add an example to the spec for realistic values.</p>
+            }
+            else
+            {
+                <p class="fw-semibold mb-1">Example from spec</p>
+            }
             <pre class="@(IsHttpOperation ? "mb-1" : "mb-3")"><code>@Endpoint.ExampleTemplate</code></pre>
             @if (IsHttpOperation)
             {
@@ -29,7 +37,7 @@
         }
         else
         {
-            <p class="text-muted fst-italic">No example in the spec for this operation.</p>
+            <p class="text-muted fst-italic">No example in the spec for this operation, and none could be built from its schema (it has no JSON body schema).</p>
         }
 
         @if (!_isEnabled && IsHttpOperation)

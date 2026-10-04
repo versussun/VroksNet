@@ -1,0 +1,34 @@
+asyncapi: 3.0.0
+info:
+  title: No Examples Async Sample
+  version: "1.0"
+channels:
+  shipped:
+    address: orders.shipped
+    messages:
+      shipped:
+        $ref: "#/components/messages/Shipped"
+operations:
+  publishShipped:
+    action: send
+    channel: { $ref: "#/channels/shipped" }
+    messages:
+      - $ref: "#/channels/shipped/messages/shipped"
+components:
+  messages:
+    Shipped:
+      payload:
+        $ref: "#/components/schemas/Shipped"
+  schemas:
+    Shipped:
+      type: object
+      required: [orderId, carrier, shippedAt]
+      properties:
+        orderId: { type: string, format: uuid }
+        carrier: { $ref: "#/components/schemas/Carrier" }
+        shippedAt: { type: string, format: date-time }
+    Carrier:
+      type: object
+      properties:
+        name: { type: string, example: DHL }
+        tracking: { type: string, minLength: 10 }

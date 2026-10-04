@@ -33,8 +33,13 @@ public sealed class TestScenarioExecutor(
     IMessageSender sender,
     IMessageListener listener,
     ISchemaValidator schemaValidator,
+    IResponseTemplateEngine templateEngine,
     ICallRecordRepository callRecords)
 {
+    /// <summary>A Send has no incoming request: only <c>{{uuid}}</c>/<c>{{now}}</c> resolve, <c>{{request.*}}</c> become warnings — as for a Publisher.</summary>
+    private static readonly TemplateContext NoRequest = new(
+        new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, string>(), null);
+
     /// <param name="onListening">For a Listen scenario: called once it's subscribed (see <see cref="IMessageListener.ListenAsync"/>).</param>
     public async Task<RunTestScenarioResult> ExecuteAsync(TestScenario scenario, Guid testRunId, CancellationToken cancellationToken, Action? onListening = null)
     {
@@ -74,7 +79,8 @@ public sealed class TestScenarioExecutor(
             ResponseSnapshot = CallRecordSnapshot.Truncate(outcome.ResponseSnapshot),
             StatusCode = outcome.StatusCode,
             ContractValid = validation?.IsValid,
-            ValidationErrors = validation is { IsValid: false } ? JsonSerializer.Serialize(validation.Errors) : null
+            ValidationErrors = validation is { IsValid: false } ? JsonSerializer.Serialize(validation.Errors) : null,
+            Warnings = outcome.Warnings is { Count: > 0 } warnings ? JsonSerializer.Serialize(warnings) : null
         }, cancellationToken);
 
         await scenarios.RecordRunAsync(scenario.Id, ranAt, success, message, cancellationToken);
@@ -93,10 +99,18 @@ public sealed class TestScenarioExecutor(
 
     private async Task<RunOutcome> SendAsync(TestScenario scenario, MockEndpoint endpoint, Connection connection, CancellationToken cancellationToken)
     {
-        var payload = scenario.PayloadOverride ?? endpoint.ExampleTemplate;
+        // Filled in like a Publisher's payload, so a {{uuid}}/{{now}} in the example — the spec's own,
+        // or one built from its schema — goes out as a value, not as the placeholder.
+        var isHttp = ServiceTypeTraits.Find(connection.ServiceType)?.IsHttp == true;
+        // An HTTP operation's example is the mock's answer, and one built from a schema mostly is
+        // the response's shape — sending it as the request body would give a GET a body and a POST
+        // the response's fields. Such a Send sends no body, as before examples were built.
+        var example = isHttp && endpoint.ExampleIsGenerated ? null : endpoint.ExampleTemplate;
+        var template = scenario.PayloadOverride ?? example;
+        var rendered = template is null ? null : templateEngine.Render(template, NoRequest);
+        var payload = rendered?.Text;
         var result = await sender.SendAsync(connection, endpoint.OperationKey, payload, scenario.BrokerOptions, cancellationToken);
 
-        var isHttp = ServiceTypeTraits.Find(connection.ServiceType)?.IsHttp == true;
         var validation = result.Success && isHttp
             ? ValidateResponse(endpoint, result)
             : null;
@@ -110,7 +124,8 @@ public sealed class TestScenarioExecutor(
             isHttp ? CallDirection.OutboundHttpRequest : CallDirection.OutboundBrokerPublish,
             RequestSnapshot: payload,
             ResponseSnapshot: result.Success ? result.ResponseBody ?? result.Message : result.Message,
-            ViolationSubject: "response");
+            ViolationSubject: "response",
+            Warnings: rendered?.Warnings);
     }
 
     /// <summary>
@@ -184,5 +199,6 @@ public sealed class TestScenarioExecutor(
         CallDirection Direction,
         string? RequestSnapshot,
         string? ResponseSnapshot,
-        string ViolationSubject);
+        string ViolationSubject,
+        IReadOnlyList<string>? Warnings = null);
 }
