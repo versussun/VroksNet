@@ -21,6 +21,9 @@
     <PackageReference Include="MQTTnet" />
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="Azure.Messaging.ServiceBus" />
+    <PackageReference Include="AWSSDK.SecurityToken" />
+    <PackageReference Include="AWSSDK.SimpleNotificationService" />
+    <PackageReference Include="AWSSDK.SQS" />
     <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="Cronos" />
     <PackageReference Include="JsonPath.Net" />

@@ -23,6 +23,7 @@ public sealed record ServiceTypeTraits(
     IReadOnlyList<string> Protocols)
 {
     private const string ConnectionString = "Connection string";
+    private const string AwsValueHint = "Region=eu-west-1;AccessKeyId=…;SecretAccessKey=… — or Region=… alone for the default AWS credentials; ServiceUrl=http://… for an emulator";
 
     /// <summary>Every type, in the order the UI offers them.</summary>
     public static IReadOnlyList<ServiceTypeTraits> All { get; } =
@@ -45,6 +46,11 @@ public sealed record ServiceTypeTraits(
         // told from the type — the adapter says so when a Listen meets a queue.
         new(ConnectionServiceType.ServiceBus, "Azure Service Bus", IsHttp: false, CanListen: true, null,
             ConnectionString, "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=…;SharedAccessKey=…", ["servicebus", "sb"]),
+        new(ConnectionServiceType.Sqs, "AWS SQS", IsHttp: false, CanListen: false,
+            "An SQS queue's consumers compete for its messages, so listening on one would take them away — listen on an SNS topic instead.",
+            ConnectionString, AwsValueHint, ["sqs"]),
+        new(ConnectionServiceType.Sns, "AWS SNS", IsHttp: false, CanListen: true, null,
+            ConnectionString, AwsValueHint, ["sns"]),
     ];
 
     private static readonly Dictionary<ConnectionServiceType, ServiceTypeTraits> ByType = All.ToDictionary(traits => traits.Type);

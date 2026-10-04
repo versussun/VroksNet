@@ -34,12 +34,14 @@ public sealed class SystemInfoApiTests(AppHostFixture fixture)
         var types = await fixture.ApiServiceClient.GetFromJsonAsync<JsonArray>("/api/system/connection-types", TestContext.Current.CancellationToken);
 
         Assert.NotNull(types);
-        Assert.Equal(["Http", "RabbitMq", "Nats", "Kafka", "Mqtt", "Redis", "ServiceBus"], types.Select(type => type!["type"]!.GetValue<string>()));
+        Assert.Equal(["Http", "RabbitMq", "Nats", "Kafka", "Mqtt", "Redis", "ServiceBus", "Sqs", "Sns"], types.Select(type => type!["type"]!.GetValue<string>()));
         var http = types[0]!;
         Assert.Equal("HTTP", http["displayName"]!.GetValue<string>());
         Assert.True(http["isHttp"]!.GetValue<bool>());
         Assert.False(http["canListen"]!.GetValue<bool>());
         Assert.False(string.IsNullOrWhiteSpace(http["listenNote"]!.GetValue<string>()));
-        Assert.All(types.Skip(1), type => Assert.True(type!["canListen"]!.GetValue<bool>()));
+        // Every broker can be listened on except SQS, whose queues are Send only — and it says why.
+        Assert.Equal(["Http", "Sqs"], types.Where(type => !type!["canListen"]!.GetValue<bool>()).Select(type => type!["type"]!.GetValue<string>()));
+        Assert.Contains("compete for its messages", types.Single(type => type!["type"]!.GetValue<string>() == "Sqs")!["listenNote"]!.GetValue<string>());
     }
 }

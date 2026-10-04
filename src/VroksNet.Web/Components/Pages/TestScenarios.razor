@@ -256,6 +256,10 @@ else
             {
                 <SpecConnectionHint Protocols="_specProtocols" ConnectionTypes="_specConnectionTypes" Offered="CompatibleConnections" Types="_connectionTypes" />
             }
+            @foreach (var type in UnlistenableTypes)
+            {
+                <div class="form-text">@type.DisplayName connections aren't offered for Listen: @type.ListenNote</div>
+            }
         </div>
 
         @if (CanChooseMode)
@@ -433,6 +437,16 @@ else
         : _connections.Where(c => TypeOf(c) is { } type
             && type.IsHttp == SelectedEndpoint.RequiresHttpConnection
             && (!IsListening || type.CanListen));
+
+    /// <summary>
+    /// For a Listen scenario, the types of the user's broker connections left out because they
+    /// can't be listened on (e.g. SQS) — so the form says why instead of just not offering them.
+    /// </summary>
+    private IEnumerable<ConnectionTypeInfo> UnlistenableTypes =>
+        !IsListening || SelectedEndpoint is null || SelectedEndpoint.RequiresHttpConnection || _connections is null ? []
+        : _connections.Select(TypeOf).OfType<ConnectionTypeInfo>()
+            .Where(type => !type.IsHttp && !type.CanListen)
+            .DistinctBy(type => type.Type);
 
     private BrokerOptionInfo[] SelectedConnectionOptions =>
         _connectionTypes.FirstOrDefault(type => type.Type == SelectedConnection?.ServiceType)?.Options ?? [];

@@ -41,6 +41,7 @@ public sealed class SampleSpecificationsTests
     [InlineData("home-sensors-mqtt-asyncapi.yaml", "Home Sensors MQTT Sample", 3)]
     [InlineData("chat-rooms-redis-asyncapi.yaml", "Chat Rooms Redis Sample", 3)]
     [InlineData("warehouse-servicebus-asyncapi.yaml", "Warehouse Service Bus Sample", 2)]
+    [InlineData("order-events-aws-asyncapi.yaml", "Order Events AWS Sample", 2)]
     [InlineData("notifications-rabbitmq-asyncapi.yaml", "Notifications RabbitMQ Sample", 4)]
     public async Task AsyncApiSample_EveryOperationHasAnExampleThatMatchesItsPayloadSchema(string fileName, string title, int operationCount)
     {
@@ -62,6 +63,7 @@ public sealed class SampleSpecificationsTests
     [InlineData("home-sensors-mqtt-asyncapi.yaml", new[] { "mqtt" }, new[] { ConnectionServiceType.Mqtt })]
     [InlineData("chat-rooms-redis-asyncapi.yaml", new[] { "redis" }, new[] { ConnectionServiceType.Redis })]
     [InlineData("warehouse-servicebus-asyncapi.yaml", new[] { "servicebus" }, new[] { ConnectionServiceType.ServiceBus })]
+    [InlineData("order-events-aws-asyncapi.yaml", new[] { "sqs", "sns" }, new[] { ConnectionServiceType.Sqs, ConnectionServiceType.Sns })]
     [InlineData("notifications-rabbitmq-asyncapi.yaml", new[] { "amqp" }, new[] { ConnectionServiceType.RabbitMq })]
     public async Task AsyncApiSample_ServerProtocols_PointAtItsBroker(string fileName, string[] protocols, ConnectionServiceType[] types)
     {
