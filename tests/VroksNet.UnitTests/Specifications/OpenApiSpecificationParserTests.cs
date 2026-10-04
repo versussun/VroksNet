@@ -191,6 +191,35 @@ public class OpenApiSpecificationParserTests
         Assert.Null(operations.Single(operation => operation.OperationKey == "GET /pets/{petId}").RequestExampleJson);
     }
 
+    [Fact]
+    public async Task ParseAsync_NamedExamples_TheFirstIsTheMocksAnswer()
+    {
+        var operation = await ParseNamedExamplesAsync("GET /items/{id}");
+
+        Assert.Contains("\"name\": \"lamp\"", operation.ExampleJson);
+        Assert.Equal((200, false), (operation.ExampleStatusCode, operation.ExampleIsGenerated));
+    }
+
+    [Fact]
+    public async Task ParseAsync_NamedExamples_ARefIsResolved_AnExternalValueIsSkipped()
+    {
+        var operation = await ParseNamedExamplesAsync("POST /items");
+
+        // The request body's only example is a $ref into components/examples.
+        Assert.Contains("\"name\": \"chair\"", operation.RequestExampleJson);
+        Assert.False(operation.RequestExampleIsGenerated);
+        // The 201's first example is only an externalValue URL; the next one, inline, answers — at 201.
+        Assert.Contains("\"id\": 3", operation.ExampleJson);
+        Assert.Equal((201, false), (operation.ExampleStatusCode, operation.ExampleIsGenerated));
+    }
+
+    private async Task<VroksNet.Application.Abstractions.ParsedOperation> ParseNamedExamplesAsync(string operationKey)
+    {
+        var yaml = await File.ReadAllTextAsync(FixturePath("named-examples-openapi.yaml"), TestContext.Current.CancellationToken);
+        var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
+        return result.Operations.Single(operation => operation.OperationKey == operationKey);
+    }
+
     private async Task<VroksNet.Application.Abstractions.ParsedOperation> ParseNoExamplesAsync(string operationKey)
     {
         var yaml = await File.ReadAllTextAsync(FixturePath("no-examples-openapi.yaml"), TestContext.Current.CancellationToken);

@@ -168,7 +168,10 @@ chmod -R a+rX "$BROKEN_DIR"
 start broken-spec -v "$BROKEN_DIR:/app/provisioning:ro"
 wait_exit
 expect_eq "exit code with a broken spec" "$EXIT_CODE" 3
-docker logs "$CURRENT" 2>&1 | grep -q "specs/broken.yaml" || fail "the log doesn't name specs/broken.yaml"
+# Read the whole log first: with pipefail, "docker logs | grep -q" fails when grep
+# exits on the first match and docker logs dies of SIGPIPE.
+BROKEN_LOG="$(docker logs "$CURRENT" 2>&1)"
+grep -q "specs/broken.yaml" <<<"$BROKEN_LOG" || fail "the log doesn't name specs/broken.yaml"
 pass "broken spec → exit code 3, logged with its file"
 
 # --- §5: the same connection name in the manifest and in a variable is an error ---
