@@ -20,6 +20,7 @@
   <ItemGroup>
     <PackageReference Include="MQTTnet" />
     <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
     <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="Cronos" />
     <PackageReference Include="JsonPath.Net" />

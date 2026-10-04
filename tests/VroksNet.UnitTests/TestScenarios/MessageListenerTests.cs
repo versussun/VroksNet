@@ -37,6 +37,7 @@ public class MessageListenerTests
     [InlineData(ConnectionServiceType.Kafka, "127.0.0.1:1")]
     [InlineData(ConnectionServiceType.Mqtt, "mqtt://127.0.0.1:1")]
     [InlineData(ConnectionServiceType.Redis, "127.0.0.1:1")]
+    [InlineData(ConnectionServiceType.ServiceBus, "Endpoint=sb://127.0.0.1:1;SharedAccessKeyName=k;SharedAccessKey=v;UseDevelopmentEmulator=true")]
     public async Task ListenAsync_UnreachableBroker_FailsWithoutThrowing(ConnectionServiceType serviceType, string value)
     {
         var result = await Listener.ListenAsync(Connection(serviceType, value), "orders.created:send", TimeSpan.FromSeconds(1), null, TestContext.Current.CancellationToken);

@@ -8,5 +8,6 @@ public enum ConnectionServiceType
     Nats,
     Kafka,
     Mqtt,
-    Redis
+    Redis,
+    ServiceBus
 }

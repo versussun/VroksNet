@@ -4,7 +4,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 // below, all of them when it isn't set — so local development always gets every broker. The
 // integration tests set it to start only what a test collection needs (step R6 of
 // docs/broker-adapters-plan.md); "--Brokers=" starts none.
-string[] knownBrokers = ["rabbitmq", "nats", "kafka", "mqtt", "redis"];
+string[] knownBrokers = ["rabbitmq", "nats", "kafka", "mqtt", "redis", "servicebus"];
 var brokers = builder.Configuration["Brokers"] is { } configured
     ? configured.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.OrdinalIgnoreCase)
     : knownBrokers.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -67,6 +67,20 @@ if (brokers.Contains("redis"))
     // connection string WithReference would hand out (host:port,password=…).
     var redis = builder.AddRedis("redis");
     apiService.WaitFor(redis);
+}
+
+if (brokers.Contains("servicebus"))
+{
+    // The Service Bus emulator (plus the SQL Server container it needs). It only has the entities
+    // declared here, which match docs/samples/warehouse-servicebus-asyncapi.yaml and the
+    // integration tests: a queue (Send only) and a topic with a subscription named "vroksnet" for
+    // Listen. apiservice only waits for it: it reaches Service Bus through user Connections, whose
+    // value is the connection string WithReference would hand out (Endpoint=sb://…;…;UseDevelopmentEmulator=true).
+    var serviceBus = builder.AddAzureServiceBus("servicebus").RunAsEmulator();
+    serviceBus.AddServiceBusQueue("servicebus-picking", "warehouse.picking.requested");
+    serviceBus.AddServiceBusTopic("servicebus-stock", "warehouse.stock.changed")
+        .AddServiceBusSubscription("servicebus-stock-vroksnet", "vroksnet");
+    apiService.WaitFor(serviceBus);
 }
 
 // VroksNet.Web is a standalone Blazor WebAssembly app (Microsoft.NET.Sdk.BlazorWebAssembly).

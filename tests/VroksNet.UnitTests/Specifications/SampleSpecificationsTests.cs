@@ -40,6 +40,7 @@ public sealed class SampleSpecificationsTests
     [InlineData("iot-telemetry-nats-asyncapi.yaml", "IoT Telemetry NATS Sample", 5)]
     [InlineData("home-sensors-mqtt-asyncapi.yaml", "Home Sensors MQTT Sample", 3)]
     [InlineData("chat-rooms-redis-asyncapi.yaml", "Chat Rooms Redis Sample", 3)]
+    [InlineData("warehouse-servicebus-asyncapi.yaml", "Warehouse Service Bus Sample", 2)]
     [InlineData("notifications-rabbitmq-asyncapi.yaml", "Notifications RabbitMQ Sample", 4)]
     public async Task AsyncApiSample_EveryOperationHasAnExampleThatMatchesItsPayloadSchema(string fileName, string title, int operationCount)
     {
@@ -60,6 +61,7 @@ public sealed class SampleSpecificationsTests
     [InlineData("iot-telemetry-nats-asyncapi.yaml", new[] { "nats" }, new[] { ConnectionServiceType.Nats })]
     [InlineData("home-sensors-mqtt-asyncapi.yaml", new[] { "mqtt" }, new[] { ConnectionServiceType.Mqtt })]
     [InlineData("chat-rooms-redis-asyncapi.yaml", new[] { "redis" }, new[] { ConnectionServiceType.Redis })]
+    [InlineData("warehouse-servicebus-asyncapi.yaml", new[] { "servicebus" }, new[] { ConnectionServiceType.ServiceBus })]
     [InlineData("notifications-rabbitmq-asyncapi.yaml", new[] { "amqp" }, new[] { ConnectionServiceType.RabbitMq })]
     public async Task AsyncApiSample_ServerProtocols_PointAtItsBroker(string fileName, string[] protocols, ConnectionServiceType[] types)
     {

@@ -41,6 +41,10 @@ public sealed record ServiceTypeTraits(
             ConnectionString, "mqtt://user:password@host:1883 — or mqtts://… for TLS", ["mqtt", "secure-mqtt"]),
         new(ConnectionServiceType.Redis, "Redis", IsHttp: false, CanListen: true, null,
             ConnectionString, "host:6379,password=… — or redis://user:password@host:6379/0 (rediss://… for TLS)", ["redis"]),
+        // Listen works on topics only (through a subscription); a queue is Send only, which can't be
+        // told from the type — the adapter says so when a Listen meets a queue.
+        new(ConnectionServiceType.ServiceBus, "Azure Service Bus", IsHttp: false, CanListen: true, null,
+            ConnectionString, "Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=…;SharedAccessKey=…", ["servicebus", "sb"]),
     ];
 
     private static readonly Dictionary<ConnectionServiceType, ServiceTypeTraits> ByType = All.ToDictionary(traits => traits.Type);

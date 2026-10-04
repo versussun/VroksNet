@@ -65,7 +65,7 @@ Names are given in .NET environment-variable form (`:` → `__`).
 | `Provisioning__Path` | `/app/provisioning` | the provisioning root |
 | `Provisioning__FailOnError` | `true` | a provisioning error stops the process (§7). `false` — log it, report `Failed` (and `/health` `Degraded`, still 200), keep running with what applied |
 | `Provisioning__Connections__<i>__Name` | — | a connection declared **without a manifest**, where `<i>` = 0, 1, …. This is how the package passes `WithConnection(...)` without generating files. Indexes rather than names in the key: a connection name may contain `-`, which isn't valid in an environment variable name for POSIX shells |
-| `Provisioning__Connections__<i>__Type` | — | `Http` / `RabbitMq` / `Nats` / `Kafka` / `Mqtt` / `Redis` (the last two added in v1 — additive) |
+| `Provisioning__Connections__<i>__Type` | — | `Http` / `RabbitMq` / `Nats` / `Kafka` / `Mqtt` / `Redis` / `ServiceBus` (the last three added in v1 — additive) |
 | `Provisioning__Connections__<i>__Value` | — | the connection value as-is |
 | `Provisioning__Connections__<i>__ValueFrom` | — | a configuration key to take the value from, e.g. `ConnectionStrings:kafka` (set by Aspire's `WithReference(kafka)`). Exactly one of `Value` and `ValueFrom` |
 | `ConnectionStrings__<name>` | — | connection strings to brokers and services that `valueFrom` refers to. VroksNet itself doesn't read them |
@@ -82,7 +82,7 @@ Names are given in .NET environment-variable form (`:` → `__`).
 | `GET /health` | `200 Healthy` / `503 Unhealthy` | readiness: Unhealthy until provisioning has been applied (Healthy at once when there's no provisioning directory; `Degraded`, still 200, when it failed with `FailOnError=false`). This is what `WaitFor(mocks)` waits for | exists |
 | `GET /api/system/info` | see below | version, contract, provisioning state. The package shows it in the dashboard; consumers' tests wait on it | exists |
 | `GET /api/system/provider` | `{ enabled, port, publicUrl, corsOrigins }` | provider mode settings | exists |
-| `GET /api/system/connection-types` | `[{ type, displayName, valueLabel, valueHint, isHttp, canListen, listenNote, options: [{ name, label, sendDescription, sendPlaceholder, listenDescription, listenPlaceholder, suggestedValue }] }]` | the connection types this image supports, what each can do, and the `brokerOptions` each accepts (ADR 0003). New types are added to the list, never removed within a contract version | exists |
+| `GET /api/system/connection-types` | `[{ type, displayName, valueLabel, valueHint, isHttp, canListen, listenNote, options: [{ name, label, sendDescription, sendPlaceholder, listenDescription, listenPlaceholder, suggestedValue, allowedValues }] }]` | the connection types this image supports, what each can do, and the `brokerOptions` each accepts (ADR 0003). `sendDescription`/`sendPlaceholder` are null for an option that only applies to Listen (ServiceBus `subscription`), `listenDescription`/`listenPlaceholder` for one that only applies to Send. New types are added to the list, never removed within a contract version | exists |
 
 The `GET /api/system/info` response:
 

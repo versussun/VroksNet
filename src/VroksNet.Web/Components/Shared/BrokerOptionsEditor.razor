@@ -36,7 +36,7 @@
     [Parameter, EditorRequired]
     public Dictionary<string, string> Values { get; set; } = [];
 
-    /// <summary>A Listen scenario: shows the Listen texts and hides options that don't apply to Listen.</summary>
+    /// <summary>A Listen scenario: shows the Listen texts and hides options that don't apply to Listen; otherwise the Send ones.</summary>
     [Parameter]
     public bool IsListening { get; set; }
 
@@ -44,7 +44,10 @@
     [Parameter, EditorRequired]
     public string IdPrefix { get; set; } = string.Empty;
 
-    private IEnumerable<BrokerOptionInfo> ApplicableOptions => Options.Where(option => !IsListening || option.ListenDescription is not null);
+    private IEnumerable<BrokerOptionInfo> ApplicableOptions => Options.Where(option => Applies(option, IsListening));
+
+    private static bool Applies(BrokerOptionInfo option, bool isListening)
+        => (isListening ? option.ListenDescription : option.SendDescription) is not null;
 
     /// <summary>
     /// What to send as brokerOptions: the non-blank values of the options that apply — the other
@@ -53,7 +56,7 @@
     public static Dictionary<string, string>? ValuesFor(IEnumerable<BrokerOptionInfo> options, IReadOnlyDictionary<string, string> values, bool isListening)
     {
         var set = options
-            .Where(option => !isListening || option.ListenDescription is not null)
+            .Where(option => Applies(option, isListening))
             .Where(option => !string.IsNullOrWhiteSpace(values.GetValueOrDefault(option.Name)))
             .ToDictionary(option => option.Name, option => values[option.Name].Trim());
         return set.Count == 0 ? null : set;
