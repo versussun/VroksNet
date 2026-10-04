@@ -101,12 +101,16 @@ public sealed class TestScenarioExecutor(
     {
         // Filled in like a Publisher's payload, so a {{uuid}}/{{now}} in the example — the spec's own,
         // or one built from its schema — goes out as a value, not as the placeholder.
-        var template = scenario.PayloadOverride ?? endpoint.ExampleTemplate;
+        var isHttp = ServiceTypeTraits.Find(connection.ServiceType)?.IsHttp == true;
+        // An HTTP operation's example is the mock's answer, and one built from a schema mostly is
+        // the response's shape — sending it as the request body would give a GET a body and a POST
+        // the response's fields. Such a Send sends no body, as before examples were built.
+        var example = isHttp && endpoint.ExampleIsGenerated ? null : endpoint.ExampleTemplate;
+        var template = scenario.PayloadOverride ?? example;
         var rendered = template is null ? null : templateEngine.Render(template, NoRequest);
         var payload = rendered?.Text;
         var result = await sender.SendAsync(connection, endpoint.OperationKey, payload, scenario.BrokerOptions, cancellationToken);
 
-        var isHttp = ServiceTypeTraits.Find(connection.ServiceType)?.IsHttp == true;
         var validation = result.Success && isHttp
             ? ValidateResponse(endpoint, result)
             : null;

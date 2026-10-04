@@ -114,13 +114,22 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
 
     /// <summary>
     /// The body schema of the response the mock answers <paramref name="statusCode"/> with — the
-    /// same choice as <c>MockEndpoint.TryGetDeclaredResponse</c>: the exact code, then its range
-    /// ("2XX"), then "default". Null if that response declares no JSON body.
+    /// same choice as <c>MockEndpoint.TryGetDeclaredResponse</c>: the first of the exact code, its
+    /// range ("2XX") and "default" that's declared. Null if that response declares no JSON body —
+    /// a later key isn't tried then, or a 204 would get the "default" error's shape.
     /// </summary>
     private static string? SchemaOfStatus(IReadOnlyDictionary<string, string?> schemasByStatus, int? statusCode)
     {
         string[] keys = statusCode is { } code ? [code.ToString(CultureInfo.InvariantCulture), $"{code / 100}XX", "default"] : ["default"];
-        return keys.Select(key => schemasByStatus.GetValueOrDefault(key)).FirstOrDefault(schema => schema is not null);
+        foreach (var key in keys)
+        {
+            if (schemasByStatus.TryGetValue(key, out var schema))
+            {
+                return schema;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>"201" → 201, "2XX" → 200; null for "default" or anything unrecognizable.</summary>

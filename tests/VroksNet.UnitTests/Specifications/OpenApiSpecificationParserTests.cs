@@ -137,6 +137,7 @@ public class OpenApiSpecificationParserTests
 
         Assert.Equal(202, operation.ExampleStatusCode);
         Assert.Contains("\"quantity\": 1", operation.ExampleJson);
+        Assert.DoesNotContain("error", operation.ExampleJson); // the declared 202 wins over "default", body or not
     }
 
     [Fact]

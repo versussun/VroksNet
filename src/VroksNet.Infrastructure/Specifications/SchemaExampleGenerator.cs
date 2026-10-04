@@ -23,7 +23,8 @@ namespace VroksNet.Infrastructure.Specifications;
 public static class SchemaExampleGenerator
 {
     private const int MaxDepth = 12;
-    private const int MaxArrayItems = 3;
+    /// <summary>A sanity cap on <c>minItems</c>: an example with more items than this isn't built in full.</summary>
+    private const int MaxArrayItems = 1000;
 
     private static readonly JsonSerializerOptions ExampleJsonOptions = new() { WriteIndented = true };
 
@@ -63,14 +64,18 @@ public static class SchemaExampleGenerator
 
     private sealed class Generation(JsonNode? root, Func<string, JsonNode?>? resolveRef)
     {
-        public Generated Of(JsonNode? schema, int depth, IReadOnlySet<string> refsInProgress)
+        /// <param name="variant">
+        /// Which of an array's items this is (0 elsewhere): items differ by it — the next enum value
+        /// or example, a number a step on, a numbered string — so <c>uniqueItems</c> holds.
+        /// </param>
+        public Generated Of(JsonNode? schema, int depth, IReadOnlySet<string> refsInProgress, int variant = 0)
         {
             if (schema is not JsonObject node || depth > MaxDepth)
             {
                 return Generated.Nothing;
             }
 
-            if (GivenValue(node) is { Exists: true } given)
+            if (GivenValue(node, variant) is { Exists: true } given)
             {
                 return given;
             }
@@ -79,12 +84,12 @@ public static class SchemaExampleGenerator
             {
                 return refsInProgress.Contains(reference) || Resolve(reference) is not { } target
                     ? Generated.Nothing
-                    : Of(target, depth + 1, new HashSet<string>(refsInProgress) { reference });
+                    : Of(target, depth + 1, new HashSet<string>(refsInProgress) { reference }, variant);
             }
 
             if (node["allOf"] is JsonArray allOf)
             {
-                return AllOf(node, allOf, depth, refsInProgress);
+                return AllOf(node, allOf, depth, refsInProgress, variant);
             }
 
             foreach (var keyword in new[] { "oneOf", "anyOf" })
@@ -95,7 +100,7 @@ public static class SchemaExampleGenerator
                     var ordered = branches.OrderBy(branch => IsNullOnly(branch) ? 1 : 0);
                     foreach (var branch in ordered)
                     {
-                        if (Of(branch, depth + 1, refsInProgress) is { Exists: true } chosen)
+                        if (Of(branch, depth + 1, refsInProgress, variant) is { Exists: true } chosen)
                         {
                             return chosen;
                         }
@@ -107,23 +112,23 @@ public static class SchemaExampleGenerator
 
             return TypeOf(node) switch
             {
-                "object" => Generated.Of(ObjectOf(node, depth, refsInProgress)),
+                "object" => Generated.Of(ObjectOf(node, depth, refsInProgress, variant)),
                 "array" => Generated.Of(ArrayOf(node, depth, refsInProgress)),
-                "string" => Generated.Of(JsonValue.Create(StringOf(node))),
-                "integer" => Generated.Of(JsonValue.Create((long)NumberOf(node, integer: true))),
-                "number" => Generated.Of(JsonValue.Create(NumberOf(node, integer: false))),
-                "boolean" => Generated.Of(JsonValue.Create(true)),
+                "string" => Generated.Of(JsonValue.Create(StringOf(node, variant))),
+                "integer" => Generated.Of(JsonValue.Create((long)NumberOf(node, integer: true, variant))),
+                "number" => Generated.Of(JsonValue.Create(NumberOf(node, integer: false, variant))),
+                "boolean" => Generated.Of(JsonValue.Create(variant % 2 == 0)),
                 "null" => Generated.Of(null),
                 _ => Generated.Nothing
             };
         }
 
         /// <summary>A value the schema states itself, in order of how directly it's meant as one.</summary>
-        private static Generated GivenValue(JsonObject node)
+        private static Generated GivenValue(JsonObject node, int variant)
         {
             if (node["examples"] is JsonArray { Count: > 0 } examples)
             {
-                return Generated.Of(examples[0]?.DeepClone());
+                return Generated.Of(examples[variant % examples.Count]?.DeepClone());
             }
 
             foreach (var keyword in new[] { "example", "const", "default" })
@@ -134,9 +139,14 @@ public static class SchemaExampleGenerator
                 }
             }
 
-            return node["enum"] is JsonArray { Count: > 0 } values
-                ? Generated.Of((values.FirstOrDefault(value => value is not null) ?? values[0])?.DeepClone())
-                : Generated.Nothing;
+            if (node["enum"] is not JsonArray { Count: > 0 } values)
+            {
+                return Generated.Nothing;
+            }
+
+            // A real value before a null one, when the enum has any.
+            var choices = values.Where(value => value is not null).ToList() is { Count: > 0 } real ? real : [.. values];
+            return Generated.Of(choices[variant % choices.Count]?.DeepClone());
         }
 
         private JsonNode? Resolve(string reference)
@@ -156,12 +166,12 @@ public static class SchemaExampleGenerator
             return reference == "#" ? root : resolveRef?.Invoke(reference);
         }
 
-        private Generated AllOf(JsonObject node, JsonArray allOf, int depth, IReadOnlySet<string> refsInProgress)
+        private Generated AllOf(JsonObject node, JsonArray allOf, int depth, IReadOnlySet<string> refsInProgress, int variant)
         {
-            var parts = allOf.Select(part => Of(part, depth + 1, refsInProgress)).Where(part => part.Exists).ToList();
+            var parts = allOf.Select(part => Of(part, depth + 1, refsInProgress, variant)).Where(part => part.Exists).ToList();
             if (node.ContainsKey("properties"))
             {
-                parts.Add(Generated.Of(ObjectOf(node, depth, refsInProgress)));
+                parts.Add(Generated.Of(ObjectOf(node, depth, refsInProgress, variant)));
             }
 
             if (parts.Count > 0 && parts.All(part => part.Value is JsonObject))
@@ -181,14 +191,14 @@ public static class SchemaExampleGenerator
             return parts.FirstOrDefault();
         }
 
-        private JsonObject ObjectOf(JsonObject node, int depth, IReadOnlySet<string> refsInProgress)
+        private JsonObject ObjectOf(JsonObject node, int depth, IReadOnlySet<string> refsInProgress, int variant)
         {
             var result = new JsonObject();
             if (node["properties"] is JsonObject properties)
             {
                 foreach (var (name, propertySchema) in properties)
                 {
-                    if (Of(propertySchema, depth + 1, refsInProgress) is { Exists: true } value)
+                    if (Of(propertySchema, depth + 1, refsInProgress, variant) is { Exists: true } value)
                     {
                         result[name] = value.Value;
                     }
@@ -220,18 +230,20 @@ public static class SchemaExampleGenerator
                 count = Math.Min(count, maxItems);
             }
 
-            if (count > 0 && Of(node["items"], depth + 1, refsInProgress) is { Exists: true } item)
+            for (var i = 0; i < count; i++)
             {
-                for (var i = 0; i < count; i++)
+                if (Of(node["items"], depth + 1, refsInProgress, variant: i) is not { Exists: true } item)
                 {
-                    result.Add(item.Value?.DeepClone());
+                    break;
                 }
+
+                result.Add(item.Value);
             }
 
             return result;
         }
 
-        private static string StringOf(JsonObject node)
+        private static string StringOf(JsonObject node, int variant)
         {
             var format = (node["format"] as JsonValue)?.TryGetValue<string>(out var value) == true ? value : null;
             switch (format)
@@ -243,18 +255,22 @@ public static class SchemaExampleGenerator
                     return "{{now}}";
             }
 
+            // The first item has the plain value; later ones are numbered, so an array's items differ.
+            var number = variant + 1;
+            var suffix = variant == 0 ? string.Empty : number.ToString(CultureInfo.InvariantCulture);
             var text = format switch
             {
-                "date" => "2024-01-01",
-                "time" => "12:00:00Z",
-                "email" or "idn-email" => "user@example.com",
-                "uri" or "url" or "iri" => "https://example.com",
-                "uri-reference" or "iri-reference" => "/example",
-                "hostname" or "idn-hostname" => "example.com",
-                "ipv4" => "192.0.2.1",
-                "ipv6" => "2001:db8::1",
-                "duration" => "PT1H",
-                "byte" => "ZXhhbXBsZQ==",
+                "date" => new DateOnly(2024, 1, 1).AddDays(variant).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                "time" => new TimeOnly(12, 0).Add(TimeSpan.FromSeconds(variant)).ToString("HH:mm:ss", CultureInfo.InvariantCulture) + "Z",
+                "email" or "idn-email" => $"user{suffix}@example.com",
+                "uri" or "url" or "iri" => variant == 0 ? "https://example.com" : $"https://example.com/{number}",
+                "uri-reference" or "iri-reference" => variant == 0 ? "/example" : $"/example/{number}",
+                "hostname" or "idn-hostname" => variant == 0 ? "example.com" : $"host{number}.example.com",
+                "ipv4" => $"192.0.2.{1 + variant % 254}",
+                "ipv6" => $"2001:db8::{(1 + variant).ToString("x", CultureInfo.InvariantCulture)}",
+                "duration" => $"PT{number}H",
+                "byte" => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"example{suffix}")),
+                null => $"string{suffix}",
                 _ => "string"
             };
 
@@ -265,7 +281,8 @@ public static class SchemaExampleGenerator
 
             if (IntegerOf(node, "maxLength") is { } maxLength && text.Length > maxLength)
             {
-                text = text[..maxLength];
+                // Keep the number when cutting, or the items would be equal again.
+                text = suffix.Length > 0 && suffix.Length < maxLength ? text[..(maxLength - suffix.Length)] + suffix : text[..maxLength];
             }
 
             return text;
@@ -276,7 +293,7 @@ public static class SchemaExampleGenerator
         /// nearest the lower bound, else the one nearest the upper. An exclusive bound on a number
         /// that isn't on a grid takes the midpoint of the two bounds (or one away from a lone bound).
         /// </summary>
-        private static double NumberOf(JsonObject node, bool integer)
+        private static double NumberOf(JsonObject node, bool integer, int variant)
         {
             var multipleOf = DoubleOf(node, "multipleOf") is > 0 and var given ? given : (double?)null;
             // An integer's grid: its multipleOf if that's whole, else 1. A number has none without one.
@@ -301,15 +318,16 @@ public static class SchemaExampleGenerator
                     : upperExclusive ? (lower is { } bottom ? (bottom + top) / 2 : top - 1) : top
                 : null;
 
-            foreach (var candidate in new[] { 0, nearLower, nearUpper })
+            var chosen = new[] { 0, nearLower, nearUpper }.FirstOrDefault(candidate => candidate is { } value && Fits(value))
+                ?? nearLower ?? nearUpper ?? 0;
+            if (variant == 0)
             {
-                if (candidate is { } value && Fits(value))
-                {
-                    return value;
-                }
+                return chosen;
             }
 
-            return nearLower ?? nearUpper ?? 0;
+            // Another item of an array: some steps away, on whichever side still fits.
+            var offset = variant * (grid ?? 1);
+            return new[] { Snap(chosen + offset), Snap(chosen - offset) }.FirstOrDefault(Fits, chosen);
         }
 
         /// <summary>

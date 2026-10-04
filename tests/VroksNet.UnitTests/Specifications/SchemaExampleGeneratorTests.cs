@@ -34,6 +34,11 @@ public class SchemaExampleGeneratorTests
     [InlineData("""{"type":"integer","maximum":-3,"multipleOf":2}""")]
     [InlineData("""{"type":"number","minimum":0.25,"multipleOf":0.1}""")]
     [InlineData("""{"type":"integer","exclusiveMinimum":3,"multipleOf":3}""")]
+    [InlineData("""{"type":"array","minItems":5,"items":{"type":"integer"}}""")]                           // more than a handful
+    [InlineData("""{"type":"array","minItems":3,"uniqueItems":true,"items":{"type":"string","maxLength":4}}""")]
+    [InlineData("""{"type":"array","minItems":2,"uniqueItems":true,"items":{"type":"integer","minimum":1,"maximum":2}}""")]
+    [InlineData("""{"type":"array","minItems":3,"uniqueItems":true,"items":{"enum":["a","b","c"]}}""")]
+    [InlineData("""{"type":"array","minItems":2,"uniqueItems":true,"items":{"type":"object","properties":{"day":{"type":"string","format":"date"},"ok":{"type":"boolean"}}}}""")]
     public void Generate_MatchesItsOwnSchema(string schema)
     {
         var example = SchemaExampleGenerator.Generate(schema);
