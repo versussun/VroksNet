@@ -33,6 +33,11 @@ public interface ISpecificationParser
 /// is none, the lowest declared 2xx. Null when neither applies (the mock then answers 200), and for AsyncAPI.
 /// </param>
 /// <param name="ExampleIsGenerated">The spec had no example: <see cref="ExampleJson"/> was built from the operation's schema.</param>
+/// <param name="RequestExampleJson">
+/// OpenAPI only: the request body an HTTP Send sends — the request body's own example, or one built
+/// from <see cref="RequestSchemaJson"/>; null when the operation declares no JSON request body.
+/// </param>
+/// <param name="RequestExampleIsGenerated">The spec had no request example: <see cref="RequestExampleJson"/> was built from the request body's schema.</param>
 public sealed record ParsedOperation(
     string OperationKey,
     string? ExampleJson,
@@ -40,7 +45,9 @@ public sealed record ParsedOperation(
     string? ResponseSchemaJson = null,
     IReadOnlyDictionary<string, string?>? ResponseSchemasByStatus = null,
     int? ExampleStatusCode = null,
-    bool ExampleIsGenerated = false);
+    bool ExampleIsGenerated = false,
+    string? RequestExampleJson = null,
+    bool RequestExampleIsGenerated = false);
 
 /// <summary>
 /// Title (the version-matching key) plus its flat list of operations. <see cref="Protocols"/> is

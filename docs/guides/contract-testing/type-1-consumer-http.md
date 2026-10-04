@@ -66,7 +66,7 @@ See [Getting started](getting-started.md#import-a-specification). The connection
 | Specification | `Pets API (OpenApi)` |
 | Operation | `GET /pets/{petId}` |
 | Connection | your HTTP connection (only HTTP connections are offered for HTTP operations) |
-| Payload (optional override) | leave blank to send the spec's example body; fill in to send your own JSON |
+| Payload (optional override) | leave blank to send the operation's request body — its example in the spec, or one built from its request schema (shown on the operation's card); an operation without a request body (a `GET`, say) sends none. Fill in to send your own JSON. `{{uuid}}`/`{{now}}` are filled in either way |
 
 → **Add**.
 

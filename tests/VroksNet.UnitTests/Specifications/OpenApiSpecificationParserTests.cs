@@ -167,6 +167,30 @@ public class OpenApiSpecificationParserTests
         Assert.True(validation.IsValid, string.Join("\n", validation.Errors));
     }
 
+    [Fact]
+    public async Task ParseAsync_RequestExample_IsTheRequestBodys_OrBuiltFromItsSchema()
+    {
+        var withBody = await ParseNoExamplesAsync("POST /orders");
+        var withoutBody = await ParseNoExamplesAsync("GET /orders/{id}");
+
+        Assert.True(withBody.RequestExampleIsGenerated);
+        Assert.Contains("\"quantity\": 1", withBody.RequestExampleJson);
+        Assert.Equal((null, false), (withoutBody.RequestExampleJson, withoutBody.RequestExampleIsGenerated));
+    }
+
+    [Fact]
+    public async Task ParseAsync_PetstoreSample_RequestExampleComesFromTheRequestBody_NotTheResponse()
+    {
+        var yaml = await File.ReadAllTextAsync(FixturePath("petstore-openapi.yaml"), TestContext.Current.CancellationToken);
+
+        var operations = (await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken)).Operations;
+
+        var createPet = operations.Single(operation => operation.OperationKey == "POST /pets");
+        Assert.Contains("\"name\": \"Fido\"", createPet.RequestExampleJson);
+        Assert.False(createPet.RequestExampleIsGenerated);
+        Assert.Null(operations.Single(operation => operation.OperationKey == "GET /pets/{petId}").RequestExampleJson);
+    }
+
     private async Task<VroksNet.Application.Abstractions.ParsedOperation> ParseNoExamplesAsync(string operationKey)
     {
         var yaml = await File.ReadAllTextAsync(FixturePath("no-examples-openapi.yaml"), TestContext.Current.CancellationToken);

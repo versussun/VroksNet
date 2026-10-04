@@ -40,6 +40,23 @@
             <p class="text-muted fst-italic">No example in the spec for this operation, and none could be built from its schema (it has no JSON body schema).</p>
         }
 
+        @if (IsHttpOperation)
+        {
+            <p class="fw-semibold mb-1">Request body a Send scenario sends</p>
+            @if (Endpoint.RequestExampleTemplate is not null)
+            {
+                @if (Endpoint.RequestExampleIsGenerated)
+                {
+                    <p class="form-text mb-1">Built from the request body's schema — the spec has no request example.</p>
+                }
+                <pre class="mb-3"><code>@Endpoint.RequestExampleTemplate</code></pre>
+            }
+            else
+            {
+                <p class="text-muted fst-italic">None: the operation declares no JSON request body. (A spec imported before request bodies were kept needs re-importing.)</p>
+            }
+        }
+
         @if (!_isEnabled && IsHttpOperation)
         {
             <p class="text-muted fst-italic">This endpoint is disabled — sending a request to it will return 404.</p>

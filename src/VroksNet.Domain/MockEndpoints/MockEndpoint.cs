@@ -44,6 +44,17 @@ public sealed class MockEndpoint
     public bool ExampleIsGenerated { get; set; }
 
     /// <summary>
+    /// OpenAPI only: the request body an HTTP Send sends (a template like <see cref="ExampleTemplate"/>)
+    /// — the request body's example, or one built from <see cref="RequestSchema"/>. Null when the
+    /// operation has no JSON request body, and for operations imported before it was tracked: such
+    /// a Send sends no body until the spec is re-imported.
+    /// </summary>
+    public string? RequestExampleTemplate { get; set; }
+
+    /// <summary>The spec gave no request example: <see cref="RequestExampleTemplate"/> was built from <see cref="RequestSchema"/> at import.</summary>
+    public bool RequestExampleIsGenerated { get; set; }
+
+    /// <summary>
     /// The status the mock answers with (OpenAPI only): the status of the response the example was
     /// taken from, or the lowest declared 2xx when there's none. Null for AsyncAPI operations, for
     /// operations that declare no 2xx and no example, and for operations imported before this was
@@ -90,6 +101,18 @@ public sealed class MockEndpoint
         if (ExampleIsGenerated != imported.ExampleIsGenerated)
         {
             ExampleIsGenerated = imported.ExampleIsGenerated;
+            changed = true;
+        }
+
+        if (!string.Equals(RequestExampleTemplate, imported.RequestExampleTemplate, StringComparison.Ordinal))
+        {
+            RequestExampleTemplate = imported.RequestExampleTemplate;
+            changed = true;
+        }
+
+        if (RequestExampleIsGenerated != imported.RequestExampleIsGenerated)
+        {
+            RequestExampleIsGenerated = imported.RequestExampleIsGenerated;
             changed = true;
         }
 

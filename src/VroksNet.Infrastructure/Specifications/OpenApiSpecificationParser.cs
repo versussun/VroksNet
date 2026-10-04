@@ -102,6 +102,9 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
         var generatedExample = example is null
             ? SchemaExampleGenerator.Generate(SchemaOfStatus(responseSchemasByStatus, exampleStatusCode) ?? requestSchemaJson)
             : null;
+        // What an HTTP Send sends: the request body's own example, else one built from its schema.
+        var requestExample = requestMediaType?.Example?.ToJsonString(ExampleJsonOptions);
+        var generatedRequestExample = requestExample is null ? SchemaExampleGenerator.Generate(requestSchemaJson) : null;
         return new ParsedOperation(
             operationKey,
             example?.ToJsonString(ExampleJsonOptions) ?? generatedExample,
@@ -109,7 +112,9 @@ public sealed class OpenApiSpecificationParser : ISpecificationParser
             await ExtractSchemaJsonAsync(firstJsonResponse?.Schema, componentSchemas, cancellationToken),
             responseSchemasByStatus,
             exampleStatusCode,
-            ExampleIsGenerated: generatedExample is not null);
+            ExampleIsGenerated: generatedExample is not null,
+            RequestExampleJson: requestExample ?? generatedRequestExample,
+            RequestExampleIsGenerated: generatedRequestExample is not null);
     }
 
     /// <summary>

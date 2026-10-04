@@ -55,14 +55,14 @@ public class RunTestScenarioHandlerTests
 
         Assert.NotNull(sender.LastSend);
         Assert.Equal("GET /pets", sender.LastSend.Value.OperationKey);
-        Assert.Equal("[]", sender.LastSend.Value.Payload); // falls back to the endpoint's own example
+        Assert.Null(sender.LastSend.Value.Payload); // a GET declares no request body; "[]" is the mock's answer, not a request
 
         var logged = Assert.Single(callRecords.Inserted);
         Assert.Equal(specificationId, logged.SpecificationId);
         Assert.Equal(endpointId, logged.MockEndpointId);
         Assert.Equal(connectionId, logged.ConnectionId);
         Assert.Equal(CallDirection.OutboundHttpRequest, logged.Direction);
-        Assert.Equal("[]", logged.RequestSnapshot);
+        Assert.Null(logged.RequestSnapshot);
         Assert.Equal("{\"id\":1}", logged.ResponseSnapshot);
 
         var stored = await scenarios.FindByIdAsync(scenarioId, TestContext.Current.CancellationToken);
@@ -145,14 +145,14 @@ public class RunTestScenarioHandlerTests
     }
 
     [Theory]
-    [InlineData(true, null)]   // built from the response schema: not a request body, so none is sent
-    [InlineData(false, "[]")]  // the spec's own example: sent as before
-    public async Task Handle_HttpSend_DoesntSendAnExampleBuiltFromTheSchema(bool generated, string? expectedPayload)
+    [InlineData("POST /pets", "{\"name\":\"Fido\"}", "{\"name\":\"Fido\"}")] // the request body's example, not the response's
+    [InlineData("GET /pets", null, null)]                                           // no request body declared: none sent
+    public async Task Handle_HttpSend_SendsTheRequestExample_NotTheMocksAnswer(string operationKey, string? requestExample, string? expectedPayload)
     {
         var specifications = new FakeApiSpecificationRepository();
         var connections = new FakeConnectionRepository();
         var scenarios = new FakeTestScenarioRepository();
-        var sender = new FakeMessageSender(new MessageSendResult(true, "200 OK", "[]", 200));
+        var sender = new FakeMessageSender(new MessageSendResult(true, "200 OK", "{}", 200));
         var specificationId = Guid.NewGuid();
         var endpointId = Guid.NewGuid();
         var connectionId = Guid.NewGuid();
@@ -161,11 +161,11 @@ public class RunTestScenarioHandlerTests
             Id = specificationId,
             Title = "Petstore",
             Kind = SpecificationKind.OpenApi,
-            Endpoints = [new MockEndpoint { Id = endpointId, SpecificationId = specificationId, OperationKey = "GET /pets", ExampleTemplate = "[]", ExampleIsGenerated = generated }]
+            Endpoints = [new MockEndpoint { Id = endpointId, SpecificationId = specificationId, OperationKey = operationKey, ExampleTemplate = "{\"id\":1}", RequestExampleTemplate = requestExample }]
         }, TestContext.Current.CancellationToken);
         await connections.InsertAsync(new Connection { Id = connectionId, Name = "Pets API", ServiceType = ConnectionServiceType.Http, Value = "https://api.example.com" }, TestContext.Current.CancellationToken);
         var scenarioId = Guid.NewGuid();
-        await scenarios.InsertAsync(new TestScenario { Id = scenarioId, Name = "Send GET /pets", SpecificationId = specificationId, MockEndpointId = endpointId, ConnectionId = connectionId }, TestContext.Current.CancellationToken);
+        await scenarios.InsertAsync(new TestScenario { Id = scenarioId, Name = $"Send {operationKey}", SpecificationId = specificationId, MockEndpointId = endpointId, ConnectionId = connectionId }, TestContext.Current.CancellationToken);
 
         var handler = TestRunHandlers.Run(scenarios, specifications, connections, sender, new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), new FakeCallRecordRepository());
         await handler.Handle(new RunTestScenario(scenarioId), TestContext.Current.CancellationToken);
