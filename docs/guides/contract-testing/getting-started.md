@@ -71,7 +71,7 @@ For each operation VroksNet keeps the example (used as the message to send or th
 
 **Azure Service Bus**: the channel address is a queue or topic name. Send works on both. Listen works on **topics only** — a queue's consumers compete for its messages, so listening on one would take them away; a Listen on a queue fails with that reason. Topic names have no wildcards, so Listen refuses a channel with parameters. Listen reads a subscription:
 - **Subscription** blank: a temporary subscription for the run, deleted afterwards (or by Service Bus after 5 idle minutes if VroksNet stops mid-run). The connection needs **Manage** rights for it.
-- **Subscription** set: that existing subscription, which should be dedicated to VroksNet — Listen skips the messages already waiting in it (found by peeking, which takes nothing) and takes the next one, removing what it reads.
+- **Subscription** set: that existing subscription, which should be dedicated to VroksNet — Listen skips the messages already waiting in it (found by peeking, which takes nothing) and takes the next one, removing what it reads. Give it a short default message time to live (e.g. 5 minutes): nothing reads it between runs, and if more messages pile up than Listen can skip in 10 seconds, it fails and asks you to purge the subscription.
 
 The [Service Bus emulator](https://learn.microsoft.com/azure/service-bus-messaging/overview-emulator) can't create subscriptions through its connection string, so name one declared in its configuration. A connection string with an `EntityPath` only reaches that queue or topic.
 

@@ -21,7 +21,9 @@ namespace VroksNet.Infrastructure.Brokers.ServiceBus;
 /// on one would take messages from its real consumers. With the <c>subscription</c> option it reads
 /// that existing subscription — one dedicated to VroksNet, since what Listen receives is gone from
 /// it. Messages already waiting there when it starts (found by peeking, which takes nothing) are
-/// skipped, so the message it reports is the next one.
+/// skipped, per partition on a partitioned topic, so the message it reports is the next one. Give
+/// that subscription a short default message time to live: nothing reads it between runs, and a
+/// backlog too large to peek through in the setup budget fails every Listen.
 /// Without it, it creates a temporary subscription for the run (which needs Manage rights) and
 /// deletes it afterwards; one left behind deletes itself after <see cref="TemporarySubscriptionIdle"/>.
 /// Entity names have no wildcards, so a channel with parameters can't be listened on.</item>
@@ -158,7 +160,7 @@ public sealed class ServiceBusBrokerAdapter : IListeningBrokerAdapter
         {
             await using var client = ClientOf(connection.Value, BrokerListening.ConnectTimeout);
             await using var receiver = client.CreateReceiver(topic, subscription, new ServiceBusReceiverOptions { ReceiveMode = ServiceBusReceiveMode.ReceiveAndDelete });
-            long? lastWaiting = null;
+            var lastWaiting = new Dictionary<long, long>();
             if (named is null)
             {
                 administration = AdministrationOf(connection.Value);
@@ -170,13 +172,16 @@ public sealed class ServiceBusBrokerAdapter : IListeningBrokerAdapter
             else
             {
                 // Peeking takes nothing. It proves the namespace, the topic and the subscription,
-                // and finds the last message already waiting there: up to it, messages are old and
-                // are skipped. (Receiving until the subscription is empty instead would never end
-                // while the topic is busy.)
+                // and finds the last message already waiting in each partition: up to it, messages
+                // are old and are skipped. (Receiving until the subscription is empty instead would
+                // never end while the topic is busy.)
                 while (await receiver.PeekMessagesAsync(PeekBatch, cancellationToken: setupCts.Token) is { Count: > 0 } waiting)
                 {
                     stage = ListenStage.SettingUp;
-                    lastWaiting = waiting[^1].SequenceNumber;
+                    foreach (var message in waiting)
+                    {
+                        RecordWaiting(lastWaiting, message.SequenceNumber);
+                    }
                 }
             }
 
@@ -188,11 +193,16 @@ public sealed class ServiceBusBrokerAdapter : IListeningBrokerAdapter
             while (true)
             {
                 var messages = await receiver.ReceiveMessagesAsync(PeekBatch, ReceiveWait, listenCts.Token);
-                if (messages.FirstOrDefault(message => message.SequenceNumber > lastWaiting.GetValueOrDefault(-1)) is { } next)
+                if (messages.FirstOrDefault(message => IsNew(lastWaiting, message.SequenceNumber)) is { } next)
                 {
                     return new MessageListenResult(true, $"Received on {target} through subscription \"{subscription}\".", next.Body.ToString());
                 }
             }
+        }
+        catch (Exception ex) when (named is not null && stage == ListenStage.SettingUp && IsTimeout(ex, cancellationToken))
+        {
+            // Still peeking at old messages: the next run would find even more of them.
+            return new MessageListenResult(false, $"Subscription \"{named}\" of {target} holds more waiting messages than can be skipped in {BrokerListening.ConnectTimeout.TotalSeconds:0}s — purge it, give it a short default message time to live, or leave the broker option \"{SubscriptionOption}\" blank for a temporary subscription.");
         }
         catch (Exception ex) when (IsTimeout(ex, cancellationToken))
         {
@@ -237,6 +247,26 @@ public sealed class ServiceBusBrokerAdapter : IListeningBrokerAdapter
         => channel.HasParameters
             ? $"Channel \"{channel.Address}\" has parameters, and an Azure Service Bus topic name has no wildcards — it can't be listened on through a ServiceBus connection."
             : null;
+
+    /// <summary>
+    /// The partition a sequence number belongs to: its top 16 bits on a partitioned entity (0 on
+    /// any other). Sequence numbers only grow within one partition, so they're compared per partition.
+    /// </summary>
+    public static long PartitionOf(long sequenceNumber) => sequenceNumber >> 48;
+
+    /// <summary>Records <paramref name="sequenceNumber"/> as waiting before Listen started: the highest per partition.</summary>
+    public static void RecordWaiting(Dictionary<long, long> lastWaiting, long sequenceNumber)
+    {
+        var partition = PartitionOf(sequenceNumber);
+        if (!lastWaiting.TryGetValue(partition, out var last) || sequenceNumber > last)
+        {
+            lastWaiting[partition] = sequenceNumber;
+        }
+    }
+
+    /// <summary>Whether a message came after everything that was waiting in its partition when Listen started.</summary>
+    public static bool IsNew(IReadOnlyDictionary<long, long> lastWaiting, long sequenceNumber)
+        => !lastWaiting.TryGetValue(PartitionOf(sequenceNumber), out var last) || sequenceNumber > last;
 
     /// <summary>
     /// The parsed connection string; null unless it has an endpoint and either a shared access key

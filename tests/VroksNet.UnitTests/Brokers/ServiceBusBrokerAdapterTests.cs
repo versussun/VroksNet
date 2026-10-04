@@ -86,6 +86,26 @@ public class ServiceBusBrokerAdapterTests
         => Assert.Equal(refused, Adapter.WhyCantListen(ChannelPattern.Parse(channelAddress)!, null) is not null);
 
     [Fact]
+    public void IsNew_ComparesSequenceNumbersWithinTheirPartition()
+    {
+        // A partitioned entity puts the partition in the top 16 bits, so partition 0's numbers are
+        // below every number in partition 3 — even for a message enqueued later.
+        static long Sequence(long partition, long number) => (partition << 48) | number;
+        var lastWaiting = new Dictionary<long, long>();
+        foreach (var waiting in new[] { Sequence(3, 10), Sequence(0, 5), Sequence(3, 12), Sequence(0, 4) })
+        {
+            ServiceBusBrokerAdapter.RecordWaiting(lastWaiting, waiting);
+        }
+
+        Assert.True(ServiceBusBrokerAdapter.IsNew(lastWaiting, Sequence(0, 6)));  // new, though below partition 3's last
+        Assert.False(ServiceBusBrokerAdapter.IsNew(lastWaiting, Sequence(0, 5)));
+        Assert.False(ServiceBusBrokerAdapter.IsNew(lastWaiting, Sequence(3, 12)));
+        Assert.True(ServiceBusBrokerAdapter.IsNew(lastWaiting, Sequence(3, 13)));
+        Assert.True(ServiceBusBrokerAdapter.IsNew(lastWaiting, Sequence(7, 1)));  // a partition nothing was waiting in
+        Assert.True(ServiceBusBrokerAdapter.IsNew(new Dictionary<long, long>(), 1)); // an empty subscription
+    }
+
+    [Fact]
     public void SubscriptionOption_AppliesToListenOnly()
     {
         var option = Assert.Single(Adapter.Options);
