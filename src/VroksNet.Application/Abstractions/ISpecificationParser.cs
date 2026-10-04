@@ -8,8 +8,8 @@ public interface ISpecificationParser
 
 /// <summary>
 /// One operation found in the spec (e.g. "GET /pets/{id}" for OpenAPI, or "orders.created:send"
-/// for AsyncAPI), plus the example — pretty-printed JSON, if the spec had one — used as its mock
-/// response template.
+/// for AsyncAPI), plus the example — pretty-printed JSON: the spec's own, or else one the parser
+/// built from the operation's schema; null if neither exists — used as its mock response template.
 /// </summary>
 /// <param name="RequestSchemaJson">
 /// The operation's request-body JSON Schema (OpenAPI only — self-contained, local `$ref`s already
@@ -32,13 +32,15 @@ public interface ISpecificationParser
 /// was taken from ("2XX" counts as 200), or, when the example came from the request body or there
 /// is none, the lowest declared 2xx. Null when neither applies (the mock then answers 200), and for AsyncAPI.
 /// </param>
+/// <param name="ExampleIsGenerated">The spec had no example: <see cref="ExampleJson"/> was built from the operation's schema.</param>
 public sealed record ParsedOperation(
     string OperationKey,
     string? ExampleJson,
     string? RequestSchemaJson = null,
     string? ResponseSchemaJson = null,
     IReadOnlyDictionary<string, string?>? ResponseSchemasByStatus = null,
-    int? ExampleStatusCode = null);
+    int? ExampleStatusCode = null,
+    bool ExampleIsGenerated = false);
 
 /// <summary>
 /// Title (the version-matching key) plus its flat list of operations. <see cref="Protocols"/> is

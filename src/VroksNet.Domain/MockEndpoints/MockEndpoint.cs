@@ -40,6 +40,9 @@ public sealed class MockEndpoint
     /// </summary>
     public string? ExampleTemplate { get; set; }
 
+    /// <summary>The spec gave no example: <see cref="ExampleTemplate"/> was built from the operation's schema at import.</summary>
+    public bool ExampleIsGenerated { get; set; }
+
     /// <summary>
     /// The status the mock answers with (OpenAPI only): the status of the response the example was
     /// taken from, or the lowest declared 2xx when there's none. Null for AsyncAPI operations, for
@@ -81,6 +84,12 @@ public sealed class MockEndpoint
         if (!string.Equals(ExampleTemplate, imported.ExampleTemplate, StringComparison.Ordinal))
         {
             ExampleTemplate = imported.ExampleTemplate;
+            changed = true;
+        }
+
+        if (ExampleIsGenerated != imported.ExampleIsGenerated)
+        {
+            ExampleIsGenerated = imported.ExampleIsGenerated;
             changed = true;
         }
 

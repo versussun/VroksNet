@@ -28,6 +28,7 @@ public class AsyncApiSpecificationParserTests
 
         var orderCreated = result.Operations.Single(operation => operation.OperationKey == "orders.created:send");
         Assert.NotNull(orderCreated.ExampleJson);
+        Assert.False(orderCreated.ExampleIsGenerated);
         Assert.Contains("\"orderId\": \"ord_1\"", orderCreated.ExampleJson);
         Assert.Contains("\"amount\": 42.5", orderCreated.ExampleJson);
     }
@@ -113,6 +114,20 @@ public class AsyncApiSpecificationParserTests
         var result = await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Protocols!);
+    }
+
+    [Fact]
+    public async Task ParseAsync_NoExample_BuildsOneFromThePayloadSchema_ResolvingNestedRefs()
+    {
+        var yaml = await File.ReadAllTextAsync(FixturePath("no-examples-asyncapi.yaml"), TestContext.Current.CancellationToken);
+
+        var operation = Assert.Single((await _parser.ParseAsync(yaml, TestContext.Current.CancellationToken)).Operations);
+
+        // "carrier" is a "#/components/schemas/Carrier" $ref inside the payload schema, resolved against the document.
+        Assert.True(operation.ExampleIsGenerated);
+        var example = System.Text.Json.Nodes.JsonNode.Parse(operation.ExampleJson!)!;
+        Assert.Equal(("{{uuid}}", "DHL", "{{now}}"), ((string)example["orderId"]!, (string)example["carrier"]!["name"]!, (string)example["shippedAt"]!));
+        Assert.Equal(10, ((string)example["carrier"]!["tracking"]!).Length);
     }
 
     private static string FixturePath(string fileName) => Path.Combine(AppContext.BaseDirectory, "Fixtures", fileName);

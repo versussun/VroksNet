@@ -87,13 +87,20 @@ public sealed class AsyncApiSpecificationParser : IAsyncApiSpecificationParser
         }
 
         var message = ResolveFirstMessage(root, operation);
+        var payloadSchemaJson = ExtractPayloadSchemaJson(root, message);
 
         // ResponseSchemaJson doubles as "the message payload schema" for AsyncAPI — see
-        // ParsedOperation's doc comment.
+        // ParsedOperation's doc comment. Without an example, one is built from that schema; a
+        // $ref left in it (a nested "#/components/schemas/X") resolves against the document.
+        var example = ExtractExampleJson(message);
+        var generatedExample = example is null
+            ? SchemaExampleGenerator.Generate(payloadSchemaJson, reference => YamlJson.ToJson(Resolve(root, reference)))
+            : null;
         return new ParsedOperation(
             $"{address}:{action}",
-            ExtractExampleJson(message),
-            ResponseSchemaJson: ExtractPayloadSchemaJson(root, message));
+            example ?? generatedExample,
+            ResponseSchemaJson: payloadSchemaJson,
+            ExampleIsGenerated: generatedExample is not null);
     }
 
     /// <summary>

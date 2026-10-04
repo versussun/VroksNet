@@ -44,6 +44,7 @@ public sealed class ImportAsyncApiSpecHandler(
                 OperationKey = operation.OperationKey,
                 Position = position,
                 ExampleTemplate = operation.ExampleJson,
+                ExampleIsGenerated = operation.ExampleIsGenerated,
                 ResponseSchema = operation.ResponseSchemaJson
             })
             .ToList();

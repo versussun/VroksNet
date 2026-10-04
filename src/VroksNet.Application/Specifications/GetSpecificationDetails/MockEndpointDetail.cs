@@ -14,6 +14,7 @@ public sealed record MockEndpointDetail(
     bool IsEnabled,
     bool ServeAtRealPath,
     string? ExampleTemplate,
+    bool ExampleIsGenerated,
     bool RequiresHttpConnection,
     bool CanListen,
     TestScenarioKind DefaultTestScenarioKind);
