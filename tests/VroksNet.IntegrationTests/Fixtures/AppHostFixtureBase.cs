@@ -68,7 +68,13 @@ public abstract class AppHostFixtureBase(IReadOnlyList<string> brokers) : IAsync
 
     public async ValueTask DisposeAsync()
     {
-        ApiServiceClient.Dispose();
-        await App.DisposeAsync();
+        // InitializeAsync may have stopped part-way (a container outlasting the startup timeout,
+        // say): dispose only what exists, so its failure is the one reported and the containers
+        // that did start are still stopped.
+        ApiServiceClient?.Dispose();
+        if (App is not null)
+        {
+            await App.DisposeAsync();
+        }
     }
 }
