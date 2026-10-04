@@ -77,6 +77,48 @@ A spike (step G0, 2026-10-04) checked the riskiest assumptions. Its findings are
 - TLS on the gRPC port.
 - Answering with a chosen error status.
 
+## Options considered for reading and writing messages
+
+The parser gives VroksNet descriptors, not messages. A spike check shows the gap: a `MessageDescriptor` built at runtime with `FileDescriptor.BuildFromByteStrings` has `Parser == null` and `ClrType == null`, and `JsonParser.Default.Parse(json, descriptor)` throws a `NullReferenceException`. Google.Protobuf's serializers (`MessageParser`, `JsonParser`, `JsonFormatter`) need instances of generated classes. So something has to turn JSON into protobuf bytes and back from descriptors alone. These options were weighed.
+
+### A. `Microsoft.AspNetCore.Grpc.JsonTranscoding`: rejected
+
+- It adds REST/JSON routes to the app's own gRPC services, which are classes generated at build time by `Grpc.Tools`.
+- Inside, it uses `JsonParser`/`JsonFormatter` with those generated types. A runtime-built descriptor fails there exactly as shown above.
+- It doesn't proxy to a remote service, so it can't serve Send (Type 1) either.
+
+### B. Envoy's `grpc_json_transcoder`: rejected
+
+Envoy does transcode from descriptors alone: it takes a `FileDescriptorSet` in its configuration. But for VroksNet:
+
+- **Wrong direction for the mock.** The standard filter turns a JSON client into calls to a gRPC upstream. The mock needs the reverse: take gRPC from the client, answer gRPC. A reverse-transcoder filter exists only in recent Envoy versions and wasn't evaluated.
+- **It breaks "one process, one image"** (project brief; container contract). Envoy is a second, native process in the image, with a supervisor and its own health.
+- **Its configuration is static.** Every spec import and every new `Grpc` connection would mean reloading Envoy, or running an xDS server inside VroksNet.
+- **Contract checking moves out of reach.** VroksNet has to see that the bytes didn't decode, and record that as a contract violation in the call history and the result badge. Envoy answers with its own error instead, and VroksNet never sees the payload.
+- It adds a network hop and a point of failure that users would have to debug.
+
+### C. Generate C# at runtime and compile it with Roslyn: rejected
+
+- `protobuf-net.Reflection` can generate protobuf-net-style C# from a `FileDescriptorSet`. The generated code would be compiled with Roslyn and loaded into a collectible `AssemblyLoadContext`.
+- That solves the binary format only. protobuf-net classes don't produce canonical proto3 JSON (field names, 64-bit integers as strings, enum names, well-known types), so the JSON mapping would still be ours to write.
+- On top of that it costs:
+  - Roslyn in the image, which is tens of megabytes;
+  - a compile on every import;
+  - assembly unloading to get right;
+  - runtime-generated code, which is harder to debug.
+
+### D. Our own descriptor-driven transcoder: chosen
+
+- **No new moving parts.** It's a library in Infrastructure, inside the one process. Nothing to deploy, configure or reload. A newly imported spec works on the next call.
+- **Full control over contract checking.** VroksNet sees each decode error (truncated frame, wrong wire type, invalid UTF-8) and each unknown field, and turns them into the same violations and warnings the HTTP mock already records.
+- **The JSON pipeline stays intact.** Requests and responses become canonical proto3 JSON, so the example generator, templating, schema validation and the call history are reused as they are.
+- **The hard part is bounded and testable.**
+  - The wire format is small: varint, fixed32/fixed64 and length-delimited, all read and written by `CodedInputStream`/`CodedOutputStream`.
+  - The JSON mapping is a published specification.
+  - The generated-code oracle checks every fixture against Google.Protobuf's own output in both directions, so a mistake shows up as a failing test rather than in production.
+- **The same code serves every direction:** the mock (gRPC in, gRPC out), Send (JSON → gRPC → JSON) and server reflection. Options A and B each cover only part of this.
+- **Cost:** it's the largest piece of the plan (step G3, size L) and needs care with edge cases. Options B and C cost more and still leave work: B the reverse transcoding, deployment and a blind spot for violations; C the JSON mapping.
+
 ## Consequences
 
 - **New dependencies,** pinned in `Directory.Packages.props`: `protobuf-net.Reflection` 3.4.30, `Google.Protobuf` 3.36.2, `Grpc.Net.Client` 2.84.0 and `Grpc.AspNetCore.Server`/`Grpc.Reflection` 2.84.0. `Grpc.Tools` is used in the unit test project only.
