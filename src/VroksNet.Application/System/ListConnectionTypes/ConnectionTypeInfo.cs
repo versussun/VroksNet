@@ -15,6 +15,7 @@ public sealed record ConnectionTypeInfo(
     string ValueLabel,
     string ValueHint,
     bool IsHttp,
+    OperationShape OperationShape,
     bool CanListen,
     string? ListenNote,
     IReadOnlyList<BrokerOptionDefinition> Options);

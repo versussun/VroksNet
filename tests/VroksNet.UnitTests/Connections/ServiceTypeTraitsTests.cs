@@ -28,6 +28,10 @@ public class ServiceTypeTraitsTests
         => Assert.Equal(expected, ServiceTypeTraits.TypesFor(protocols));
 
     [Fact]
+    public void IsHttp_IsExactlyTheHttpShape()
+        => Assert.All(ServiceTypeTraits.All, traits => Assert.Equal(traits.OperationShape == OperationShape.Http, traits.IsHttp));
+
+    [Fact]
     public void Find_UnknownValue_IsNull()
         => Assert.Null(ServiceTypeTraits.Find((ConnectionServiceType)99));
 
@@ -38,7 +42,7 @@ public class ServiceTypeTraitsTests
 
         Assert.Equal(ServiceTypeTraits.All.Select(traits => traits.Type), types.Select(type => type.Type));
         var http = Assert.Single(types, type => type.Type == ConnectionServiceType.Http);
-        Assert.Equal(("HTTP", "URL", true, false), (http.DisplayName, http.ValueLabel, http.IsHttp, http.CanListen));
+        Assert.Equal(("HTTP", "URL", true, OperationShape.Http, false), (http.DisplayName, http.ValueLabel, http.IsHttp, http.OperationShape, http.CanListen));
         Assert.NotNull(http.ListenNote);
         Assert.Empty(http.Options);
         var exchange = Assert.Single(Assert.Single(types, type => type.Type == ConnectionServiceType.RabbitMq).Options);

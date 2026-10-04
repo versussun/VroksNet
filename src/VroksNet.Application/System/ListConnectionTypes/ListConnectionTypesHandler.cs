@@ -8,6 +8,6 @@ public sealed class ListConnectionTypesHandler(IBrokerRules brokerRules) : IRequ
 {
     public ValueTask<IReadOnlyList<ConnectionTypeInfo>> Handle(ListConnectionTypes request, CancellationToken cancellationToken) =>
         new(ServiceTypeTraits.All
-            .Select(traits => new ConnectionTypeInfo(traits.Type, traits.DisplayName, traits.ValueLabel, traits.ValueHint, traits.IsHttp, traits.CanListen, traits.ListenNote, brokerRules.OptionsOf(traits.Type)))
+            .Select(traits => new ConnectionTypeInfo(traits.Type, traits.DisplayName, traits.ValueLabel, traits.ValueHint, traits.IsHttp, traits.OperationShape, traits.CanListen, traits.ListenNote, brokerRules.OptionsOf(traits.Type)))
             .ToList());
 }

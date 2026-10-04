@@ -35,9 +35,10 @@ internal static class PublisherRules
         UniqueNames.EnsureFree((await publishers.FindByNameAsync(normalized, cancellationToken))?.Id, publisherId, "publisher", normalized);
 
         var target = await TestScenarioTargetResolver.ResolveAsync(specifications, connections, specificationId, mockEndpointId, connectionId, cancellationToken);
-        if (OperationCompatibility.IsHttpOperation(target.Endpoint.OperationKey))
+        var shape = OperationCompatibility.ShapeOf(target.Endpoint.OperationKey);
+        if (shape != OperationShape.Message)
         {
-            throw new ArgumentException($"Operation \"{target.Endpoint.OperationKey}\" is an HTTP operation — only AsyncAPI operations can be published to a broker.");
+            throw new ArgumentException($"Operation \"{target.Endpoint.OperationKey}\" is {(shape == OperationShape.Rpc ? "a gRPC" : "an HTTP")} operation — only AsyncAPI operations can be published to a broker.");
         }
 
         if (intervalSeconds is < PublisherSchedule.MinIntervalSeconds or > PublisherSchedule.MaxIntervalSeconds)

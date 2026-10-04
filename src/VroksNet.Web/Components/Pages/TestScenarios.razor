@@ -250,7 +250,7 @@ else
             </select>
             @if (SelectedEndpoint is not null && _connections is { Length: > 0 } && !CompatibleConnections.Any())
             {
-                <div class="form-text text-danger">No @(SelectedEndpoint.RequiresHttpConnection ? "HTTP connections" : IsListening ? "broker connections that can be listened on" : "broker connections") yet — add one on the Settings page first.</div>
+                <div class="form-text text-danger">No @(SelectedEndpoint.RequiresHttpConnection ? "HTTP connections" : SelectedEndpoint.OperationShape == "Rpc" ? "gRPC connections" : IsListening ? "broker connections that can be listened on" : "broker connections") yet — add one on the Settings page first.</div>
             }
             else
             {
@@ -435,7 +435,7 @@ else
         _connections is null ? []
         : SelectedEndpoint is null ? _connections
         : _connections.Where(c => TypeOf(c) is { } type
-            && type.IsHttp == SelectedEndpoint.RequiresHttpConnection
+            && type.OperationShape == SelectedEndpoint.OperationShape
             && (!IsListening || type.CanListen));
 
     /// <summary>
@@ -445,7 +445,7 @@ else
     private IEnumerable<ConnectionTypeInfo> UnlistenableTypes =>
         !IsListening || SelectedEndpoint is null || SelectedEndpoint.RequiresHttpConnection || _connections is null ? []
         : _connections.Select(TypeOf).OfType<ConnectionTypeInfo>()
-            .Where(type => !type.IsHttp && !type.CanListen)
+            .Where(type => type.OperationShape == "Message" && !type.CanListen)
             .DistinctBy(type => type.Type);
 
     private BrokerOptionInfo[] SelectedConnectionOptions =>

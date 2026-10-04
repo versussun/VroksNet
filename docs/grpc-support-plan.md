@@ -1,6 +1,6 @@
 # Plan: gRPC support
 
-**Status:** accepted — decisions in ADR 0004 (`docs/adr/0004-grpc-support.md`). **Progress:** G0 done (the spike passed; findings in the ADR); G1–G8 not started.
+**Status:** accepted — decisions in ADR 0004 (`docs/adr/0004-grpc-support.md`). **Progress:** G0 and G1 done; G2–G8 not started.
 **Why:** services talk to each other over gRPC as well as REST and brokers. VroksNet should mock a gRPC service from its `.proto` file and check a real one against it, the way it already does for OpenAPI.
 
 ## What "gRPC support" means here
@@ -128,12 +128,13 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
 - **Done when:** the ADR is accepted, and the spike's three checks pass (or the ADR changes to match what they found).
 - **Result (2026-10-04):** all three passed, plus server reflection from runtime-built descriptors and multi-file imports from memory. ADR 0004 records the findings and the package versions.
 
-### G1. Domain: the RPC shape and the `Grpc` type (S)
+### G1. Domain: the RPC shape (S) — ✅ done
 
 - `SpecificationKind.Proto`.
-- `OperationCompatibility`: the RPC shape.
-- `ServiceTypeTraits`: an operation shape instead of `IsHttp`, and the `Grpc` entry, with `CanListen: false` and a note saying gRPC has no channel to listen on.
+- `OperationCompatibility`: the RPC shape (`ShapeOf`).
+- `ServiceTypeTraits`: an operation shape instead of `IsHttp` (`IsHttp` stays as a computed property and in the API for contract v1). `GET /api/system/connection-types` and the spec details' endpoints carry `operationShape`, and the Web UI matches connections to operations by it.
 - **Done when:** current behaviour is unchanged (existing tests green), and unit tests cover all three shapes.
+- **Moved to G5:** the `Grpc` connection type. A type needs an adapter (`ServiceTypeTraitsTests`/`BrokerAdapterRegistryTests`), and a type that can do nothing shouldn't appear in the UI.
 
 ### G2. Import `.proto` (L) — after G1
 
@@ -176,6 +177,7 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
 
 ### G5. Send through a `Grpc` connection (M) — after G3; uses G4 as its test target
 
+- The `Grpc` connection type (moved here from G1): its `ServiceTypeTraits` entry with `OperationShape.Rpc`, `CanListen: false` and a note saying gRPC has no channel to listen on.
 - `GrpcBrokerAdapter` (decision 7).
 - The optional send context in `IMessageSender`, and the executor's RPC branch: gRPC status, decode, validation.
 - The UI offers `Grpc` connections for RPC operations.
