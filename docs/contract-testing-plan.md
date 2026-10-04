@@ -5,7 +5,7 @@
 
 ## 1. The four kinds of tests
 
-According to the customer, four different scenarios are needed. Below is what they're called in contract testing generally (Microcks, Pact and so on), so we don't invent terms along the way.
+According to the customer, four different scenarios are needed. Below is what they're called in contract testing generally (Pact and similar tools), so we don't invent terms along the way.
 
 | # | User's description | Term | Direction | Validation |
 |---|---|---|---|---|

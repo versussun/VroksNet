@@ -144,8 +144,6 @@ The package depends only on `Aspire.Hosting`. It declares which contract version
 
 ### A. Only an Aspire package that configures everything through the REST API after the container starts
 
-This is, for example, how Microcks.Testcontainers loads artifacts (`.WithMainArtifacts(...)`).
-
 - **Pros:** no changes to the app itself.
 - **Cons:**
   - works only from .NET and Aspire; docker-compose and Kubernetes get nothing;

@@ -3,7 +3,7 @@
 [![CI](https://github.com/versussun/VroksNet/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/versussun/VroksNet/actions/workflows/ci.yml)
 [![Publish image](https://github.com/versussun/VroksNet/actions/workflows/publish-image.yml/badge.svg?branch=master)](https://github.com/versussun/VroksNet/actions/workflows/publish-image.yml)
 
-An internal mock server and contract-testing tool for **OpenAPI** and **AsyncAPI** specifications, in the spirit of Microcks, built on .NET 10 and .NET Aspire. One Docker image runs the API, the mocks and the Admin UI.
+An internal mock server and contract-testing tool for **OpenAPI** and **AsyncAPI** specifications, built on .NET 10 and .NET Aspire. One Docker image runs the API, the mocks and the Admin UI.
 
 ## What it does
 
