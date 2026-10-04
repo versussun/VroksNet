@@ -131,8 +131,10 @@ public sealed class SnsBrokerAdapter : IListeningBrokerAdapter
             stage = ListenStage.SettingUp;
             if (named is null)
             {
-                temporaryQueueUrl = await CreateTemporaryQueueAsync(sqs, channel.Address, topicArn, setupCts.Token);
-                subscriptionArn = await SubscribeAsync(sns, sqs, temporaryQueueUrl, topicArn, setupCts.Token);
+                // Kept as soon as it exists, so finally deletes it even if a later step fails.
+                temporaryQueueUrl = await CreateTemporaryQueueAsync(sqs, channel.Address, setupCts.Token);
+                var queueArn = await AllowTopicAsync(sqs, temporaryQueueUrl, topicArn, setupCts.Token);
+                subscriptionArn = await SubscribeAsync(sns, queueArn, topicArn, setupCts.Token);
                 stage = ListenStage.Listening;
                 onListening?.Invoke();
                 return await ReceiveFirstAsync(sqs, temporaryQueueUrl, target, timeout, cancellationToken);
@@ -196,7 +198,7 @@ public sealed class SnsBrokerAdapter : IListeningBrokerAdapter
         return body;
     }
 
-    private static async Task<string> CreateTemporaryQueueAsync(IAmazonSQS sqs, string topicAddress, string topicArn, CancellationToken cancellationToken)
+    private static async Task<string> CreateTemporaryQueueAsync(IAmazonSQS sqs, string topicAddress, CancellationToken cancellationToken)
     {
         // A FIFO topic only delivers to FIFO queues.
         var fifo = AwsClients.IsFifo(topicAddress);
@@ -212,7 +214,12 @@ public sealed class SnsBrokerAdapter : IListeningBrokerAdapter
             request.Attributes["FifoQueue"] = "true";
         }
 
-        var queueUrl = (await sqs.CreateQueueAsync(request, cancellationToken)).QueueUrl;
+        return (await sqs.CreateQueueAsync(request, cancellationToken)).QueueUrl;
+    }
+
+    /// <summary>Lets the topic send to the queue (its policy); returns the queue's ARN.</summary>
+    private static async Task<string> AllowTopicAsync(IAmazonSQS sqs, string queueUrl, string topicArn, CancellationToken cancellationToken)
+    {
         var queueArn = (await sqs.GetQueueAttributesAsync(new GetQueueAttributesRequest { QueueUrl = queueUrl, AttributeNames = ["QueueArn"] }, cancellationToken)).Attributes["QueueArn"];
         var policy = JsonSerializer.Serialize(new
         {
@@ -230,12 +237,11 @@ public sealed class SnsBrokerAdapter : IListeningBrokerAdapter
             },
         });
         await sqs.SetQueueAttributesAsync(new SetQueueAttributesRequest { QueueUrl = queueUrl, Attributes = new Dictionary<string, string> { ["Policy"] = policy } }, cancellationToken);
-        return queueUrl;
+        return queueArn;
     }
 
-    private static async Task<string> SubscribeAsync(IAmazonSimpleNotificationService sns, IAmazonSQS sqs, string queueUrl, string topicArn, CancellationToken cancellationToken)
+    private static async Task<string> SubscribeAsync(IAmazonSimpleNotificationService sns, string queueArn, string topicArn, CancellationToken cancellationToken)
     {
-        var queueArn = (await sqs.GetQueueAttributesAsync(new GetQueueAttributesRequest { QueueUrl = queueUrl, AttributeNames = ["QueueArn"] }, cancellationToken)).Attributes["QueueArn"];
         var subscription = await sns.SubscribeAsync(new SubscribeRequest
         {
             TopicArn = topicArn,
@@ -261,7 +267,10 @@ public sealed class SnsBrokerAdapter : IListeningBrokerAdapter
         };
         if (AwsClients.IsFifo(queue))
         {
-            request.MessageGroupId = AwsClients.DefaultMessageGroupId;
+            // A group of its own: a FIFO queue holds back the rest of a group while one of its
+            // messages is in flight, and Listen keeps the messages it reads before the marker in
+            // flight — in a shared group (Send's default, say) the marker would never arrive.
+            request.MessageGroupId = $"vroksnet-listen-marker-{marker}";
             request.MessageDeduplicationId = marker;
         }
 

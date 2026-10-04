@@ -129,6 +129,39 @@ public sealed class AwsApiTests(AwsAppHostFixture fixture)
     }
 
     [Fact]
+    public async Task Listen_SnsNamedFifoQueue_OldMessagesInTheDefaultGroup_DoNotHoldBackTheMarker()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var suffix = Guid.NewGuid().ToString("N");
+        using var sns = fixture.Sns();
+        using var sqs = fixture.Sqs();
+        var topicArn = (await sns.CreateTopicAsync(new CreateTopicRequest { Name = $"placed-{suffix}.fifo", Attributes = new() { ["FifoTopic"] = "true" } }, cancellationToken)).TopicArn;
+        var queueUrl = (await sqs.CreateQueueAsync(new CreateQueueRequest { QueueName = $"listen-{suffix}.fifo", Attributes = new() { ["FifoQueue"] = "true" } }, cancellationToken)).QueueUrl;
+        var queueArn = (await sqs.GetQueueAttributesAsync(queueUrl, ["QueueArn"], cancellationToken)).Attributes["QueueArn"];
+        await sns.SubscribeAsync(new SubscribeRequest { TopicArn = topicArn, Protocol = "sqs", Endpoint = queueArn, Attributes = new() { ["RawMessageDelivery"] = "true" } }, cancellationToken);
+        // More old messages in Send's default group than one receive returns (10): a marker sent in
+        // that group would wait behind the ones Listen holds, and never arrive.
+        for (var i = 0; i < 12; i++)
+        {
+            await PublishFifoAsync(sns, topicArn, $"old-{i}-{suffix}", cancellationToken);
+        }
+
+        var scenarioId = await CreateScenarioAsync(suffix, $"placed-{suffix}.fifo", "Sns", "Listen", $"listen-{suffix}.fifo", cancellationToken);
+
+        var run = await RunWhileSendingAsync(scenarioId, () => PublishFifoAsync(sns, topicArn, $"new-{suffix}", cancellationToken), cancellationToken);
+
+        Assert.True(run["success"]!.GetValue<bool>(), run["message"]!.GetValue<string>());
+        Assert.Contains($"new-{suffix}", run["responseBody"]!.GetValue<string>());
+    }
+
+    private static Task PublishFifoAsync(Amazon.SimpleNotificationService.IAmazonSimpleNotificationService sns, string topicArn, string orderId, CancellationToken cancellationToken)
+        => sns.PublishAsync(new PublishRequest
+        {
+            TopicArn = topicArn, Message = $$"""{"orderId":"{{orderId}}"}""",
+            MessageGroupId = "vroksnet", MessageDeduplicationId = Guid.NewGuid().ToString("N"),
+        }, cancellationToken);
+
+    [Fact]
     public async Task Suite_Sns_ItsListenCatchesItsSend()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
