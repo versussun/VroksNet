@@ -1,6 +1,6 @@
 # Plan: gRPC support
 
-**Status:** draft. The open questions were answered on 2026-10-04 (see "Decisions" at the end); they go into ADR 0004 together with the spike's findings (step G0).
+**Status:** proposed — decisions in ADR 0004 (`docs/adr/0004-grpc-support.md`). **Progress:** G0 done (the spike passed; findings in the ADR); G1–G8 not started.
 **Why:** services talk to each other over gRPC as well as REST and brokers. VroksNet should mock a gRPC service from its `.proto` file and check a real one against it, the way it already does for OpenAPI.
 
 ## What "gRPC support" means here
@@ -36,10 +36,11 @@ The first release is unary only. Streaming RPCs are imported and listed from the
 
 - **Library:** [`protobuf-net.Reflection`](https://www.nuget.org/packages/protobuf-net.Reflection). It parses `.proto` text into `FileDescriptorProto`s in managed code, with readable errors (file, line, column).
   - Running `protoc` at runtime would mean shipping a native binary per platform in the image. `Grpc.Tools` is build-time only.
-- **Imports:** `google/protobuf/*.proto` (the well-known types) must resolve without the user supplying them. The G0 spike checks whether the library ships them, or whether we embed them.
+- **Imports:** `google/protobuf/*.proto` (the well-known types) resolve without the user supplying them: the library embeds them (checked in G0).
+- **Name clash:** the library declares its own `Google.Protobuf.Reflection.FileDescriptorSet`, so it's referenced through an `extern alias`, visible to the parser only.
 - **Other imports:** resolved among the files given together — the provisioning `specs` folder, or the files of one UI upload (several `.proto` files or one `.zip`, in G2). An import that isn't among them fails the import with its file and line.
 - **Which files become specs:** every file that declares at least one `service` becomes its own specification. Files without services are only imports. The same rule holds for provisioning and the UI.
-- **What's stored:** the parsed `FileDescriptorSet` (binary, the spec plus everything it imports) on `ApiSpecification`, in a new column. Every later step works from it, so the `.proto` text is never parsed twice.
+- **What's stored:** the parsed `FileDescriptorSet` (binary, the spec plus everything it imports) on `ApiSpecification`, in a new column, in dependency order — `FileDescriptor.BuildFromByteStrings` needs imports first. Every later step works from it, so the `.proto` text is never parsed twice.
 
 ### 2. No generated code: our own JSON ↔ protobuf transcoder
 
@@ -81,7 +82,7 @@ The first release is unary only. Streaming RPCs are imported and listed from the
   - Without TLS, Kestrel accepts HTTP/2 only by prior knowledge, and only on an HTTP/2-only endpoint. That's what gRPC clients use for `http://`.
   - TLS on this port is out of scope: in production a proxy terminates it.
   - Aspire endpoint name: `grpc`.
-- **No `Grpc.AspNetCore` services.** They need generated service classes. Instead, raw request handling:
+- **No `Grpc.AspNetCore` services for mock calls.** They need generated service classes. (`Grpc.AspNetCore.Server` hosts only the reflection services of decision 8, with `IgnoreUnknownServices = true` so its fallback doesn't answer the mocked methods.) Instead, raw request handling:
   - parse the 5-byte length-prefixed frames;
   - accept `grpc-encoding: identity` and `gzip`;
   - honour `grpc-timeout`;
@@ -110,13 +111,14 @@ The first release is unary only. Streaming RPCs are imported and listed from the
 ### 8. Server reflection on the mock port
 
 - Serve `grpc.reflection.v1` (and `v1alpha`, which many tools still use) from the stored descriptor sets, using `FileDescriptor.BuildFromByteStrings`.
+- The package's `ReflectionServiceImpl` takes a fixed descriptor list, but specs change at runtime, so VroksNet implements both services on the package's `ServerReflectionBase` classes and reads the enabled specs per request.
 - Then `grpcurl -plaintext localhost:7354 list`, Postman and Kreya discover the mocked services with no `.proto` on the client side.
 
 ## Steps
 
 Each step is one PR with its own tests (unit, integration, and E2E where the UI changes), as the existing plans do.
 
-### G0. ADR 0004 + spike (S)
+### G0. ADR 0004 + spike (S) — ✅ done
 
 - Record decisions 1–8 and the decisions at the end of this plan.
 - **Spike:**
@@ -124,6 +126,7 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
   - an h2c Kestrel endpoint inside the published container, called by `grpcurl`;
   - a raw `Method<byte[], byte[]>` call through `Grpc.Net.Client`.
 - **Done when:** the ADR is accepted, and the spike's three checks pass (or the ADR changes to match what they found).
+- **Result (2026-10-04):** all three passed, plus server reflection from runtime-built descriptors and multi-file imports from memory. ADR 0004 records the findings and the package versions.
 
 ### G1. Domain: the RPC shape and the `Grpc` type (S)
 
