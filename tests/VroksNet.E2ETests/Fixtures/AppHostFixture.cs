@@ -104,13 +104,28 @@ public sealed class AppHostFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        await Browser.CloseAsync();
-        _playwright.Dispose();
-        await App.DisposeAsync();
-
-        if (_webDevAppSettingsPath is not null && _originalWebDevAppSettings is not null)
+        // InitializeAsync may have stopped part-way (webfrontend outlasting the startup timeout,
+        // say): dispose only what exists, so its failure is the one reported — and put the
+        // patched appsettings file back whatever happens, or it stays modified in the working tree.
+        try
         {
-            await File.WriteAllTextAsync(_webDevAppSettingsPath, _originalWebDevAppSettings, CancellationToken.None);
+            if (Browser is not null)
+            {
+                await Browser.CloseAsync();
+            }
+
+            _playwright?.Dispose();
+            if (App is not null)
+            {
+                await App.DisposeAsync();
+            }
+        }
+        finally
+        {
+            if (_webDevAppSettingsPath is not null && _originalWebDevAppSettings is not null)
+            {
+                await File.WriteAllTextAsync(_webDevAppSettingsPath, _originalWebDevAppSettings, CancellationToken.None);
+            }
         }
     }
 }
