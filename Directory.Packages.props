@@ -4,6 +4,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageVersion Include="Aspire.Hosting.Azure.ServiceBus" Version="13.6.0" />
     <PackageVersion Include="Aspire.Hosting.Kafka" Version="13.6.0" />
     <PackageVersion Include="Aspire.Hosting.Nats" Version="13.6.0" />
     <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.6.0" />
@@ -11,6 +12,7 @@
     <PackageVersion Include="Aspire.Hosting.Testing" Version="13.6.0" />
     <PackageVersion Include="Aspire.NATS.Net" Version="13.6.0" />
     <PackageVersion Include="Aspire.RabbitMQ.Client" Version="13.6.0" />
+    <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.20.2" />
     <PackageVersion Include="Confluent.Kafka" Version="2.15.0" />
     <PackageVersion Include="Cronos" Version="0.13.0" />
     <PackageVersion Include="coverlet.collector" Version="6.0.2" />

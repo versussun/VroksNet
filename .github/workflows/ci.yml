@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        family: [Mqtt, Redis]
+        family: [Mqtt, Redis, ServiceBus]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -99,6 +99,13 @@ jobs:
           echo "SSL_CERT_DIR=$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs" >> "$GITHUB_ENV"
       - run: dotnet restore VroksNet.slnx
       - run: dotnet build VroksNet.slnx --no-restore
+      # The emulator's SQL Server image is over 2 GB; pulled during the fixture's start, it can
+      # outlast its 2-minute budget. The tags are the ones Aspire.Hosting.Azure.ServiceBus 13.6 runs.
+      - name: Pull the Service Bus emulator images
+        if: matrix.family == 'ServiceBus'
+        run: |
+          docker pull mcr.microsoft.com/azure-messaging/servicebus-emulator:2.0.0
+          docker pull mcr.microsoft.com/mssql/server:2022-latest
       - run: dotnet tests/VroksNet.IntegrationTests/bin/Debug/net10.0/VroksNet.IntegrationTests.dll --filter-namespace "VroksNet.IntegrationTests.Brokers.${{ matrix.family }}"
 
   e2e:
