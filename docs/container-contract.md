@@ -83,6 +83,7 @@ Names are given in .NET environment-variable form (`:` → `__`).
 | `GET /api/system/info` | see below | version, contract, provisioning state. The package shows it in the dashboard; consumers' tests wait on it | exists |
 | `GET /api/system/provider` | `{ enabled, port, publicUrl, corsOrigins }` | provider mode settings | exists |
 | `GET /api/system/connection-types` | `[{ type, displayName, valueLabel, valueHint, isHttp, operationShape, canListen, listenNote, options: [{ name, label, sendDescription, sendPlaceholder, listenDescription, listenPlaceholder, suggestedValue, allowedValues }] }]` | the connection types this image supports, what each can do, and the `brokerOptions` each accepts (ADR 0003). `operationShape` — `Http`, `Message` or `Rpc` (ADR 0004) — is which operations the type carries; `isHttp` stays for v1 and equals `operationShape == "Http"`. `sendDescription`/`sendPlaceholder` are null for an option that only applies to Listen (ServiceBus `subscription`, Sns `queue`), `listenDescription`/`listenPlaceholder` for one that only applies to Send. New types are added to the list, never removed within a contract version | exists |
+| `GET /api/provisioning/export` | `200`, `application/zip` (`vroksnet-provisioning.zip`) | the current configuration as a provisioning directory: `specs/<file>` per spec and `vroksnet.yaml` (manifest v1), so mounting it at `/app/provisioning` provisions an empty instance with the same objects. Each connection's value becomes `valueFrom: ConnectionStrings:<name>`, the name reduced to `[A-Za-z0-9_-]`, and the manifest's header lists those variables; `?inlineValues=true` writes the values instead. The package's export command writes it to the host | exists |
 
 The `GET /api/system/info` response:
 
@@ -126,12 +127,18 @@ The package lives in its own repository. The table shows which contract item eac
 
 | Package method | Contract item |
 |---|---|
-| `AddVroksNet(name, tag)` | §2 the image and contract label; §3 the `http`/`provider` endpoints; §6 `/health`; `Provider__PublicUrl` = the external URL of `provider` |
-| `WithSpecifications(dir)` | §4 a bind mount into `/app/provisioning/specs` |
+| `AddVroksNet(name, port, providerPort, tag)` | §2 the image and contract label; §3 the `http`/`provider` endpoints; §6 `/health`; `Provider__PublicUrl` = the external URL of `provider` |
+| `WithSpecifications(dir)` / `WithSpecification(file)` | §4 a bind mount into `/app/provisioning/specs` |
+| `WithSpecificationFromUrl(url)` / `WithSpecificationFrom(endpoint, path)` | §4 the same mount, of a file the AppHost downloads before the container starts |
 | `WithProvisioning(file)` | §4 a bind mount into `/app/provisioning/vroksnet.yaml` |
-| `WithConnection(name, resource)` | `WithReference(resource)` → `ConnectionStrings__<resource>`; §5 `Provisioning__Connections__<i>__*` with `ValueFrom` |
+| `WithProvisioningDirectory(dir)` | §4 a bind mount of a whole directory at `/app/provisioning` — the layout `GET /api/provisioning/export` produces |
+| `WithConnection(name, resource)` | `ConnectionStrings__<resource>`; §5 `Provisioning__Connections__<i>__*` with `ValueFrom` |
+| `WithConnection(name, type, value or parameter or endpoint)` | §5 `Provisioning__Connections__<i>__*` with `Value` |
+| `WithConnectionString(name, …)` | §5 `ConnectionStrings__<name>`, for a manifest's `valueFrom` |
 | `WithDataVolume()` | §4 a volume on `/app/data` |
 | `WithProviderCors(origins)` | §5 `Provider__CorsOrigins` |
+| `WithProvisioningFailOnError(bool)` | §5 `Provisioning__FailOnError` |
+| `WithExportCommand(dir)` (dashboard) | §6 `GET /api/provisioning/export`, unpacked into a host directory |
 | telemetry in the dashboard | §5 `OTEL_*` via `WithOtlpExporter()` |
 | waiting for readiness | §6 `/health`; details in `/api/system/info` |
 
@@ -144,7 +151,8 @@ The package lives in its own repository. The table shows which contract item eac
 2. §4–§6: with every `docs/samples/*.yaml` mounted file by file into `/app/provisioning/specs`, `docs/samples/provisioning/vroksnet.yaml` as the manifest and `Provisioning__Connections__0__*`: `/health` reaches 200, `/alive` is 200, `GET /api/system/info` reports `contractVersion`, a version, `status = Applied`, `source`, the expected counts and no errors;
 3. §7: `docker stop` exits `0`; a second container on the same volume creates no duplicates;
    and the manifest's `runOnStartup` suite (`smoke`) runs after provisioning and passes;
+   and §6 `GET /api/provisioning/export` returns a zip of `vroksnet.yaml` plus one `specs/` file per spec, with every connection as `valueFrom`;
 4. §5: variables alone (no directory) provision, with `source = configuration`; nothing mounted gives `NotConfigured` and a healthy app;
 5. §7: a broken spec stops the container with exit code `3` and the log names the file; so does a connection named in both the manifest and a variable.
 
-That way a change that breaks the contract fails here, not in the package repository. Run it locally: `docker build -t vroksnet:local . && scripts/verify-container-contract.sh vroksnet:local` (needs `curl` and `jq`).
+That way a change that breaks the contract fails here, not in the package repository. Run it locally: `docker build -t vroksnet:local . && scripts/verify-container-contract.sh vroksnet:local` (needs `curl`, `jq` and `unzip`).

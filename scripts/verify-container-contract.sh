@@ -5,7 +5,7 @@
 #
 #   docker build -t vroksnet:local . && scripts/verify-container-contract.sh vroksnet:local
 #
-# Needs docker, curl and jq. Exits non-zero on the first broken item, with the container's log.
+# Needs docker, curl, jq and unzip. Exits non-zero on the first broken item, with the container's log.
 set -euo pipefail
 
 IMAGE="${1:?usage: $0 <image>}"
@@ -30,12 +30,13 @@ MANIFEST_MOUNT=(-v "$ROOT/docs/samples/provisioning/vroksnet.yaml:/app/provision
 KAFKA_ENV=(-e Provisioning__Connections__0__Name=kafka -e Provisioning__Connections__0__Type=Kafka -e Provisioning__Connections__0__Value=kafka:9092)
 
 BROKEN_DIR="$(mktemp -d)"
+EXPORT_DIR="$(mktemp -d)"
 CURRENT=""
 
 cleanup() {
   docker ps -aq --filter "name=^$RUN_ID" | xargs -r docker rm -f >/dev/null 2>&1 || true
   docker volume rm -f "$VOLUME" >/dev/null 2>&1 || true
-  rm -rf "$BROKEN_DIR"
+  rm -rf "$BROKEN_DIR" "$EXPORT_DIR"
 }
 trap cleanup EXIT
 
@@ -126,6 +127,18 @@ for _ in $(seq 1 "$STARTUP_TIMEOUT"); do
 done
 expect_eq "startup suite \"smoke\"" "$SUITE_STATUS" Passed
 pass "runOnStartup suite ran and passed"
+
+# --- §6: the export is a provisioning directory, with no connection values in it ---
+EXPORT_ZIP="$EXPORT_DIR/export.zip"
+expect_eq "GET /api/provisioning/export" "$(curl -s -o "$EXPORT_ZIP" -w '%{http_code} %{content_type}' "$URL/api/provisioning/export")" "200 application/zip"
+EXPORT_ENTRIES="$(unzip -Z1 "$EXPORT_ZIP")"
+grep -qx 'vroksnet.yaml' <<<"$EXPORT_ENTRIES" || fail "the export has no vroksnet.yaml"
+expect_eq "specs in the export" "$(grep -c '^specs/.' <<<"$EXPORT_ENTRIES")" "$SPEC_COUNT"
+expect_eq "other entries in the export" "$(grep -cvE '^(vroksnet\.yaml|specs/.+)$' <<<"$EXPORT_ENTRIES" || true)" 0
+EXPORT_MANIFEST="$(unzip -p "$EXPORT_ZIP" vroksnet.yaml)"
+expect_eq "connections exported as valueFrom" "$(grep -cE '^ +valueFrom: "ConnectionStrings:[A-Za-z0-9_-]+"$' <<<"$EXPORT_MANIFEST")" 2
+expect_eq "connection values in the export" "$(grep -cE '^ +value: ' <<<"$EXPORT_MANIFEST" || true)" 0
+pass "GET /api/provisioning/export: vroksnet.yaml and $SPEC_COUNT specs, connections as valueFrom"
 
 # --- §7: SIGTERM is a clean exit ---
 docker stop -t 30 "$CURRENT" >/dev/null
