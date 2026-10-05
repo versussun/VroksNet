@@ -10,6 +10,7 @@ public sealed record ConnectionTypeInfo(
     string ValueLabel,
     string ValueHint,
     bool IsHttp,
+    string OperationShape,
     bool CanListen,
     string? ListenNote,
     BrokerOptionInfo[] Options);

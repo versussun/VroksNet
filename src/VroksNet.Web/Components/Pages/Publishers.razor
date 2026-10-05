@@ -248,7 +248,7 @@ else
 
     /// <summary>Publishers publish to a channel, so only broker connections — by the server's connection types.</summary>
     private IEnumerable<ConnectionSummary> BrokerConnections =>
-        _connections?.Where(c => _connectionTypes.FirstOrDefault(type => type.Type == c.ServiceType) is { IsHttp: false }) ?? [];
+        _connections?.Where(c => _connectionTypes.FirstOrDefault(type => type.Type == c.ServiceType) is { OperationShape: "Message" }) ?? [];
 
     private ConnectionTypeInfo[] _connectionTypes = [];
 
@@ -307,7 +307,7 @@ else
             var details = await SpecificationApi.GetByIdAsync(specificationId);
             _specProtocols = details?.Protocols ?? [];
             _specConnectionTypes = details?.ConnectionTypes ?? [];
-            _specificationEndpoints = details?.Endpoints.Where(e => !e.RequiresHttpConnection).ToArray();
+            _specificationEndpoints = details?.Endpoints.Where(e => e.OperationShape == "Message").ToArray();
         }
     }
 

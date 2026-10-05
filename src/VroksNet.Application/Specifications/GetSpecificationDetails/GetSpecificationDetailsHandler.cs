@@ -33,6 +33,7 @@ public sealed class GetSpecificationDetailsHandler(IApiSpecificationRepository r
                     endpoint.ExampleTemplate,
                     endpoint.ExampleIsGenerated,
                     OperationCompatibility.IsHttpOperation(endpoint.OperationKey),
+                    OperationCompatibility.ShapeOf(endpoint.OperationKey),
                     TestScenarioListening.CanListen(endpoint.OperationKey),
                     TestScenarioListening.DefaultKindFor(endpoint.OperationKey)))
                 .ToList(),

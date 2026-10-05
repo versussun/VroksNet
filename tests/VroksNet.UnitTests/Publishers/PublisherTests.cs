@@ -26,6 +26,7 @@ public sealed class PublisherTests
     private readonly Guid _specificationId = Guid.NewGuid();
     private readonly Guid _brokerEndpointId = Guid.NewGuid();
     private readonly Guid _httpEndpointId = Guid.NewGuid();
+    private readonly Guid _rpcEndpointId = Guid.NewGuid();
     private readonly Guid _rabbitConnectionId = Guid.NewGuid();
     private readonly Guid _natsConnectionId = Guid.NewGuid();
     private readonly Guid _httpConnectionId = Guid.NewGuid();
@@ -104,6 +105,19 @@ public sealed class PublisherTests
         await Assert.ThrowsAsync<ArgumentException>(async () => await CreateHandler.Handle(
             new CreatePublisher(name, _specificationId, endpointId, connectionId, null, intervalSeconds),
             TestContext.Current.CancellationToken));
+        Assert.Empty(await _publishers.ListAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Create_GrpcOperation_IsRefused()
+    {
+        await ArrangeAsync();
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(async () => await CreateHandler.Handle(
+            new CreatePublisher("Orders", _specificationId, _rpcEndpointId, _rabbitConnectionId, null, 5),
+            TestContext.Current.CancellationToken));
+        // Refused by the operation/connection compatibility check before the Publisher's own rule.
+        Assert.Contains("RPC /shop.orders.v1.Orders/GetOrder", error.Message);
         Assert.Empty(await _publishers.ListAsync(TestContext.Current.CancellationToken));
     }
 
@@ -238,7 +252,8 @@ public sealed class PublisherTests
             Endpoints =
             [
                 new MockEndpoint { Id = _brokerEndpointId, SpecificationId = _specificationId, OperationKey = "orders.created:send", ResponseSchema = OrderSchema },
-                new MockEndpoint { Id = _httpEndpointId, SpecificationId = _specificationId, OperationKey = "GET /pets" }
+                new MockEndpoint { Id = _httpEndpointId, SpecificationId = _specificationId, OperationKey = "GET /pets" },
+                new MockEndpoint { Id = _rpcEndpointId, SpecificationId = _specificationId, OperationKey = "RPC /shop.orders.v1.Orders/GetOrder" }
             ]
         }, cancellationToken);
         await _connections.InsertAsync(new Connection { Id = _rabbitConnectionId, Name = "Rabbit", ServiceType = ConnectionServiceType.RabbitMq, Value = "amqp://localhost" }, cancellationToken);

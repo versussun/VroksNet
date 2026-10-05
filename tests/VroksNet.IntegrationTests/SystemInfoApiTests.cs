@@ -38,6 +38,9 @@ public sealed class SystemInfoApiTests(AppHostFixture fixture)
         var http = types[0]!;
         Assert.Equal("HTTP", http["displayName"]!.GetValue<string>());
         Assert.True(http["isHttp"]!.GetValue<bool>());
+        Assert.Equal("Http", http["operationShape"]!.GetValue<string>());
+        // Every broker carries AsyncAPI messages.
+        Assert.All(types.Skip(1), type => Assert.Equal("Message", type!["operationShape"]!.GetValue<string>()));
         Assert.False(http["canListen"]!.GetValue<bool>());
         Assert.False(string.IsNullOrWhiteSpace(http["listenNote"]!.GetValue<string>()));
         // Every broker can be listened on except SQS, whose queues are Send only — and it says why.

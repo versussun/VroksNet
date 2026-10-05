@@ -3,5 +3,6 @@ namespace VroksNet.Web;
 public enum SpecificationKind
 {
     OpenApi,
-    AsyncApi
+    AsyncApi,
+    Proto
 }
