@@ -95,6 +95,74 @@ public sealed class SpecificationsPageTests(AppHostFixture fixture) : PageTestBa
         await Expect(endpointCard.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = "Publishers" })).ToHaveAttributeAsync("href", "publishers");
     }
 
+    /// <summary>
+    /// gRPC (ADR 0004): several .proto files picked at once, the result listed, and each method's
+    /// streaming kind shown. The browser sends bare file names, so money.proto has to serve
+    /// import "common/money.proto".
+    /// </summary>
+    [Fact]
+    public async Task UploadProtoFiles_ListsTheResult_AndTheMethodsWithTheirKind()
+    {
+        var package = $"e2e.p{Guid.NewGuid():N}";
+        var title = $"{package} (Orders)";
+        await Page.GotoAsync("/specifications");
+
+        await Page.Locator("#spec-kind-select").SelectOptionAsync("Proto");
+        await Page.Locator("input[type=file]").SetInputFilesAsync(new[]
+        {
+            new FilePayload { Name = "orders.proto", MimeType = "text/plain", Buffer = Encoding.UTF8.GetBytes(BuildOrdersProto(package)) },
+            new FilePayload { Name = "money.proto", MimeType = "text/plain", Buffer = Encoding.UTF8.GetBytes(BuildMoneyProto(package)) },
+        });
+
+        var result = Page.GetByRole(AriaRole.Status, new PageGetByRoleOptions { Name = "Import result" });
+        await Expect(result).ToContainTextAsync(title);
+        await Expect(result).ToContainTextAsync("Used as imports only: common/money.proto");
+
+        var row = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = title });
+        await Expect(row.Locator("td").Nth(1)).ToHaveTextAsync("Proto");
+        await Expect(row.Locator("td").Nth(2)).ToHaveTextAsync("2");
+
+        await row.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = title, Exact = true }).ClickAsync();
+        var watch = Page.GetByRole(AriaRole.Region, new PageGetByRoleOptions { Name = $"RPC /{package}.Orders/Watch" });
+        await Expect(watch).ToContainTextAsync("Server streaming");
+        await Expect(watch.Locator("pre code")).ToContainTextAsync("\"total\"");
+        await Expect(watch.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "+ Create test" })).Not.ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task UploadBrokenProto_ShowsTheFileAndLine()
+    {
+        await Page.GotoAsync("/specifications");
+
+        await Page.Locator("#spec-kind-select").SelectOptionAsync("Proto");
+        await Page.Locator("input[type=file]").SetInputFilesAsync(new FilePayload
+        {
+            Name = "broken.proto",
+            MimeType = "text/plain",
+            Buffer = Encoding.UTF8.GetBytes("syntax = \"proto3\";\nmessage A { strin name = 1; }\nservice S { rpc X (A) returns (A); }"),
+        });
+
+        await Expect(Page.Locator("p.text-danger")).ToContainTextAsync("broken.proto(2,");
+    }
+
+    private static string BuildOrdersProto(string package) => $$"""
+        syntax = "proto3";
+        package {{package}};
+        import "common/money.proto";
+        service Orders {
+          rpc Get (GetRequest) returns (Order);
+          rpc Watch (GetRequest) returns (stream Order);
+        }
+        message GetRequest { string id = 1; }
+        message Order { string id = 1; Money total = 2; }
+        """;
+
+    private static string BuildMoneyProto(string package) => $$"""
+        syntax = "proto3";
+        package {{package}};
+        message Money { string currency_code = 1; int64 units = 2; }
+        """;
+
     private static string BuildOrdersAsyncApiYaml(string title) => $"""
         asyncapi: 3.0.0
         info:

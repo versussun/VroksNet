@@ -4,7 +4,8 @@ namespace VroksNet.Web;
 /// The server decides <see cref="RequiresHttpConnection"/>, <see cref="OperationShape"/> (which
 /// connection types fit — compared with <see cref="ConnectionTypeInfo.OperationShape"/>), <see cref="CanListen"/> and
 /// <see cref="DefaultTestScenarioKind"/> (the mode it suggests for a new Test Scenario — Listen for
-/// an AsyncAPI "send" operation); the UI only reads them.
+/// an AsyncAPI "send" operation); the UI only reads them. <see cref="RpcKind"/> (Unary, ServerStreaming,
+/// ClientStreaming, BidiStreaming) is set for gRPC operations only.
 /// </summary>
 public sealed record MockEndpointDetail(
     Guid Id,
@@ -16,4 +17,5 @@ public sealed record MockEndpointDetail(
     bool RequiresHttpConnection,
     string OperationShape,
     bool CanListen,
-    TestScenarioKind DefaultTestScenarioKind);
+    TestScenarioKind DefaultTestScenarioKind,
+    string? RpcKind);

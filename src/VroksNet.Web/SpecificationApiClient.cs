@@ -51,6 +51,29 @@ public sealed class SpecificationApiClient(HttpClient httpClient)
     public Task<Guid> ImportAsyncApiAsync(Stream yamlContent, string fileName, CancellationToken cancellationToken = default)
         => ImportAsync("/api/specifications/asyncapi", yamlContent, fileName, cancellationToken);
 
+    /// <summary>
+    /// Imports .proto files together — one imports another by its path — or a single .zip of them.
+    /// Throws if the server rejects them, with its message (which names the file and line).
+    /// </summary>
+    public async Task<ImportProtoResult> ImportProtoAsync(IReadOnlyList<(string FileName, Stream Content)> files, CancellationToken cancellationToken = default)
+    {
+        using var form = new MultipartFormDataContent();
+        foreach (var (fileName, content) in files)
+        {
+            form.Add(new StreamContent(content), "files", fileName);
+        }
+
+        using var response = await httpClient.PostAsync("/api/specifications/proto", form, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            var error = await response.Content.ReadFromJsonAsync<ImportSpecificationError>(JsonOptions, cancellationToken);
+            throw new InvalidOperationException(error?.Message ?? "The server rejected these files.");
+        }
+
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ImportProtoResult>(JsonOptions, cancellationToken))!;
+    }
+
     private async Task<Guid> ImportAsync(string requestUri, Stream yamlContent, string fileName, CancellationToken cancellationToken)
     {
         using var content = new StreamContent(yamlContent);

@@ -3,6 +3,7 @@ using VroksNet.Application.Abstractions;
 using VroksNet.Domain.TestScenarios;
 using VroksNet.Infrastructure.SchemaValidation;
 using VroksNet.Infrastructure.Specifications;
+using VroksNet.Infrastructure.Specifications.Proto;
 
 namespace VroksNet.UnitTests.Specifications;
 
@@ -91,6 +92,21 @@ public sealed class SampleSpecificationsTests
         var getStock = spec.Operations.Single(operation => operation.OperationKey == "GET /warehouses/{code}/stock");
         Assert.Contains("{{request.path.code}}", getStock.ExampleJson);
         Assert.NotNull(spec.Operations.Single(operation => operation.OperationKey == "POST /reservations").RequestSchemaJson);
+    }
+
+    /// <summary>docs/samples/grpc (ADR 0004): one specification per file with services, every example matching its response message.</summary>
+    [Theory]
+    [InlineData("demo.greeter.v1 (Greeter)", 1)]
+    [InlineData("shop.orders.v1 (Orders, Payments)", 4)]
+    public void GrpcSample_ParsesAndEveryExampleMatchesItsResponseSchema(string title, int operationCount)
+    {
+        var spec = new ProtoSpecificationParser().Parse(ProtoSpecificationParserTests.Samples()).Specifications.Single(spec => spec.Title == title);
+
+        Assert.Equal(operationCount, spec.Operations.Count);
+        foreach (var operation in spec.Operations)
+        {
+            AssertValid(operation, operation.ResponseSchemaJson);
+        }
     }
 
     /// <summary>Fails if the operation has no example, <paramref name="schemaJson"/> is missing, or the example doesn't match it.</summary>

@@ -86,6 +86,13 @@ public sealed class ExportProvisioningTests : IAsyncLifetime
             File.Copy(Path.Combine(AppContext.BaseDirectory, "Samples", sample), Path.Combine(_sourceRoot, "specs", sample));
         }
 
+        // .proto files keep their folders, since imports name files by path (ADR 0004).
+        Directory.CreateDirectory(Path.Combine(_sourceRoot, "specs", "common"));
+        foreach (var proto in new[] { "greeter.proto", "shop-orders.proto", "common/money.proto" })
+        {
+            File.Copy(Path.Combine(AppContext.BaseDirectory, "Samples", "grpc", proto), Path.Combine(_sourceRoot, "specs", proto));
+        }
+
         File.WriteAllText(Path.Combine(_sourceRoot, "vroksnet.yaml"), Manifest);
         return ValueTask.CompletedTask;
     }
@@ -160,6 +167,28 @@ public sealed class ExportProvisioningTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Export_ProtoSpecifications_KeepTheirPaths_SoTheirImportsStillResolve()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var source = await StartAsync(_sourceRoot, new() { ["ConnectionStrings:kafka"] = "broker:9092" });
+        Assert.Equal(ProvisioningStatus.Applied, (await source.Send(new ApplyProvisioning())).Status);
+
+        var exported = Unzip(await source.Send(new ExportProvisioning(InlineConnectionValues: true)));
+
+        // Each file once, at its own path — money.proto isn't a specification, but shop-orders.proto imports it.
+        Assert.Equal(
+            ["common/money.proto", "greeter.proto", "shop-orders.proto"],
+            Directory.EnumerateFiles(Path.Combine(exported, "specs"), "*.proto", SearchOption.AllDirectories)
+                .Select(file => Path.GetRelativePath(Path.Combine(exported, "specs"), file).Replace('\\', '/')).Order(StringComparer.Ordinal));
+
+        var copy = await StartAsync(exported, new() { ["ConnectionStrings:kafka"] = "broker:9092" });
+        var report = await copy.Send(new ApplyProvisioning());
+        Assert.True(report.Status == ProvisioningStatus.Applied, string.Join("\n", report.Errors.Select(e => $"{e.Source}: {e.Message}")));
+        var shop = await copy.Get<IApiSpecificationRepository>().FindByTitleAsync("shop.orders.v1 (Orders, Payments)", cancellationToken);
+        Assert.Equal(4, shop!.Endpoints.Count);
+    }
+
+    [Fact]
     public async Task Export_WithInlineValues_KeepsThem_AndLeavesOutWhatNoLongerResolves()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -175,12 +204,14 @@ public sealed class ExportProvisioningTests : IAsyncLifetime
         Assert.Contains("Publisher \"order-created\" isn't exported: its connection no longer exists.", manifest);
         Assert.Contains("Test scenario \"settlements\" isn't exported: its connection no longer exists.", manifest);
         Assert.Contains("Test suite \"contract\" is exported without 1 scenario(s) that aren't.", manifest);
-        Assert.Equal(["bookstore-sample-api.yaml", "shop-events-kafka-sample.yaml"], Directory.GetFiles(Path.Combine(exported, "specs")).Select(Path.GetFileName).Order());
+        // The .proto files go out at their own paths (Export_ProtoSpecifications_KeepTheirPaths_…).
+        Assert.Equal(["bookstore-sample-api.yaml", "shop-events-kafka-sample.yaml"], Directory.GetFiles(Path.Combine(exported, "specs"), "*.yaml").Select(Path.GetFileName).Order());
 
         // What's left still provisions cleanly.
         var report = await (await StartAsync(exported, [])).Send(new ApplyProvisioning());
         Assert.True(report.Status == ProvisioningStatus.Applied, string.Join("\n", report.Errors.Select(e => $"{e.Source}: {e.Message}")));
-        Assert.Equal(new ProvisioningCounts(2, 2, 1, 2, 1), report.Counts); // the RabbitMQ connection and what uses it are still there
+        // Two YAML specs and the two .proto ones; the RabbitMQ connection and what uses it are still there.
+        Assert.Equal(new ProvisioningCounts(4, 2, 1, 2, 1), report.Counts);
     }
 
     private async Task<Instance> StartAsync(string provisioningPath, Dictionary<string, string?> settings)

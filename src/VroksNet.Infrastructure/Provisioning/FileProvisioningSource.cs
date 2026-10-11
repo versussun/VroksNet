@@ -36,7 +36,9 @@ public sealed class FileProvisioningSource(IConfiguration configuration) : IProv
     private const string ManifestFileName = "vroksnet.yaml";
     private const string SchemaResource = "VroksNet.Infrastructure.Provisioning.provisioning-manifest.v1.schema.json";
 
-    private static readonly string[] SpecExtensions = [".yaml", ".yml", ".json"];
+    private static readonly string[] SpecExtensions = [".yaml", ".yml", ".json", ProtoExtension];
+
+    private const string ProtoExtension = ".proto";
     private static readonly Lazy<JsonSchema> ManifestSchema = new(LoadSchema);
     private static readonly JsonSerializerOptions ManifestJson = new(JsonSerializerDefaults.Web)
     {
@@ -136,6 +138,13 @@ public sealed class FileProvisioningSource(IConfiguration configuration) : IProv
             try
             {
                 var content = await File.ReadAllTextAsync(file, cancellationToken);
+                // .proto files are parsed together when applied, since they import each other by path (ADR 0004).
+                if (string.Equals(Path.GetExtension(file), ProtoExtension, StringComparison.OrdinalIgnoreCase))
+                {
+                    specs.Add(new ProvisioningSpecFile(relativePath, SpecificationKind.Proto, content));
+                    continue;
+                }
+
                 var mapping = YamlJson.LoadMapping(content, relativePath);
                 var keys = mapping.Children.Keys.OfType<SharpYaml.Serialization.YamlScalarNode>().Select(key => key.Value).ToHashSet(StringComparer.Ordinal);
                 SpecificationKind? kind = keys.Contains("asyncapi") ? SpecificationKind.AsyncApi

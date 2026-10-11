@@ -4,7 +4,7 @@ namespace VroksNet.Domain.MockEndpoints;
 
 /// <summary>
 /// One mockable operation parsed out of an <see cref="ApiSpecifications.ApiSpecification"/> —
-/// an OpenAPI method+path, or an AsyncAPI channel+action: what was found in the spec (its example
+/// an OpenAPI method+path, an AsyncAPI channel+action, or a gRPC method: what was found in the spec (its example
 /// template, status and schemas) and how the mock serves it.
 /// </summary>
 public sealed class MockEndpoint
@@ -13,7 +13,7 @@ public sealed class MockEndpoint
 
     public Guid SpecificationId { get; set; }
 
-    /// <summary>E.g. "GET /pets/{id}" for OpenAPI, or "orders.created:send" for AsyncAPI.</summary>
+    /// <summary>E.g. "GET /pets/{id}" for OpenAPI, "orders.created:send" for AsyncAPI, or "RPC /shop.orders.v1.Orders/GetOrder" for gRPC.</summary>
     public string OperationKey { get; set; } = string.Empty;
 
     /// <summary>
@@ -66,8 +66,11 @@ public sealed class MockEndpoint
     /// </summary>
     public Dictionary<string, string?> ResponseSchemasByStatus { get; set; } = [];
 
+    /// <summary>gRPC operations only (ADR 0004): whether the method streams, and which way; null for HTTP and AsyncAPI.</summary>
+    public RpcKind? RpcKind { get; set; }
+
     /// <summary>
-    /// Takes the spec-derived content (position, example, status, schemas) of the same operation from a fresh
+    /// Takes the spec-derived content (position, example, status, schemas, RPC kind) of the same operation from a fresh
     /// import, keeping this endpoint's id and its admin-set state (<see cref="IsEnabled"/>,
     /// <see cref="ServeAtRealPath"/>). Only fields whose value differs are written.
     /// </summary>
@@ -115,6 +118,12 @@ public sealed class MockEndpoint
             || ResponseSchemasByStatus.Except(imported.ResponseSchemasByStatus).Any())
         {
             ResponseSchemasByStatus = new Dictionary<string, string?>(imported.ResponseSchemasByStatus);
+            changed = true;
+        }
+
+        if (RpcKind != imported.RpcKind)
+        {
+            RpcKind = imported.RpcKind;
             changed = true;
         }
 

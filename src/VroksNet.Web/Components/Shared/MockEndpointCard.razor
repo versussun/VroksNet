@@ -6,10 +6,18 @@
     <div class="card-header d-flex justify-content-between align-items-center">
         <code>@Endpoint.OperationKey</code>
         <div class="d-flex align-items-center gap-2">
+            @if (IsRpcOperation)
+            {
+                <span class="badge bg-info text-dark">@RpcKindLabel</span>
+            }
             <span class="badge @(_isEnabled ? "bg-success" : "bg-secondary")">
                 @(_isEnabled ? "Enabled" : "Disabled")
             </span>
-            <button type="button" class="btn btn-outline-primary btn-sm" @onclick="CreateTest">+ Create test</button>
+            @* No connection type carries gRPC calls yet (plan step G5), so a test couldn't be saved. *@
+            @if (!IsRpcOperation)
+            {
+                <button type="button" class="btn btn-outline-primary btn-sm" @onclick="CreateTest">+ Create test</button>
+            }
         </div>
     </div>
 
@@ -45,7 +53,11 @@
             <p class="text-muted fst-italic">This endpoint is disabled — sending a request to it will return 404.</p>
         }
 
-        @if (!IsHttpOperation)
+        @if (IsRpcOperation)
+        {
+            <p class="text-muted fst-italic mb-0">gRPC methods are listed with an example of their response message, built from the .proto file. The gRPC mock port that answers them isn't available yet.</p>
+        }
+        else if (!IsHttpOperation)
         {
             <p class="text-muted fst-italic mb-0">AsyncAPI operations aren't invoked here — publish them to a broker from <a href="publishers">Publishers</a> (on a schedule or on demand), or once from a Test Scenario.</p>
         }
@@ -171,6 +183,17 @@
 
     /// <summary>Whether this is an HTTP (OpenAPI) operation — decided by the server (MockEndpointDetail.RequiresHttpConnection), not re-derived from the key here.</summary>
     private bool IsHttpOperation => Endpoint.RequiresHttpConnection;
+
+    /// <summary>A gRPC method (ADR 0004) — also decided by the server (MockEndpointDetail.OperationShape).</summary>
+    private bool IsRpcOperation => Endpoint.OperationShape == "Rpc";
+
+    private string RpcKindLabel => Endpoint.RpcKind switch
+    {
+        "ServerStreaming" => "Server streaming",
+        "ClientStreaming" => "Client streaming",
+        "BidiStreaming" => "Bidirectional streaming",
+        _ => "Unary"
+    };
 
     private string ResolvedPath
     {

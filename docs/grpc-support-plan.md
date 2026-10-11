@@ -1,6 +1,6 @@
 # Plan: gRPC support
 
-**Status:** accepted — decisions in ADR 0004 (`docs/adr/0004-grpc-support.md`). **Progress:** G0 and G1 done; G2–G8 not started.
+**Status:** accepted — decisions in ADR 0004 (`docs/adr/0004-grpc-support.md`). **Progress:** G0, G1 and G2 done; G3–G8 not started.
 **Why:** services talk to each other over gRPC as well as REST and brokers. VroksNet should mock a gRPC service from its `.proto` file and check a real one against it, the way it already does for OpenAPI.
 
 ## What "gRPC support" means here
@@ -136,7 +136,7 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
 - **Done when:** current behaviour is unchanged (existing tests green), and unit tests cover all three shapes.
 - **Moved to G5:** the `Grpc` connection type. A type needs an adapter (`ServiceTypeTraitsTests`/`BrokerAdapterRegistryTests`), and a type that can do nothing shouldn't appear in the UI.
 
-### G2. Import `.proto` (L) — after G1
+### G2. Import `.proto` (L) — after G1 — ✅ done
 
 - **Parser:** `ProtoSpecificationParser`.
   - Title and which files become specs: decisions 1 and 4.
@@ -150,6 +150,13 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
 - **Re-import:** works by title, as today.
 - **Samples:** `docs/samples/greeter.proto` and `docs/samples/shop-orders.proto`. The second one uses imports, `Timestamp`, nested messages, enum, `oneof`, `map`, `repeated` and a server-streaming RPC.
 - **Done when:** both samples import through the UI (as several files and as a `.zip`) and provisioning and show their RPCs with generated examples; an upload with a missing import, and a broken `.proto`, fail with the file and line.
+
+- **Result:** `POST /api/specifications/proto` (multipart: `.proto` files, or one `.zip`; 500 files, 10 MB of what's actually unpacked), `.proto` in provisioning and the export, the UI import with a result list and an RPC kind badge per method. Notes from the implementation:
+  - Provisioning parses every `.proto` under `specs/` in one go; a parse error is reported against its file and then **no** `.proto` is imported, since the parser can't tell which specifications a broken import affects.
+  - A file whose path lost folders (a browser sends bare names) or gained one (a zipped directory) is moved to the path an import names, when it's the only file that fits; otherwise the import is reported missing.
+  - The two files of one title can't collide: the same package with the same services is a duplicate-symbol error in protobuf itself.
+  - protobuf-net is referenced with `PrivateAssets="compile"`: its alias doesn't flow to referencing projects, which would otherwise see two `Google.Protobuf.Reflection.FileDescriptorSet` types.
+  - "+ Create test" is hidden on RPC methods until G5 brings the `Grpc` connection type.
 
 ### G3. JSON ↔ protobuf transcoder (L) — can run in parallel with G2
 

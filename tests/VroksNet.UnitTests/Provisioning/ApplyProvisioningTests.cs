@@ -8,6 +8,8 @@ using VroksNet.Application.Abstractions;
 using VroksNet.Application.Provisioning;
 using VroksNet.Application.Provisioning.ApplyProvisioning;
 using VroksNet.Application.Publishers.UpdatePublisher;
+using VroksNet.Domain.ApiSpecifications;
+using VroksNet.Domain.MockEndpoints;
 using VroksNet.Domain.TestScenarios;
 using VroksNet.Infrastructure;
 using VroksNet.Infrastructure.Persistence;
@@ -113,6 +115,51 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
         Assert.Equal(publisher.Id, reverted.Id);
         Assert.Equal(60, reverted.IntervalSeconds);
         Assert.Equal(settlements.Id, (await Get<ITestScenarioRepository>().FindByNameAsync("settlements", cancellationToken))!.Id);
+    }
+
+    /// <summary>The .proto files are imported together (ADR 0004): one imports another by its path under specs/.</summary>
+    [Fact]
+    public async Task Apply_ProtoFiles_ImportTogether_ThenAgainChangeNothing()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        CopyGrpcSamples();
+
+        var report = await ApplyAsync();
+
+        Assert.True(report.Status == ProvisioningStatus.Applied, string.Join("\n", report.Errors.Select(e => $"{e.Source}: {e.Message}")));
+        Assert.Equal(2, report.Counts.Specifications);
+        var specifications = Get<IApiSpecificationRepository>();
+        var shop = await specifications.FindByTitleAsync("shop.orders.v1 (Orders, Payments)", cancellationToken);
+        Assert.NotNull(shop?.ProvisionedAt);
+        Assert.Equal(SpecificationKind.Proto, shop.Kind);
+        Assert.Equal("shop-orders.proto", shop.ProtoPath);
+        Assert.Equal(["common/money.proto"], shop.ProtoImports.Keys);
+        Assert.NotEmpty(shop.ProtoDescriptorSet!);
+        Assert.Equal(RpcKind.ServerStreaming, shop.Endpoints.Single(e => e.OperationKey == "RPC /shop.orders.v1.Orders/WatchOrders").RpcKind);
+
+        var again = await ApplyAsync();
+
+        Assert.Equal(ProvisioningStatus.Applied, again.Status);
+        Assert.Equal(2, (await specifications.ListAsync(cancellationToken)).Count);
+        var unchanged = await specifications.FindByTitleAsync(shop.Title, cancellationToken);
+        Assert.Equal((shop.Id, shop.UpdatedAt), (unchanged!.Id, unchanged.UpdatedAt));
+        Assert.Equal(shop.Endpoints.Select(e => e.Id).Order(), unchanged.Endpoints.Select(e => e.Id).Order());
+    }
+
+    [Fact]
+    public async Task Apply_ABrokenProtoFile_IsReportedAgainstItsFile_AndNoProtoIsImported()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        CopyGrpcSamples();
+        File.WriteAllText(Path.Combine(_root, "specs", "broken.proto"), "syntax = \"proto3\";\nmessage A { strin name = 1; }\n");
+
+        var report = await ApplyAsync();
+
+        Assert.Equal(ProvisioningStatus.Failed, report.Status);
+        var error = Assert.Single(report.Errors);
+        Assert.Equal("specs/broken.proto", error.Source);
+        Assert.StartsWith("line 2, column", error.Message);
+        Assert.Empty(await Get<IApiSpecificationRepository>().ListAsync(cancellationToken));
     }
 
     [Fact]
@@ -342,6 +389,16 @@ public sealed class ApplyProvisioningTests : IAsyncLifetime
         for (var i = 0; i < pairs.Length; i += 2)
         {
             _configuration[$"Provisioning:Connections:{index}:{pairs[i]}"] = pairs[i + 1];
+        }
+    }
+
+    /// <summary>docs/samples/grpc into specs/, keeping its folders: shop-orders.proto imports "common/money.proto".</summary>
+    private void CopyGrpcSamples()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "specs", "common"));
+        foreach (var sample in new[] { "greeter.proto", "shop-orders.proto", "common/money.proto" })
+        {
+            CopySample(Path.Combine("grpc", sample), Path.Combine("specs", sample));
         }
     }
 

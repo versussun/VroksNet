@@ -1,4 +1,5 @@
 using VroksNet.Domain.Connections;
+using VroksNet.Domain.MockEndpoints;
 using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Application.Specifications.GetSpecificationDetails;
@@ -7,7 +8,7 @@ namespace VroksNet.Application.Specifications.GetSpecificationDetails;
 /// One endpoint within a <see cref="SpecificationDetails"/> view, plus the Domain rules the Admin
 /// UI needs for it so it doesn't re-derive them: <see cref="RequiresHttpConnection"/> and
 /// <see cref="OperationShape"/> (see <see cref="OperationCompatibility"/>), <see cref="CanListen"/> and the mode a new Test Scenario
-/// should start in (see <see cref="TestScenarioListening"/>).
+/// should start in (see <see cref="TestScenarioListening"/>). <see cref="RpcKind"/> is set for gRPC operations only.
 /// </summary>
 public sealed record MockEndpointDetail(
     Guid Id,
@@ -19,4 +20,5 @@ public sealed record MockEndpointDetail(
     bool RequiresHttpConnection,
     OperationShape OperationShape,
     bool CanListen,
-    TestScenarioKind DefaultTestScenarioKind);
+    TestScenarioKind DefaultTestScenarioKind,
+    RpcKind? RpcKind);

@@ -4,6 +4,7 @@ using VroksNet.Application.Mocking.SetSpecificationProviderMode;
 using VroksNet.Application.Specifications.GetSpecificationDetails;
 using VroksNet.Application.Specifications.ImportAsyncApiSpec;
 using VroksNet.Application.Specifications.ImportOpenApiSpec;
+using VroksNet.Application.Specifications.ImportProtoSpecs;
 using VroksNet.Application.Specifications.ListSpecifications;
 using VroksNet.ApiService.Endpoints.Responses;
 
@@ -101,6 +102,28 @@ public static class SpecificationEndpoints
         })
         .WithName("ImportAsyncApiSpecification")
         .Accepts<string>("text/plain");
+
+        // .proto files (ADR 0004): several at once, since one imports another by its path — see ProtoUpload.
+        group.MapPost("/proto", async (HttpRequest request, IMediator mediator, CancellationToken cancellationToken) =>
+        {
+            var (files, error) = await ProtoUpload.ReadAsync(request, cancellationToken);
+            if (files is null)
+            {
+                return Results.BadRequest(new ImportSpecificationError(error!)); // ReadAsync gives an error whenever it gives no files
+            }
+
+            try
+            {
+                return Results.Ok(await mediator.Send(new ImportProtoSpecs(files), cancellationToken));
+            }
+            catch (InvalidOperationException ex)
+            {
+                // SpecificationParseException: a file doesn't parse, an import is missing, or nothing declares a service.
+                return Results.BadRequest(new ImportSpecificationError(ex.Message));
+            }
+        })
+        .WithName("ImportProtoSpecifications")
+        .Accepts<IFormFileCollection>("multipart/form-data");
 
         return app;
     }

@@ -32,8 +32,15 @@
     <Content Include="Fixtures\**\*.yaml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Fixtures\**\*.proto">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <!-- The importable examples in docs/samples — SampleSpecificationsTests keeps them working. -->
     <Content Include="..\..\docs\samples\*.yaml" Link="Samples\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- The gRPC samples keep their folders: their imports name files by path. -->
+    <Content Include="..\..\docs\samples\grpc\**\*.proto" Link="Samples\grpc\%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <!-- The provisioning example — ApplyProvisioningTests keeps it applying cleanly. -->

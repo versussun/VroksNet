@@ -12,20 +12,59 @@
     <select id="spec-kind-select" class="form-select d-inline-block w-auto me-2" @bind="_selectedKind" disabled="@isUploading">
         <option value="@SpecificationKind.OpenApi">OpenAPI</option>
         <option value="@SpecificationKind.AsyncApi">AsyncAPI</option>
+        <option value="@SpecificationKind.Proto">gRPC (.proto)</option>
     </select>
     <label class="btn btn-primary">
-        Upload spec
-        <InputFile OnChange="OnFileSelectedAsync" accept=".yaml,.yml" style="display:none" disabled="@isUploading" />
+        @(IsProto ? "Upload .proto files" : "Upload spec")
+        @* Re-keyed per kind: "multiple" and "accept" are read when the input is created. *@
+        <InputFile @key="_selectedKind" OnChange="OnFileSelectedAsync" accept="@(IsProto ? ".proto,.zip" : ".yaml,.yml")" multiple="@IsProto"
+                   style="display:none" disabled="@isUploading" aria-describedby="spec-upload-help" />
     </label>
     @if (isUploading)
     {
         <em class="ms-2">Uploading…</em>
     }
 </p>
+@if (IsProto)
+{
+    <p id="spec-upload-help" class="form-text">
+        Select the file with the services together with the files it imports — or one .zip of the folder. Each import is matched to the
+        uploaded file at its path, or else to the only file whose name fits (so <code>money.proto</code> serves
+        <code>import "common/money.proto"</code>); the well-known types (<code>google/protobuf/*.proto</code>) come with VroksNet.
+        Each file that declares a service becomes a specification.
+    </p>
+}
+
+@* Always rendered (empty when idle) so screen readers announce the result when it appears. *@
+<div role="status" aria-label="Import result">
+    @if (_protoResult is not null)
+    {
+        <div class="alert alert-success py-2">
+            <ul class="mb-0">
+                @foreach (var imported in _protoResult.Specifications)
+                {
+                    <li>
+                        <a href="@($"specifications/{imported.Id}")">@imported.Title</a>
+                        (<code>@imported.Path</code>, @imported.OperationCount method(s)) — @(imported.Replaced ? "updated" : "added")
+                        @if (imported.Note is not null)
+                        {
+                            <div class="small">@imported.Note</div>
+                        }
+                    </li>
+                }
+            </ul>
+            @if (_protoResult.ImportOnlyFiles.Length > 0)
+            {
+                <div class="small mt-1">Used as imports only: @string.Join(", ", _protoResult.ImportOnlyFiles)</div>
+            }
+        </div>
+    }
+</div>
 
 @if (errorMessage is not null)
 {
-    <p class="text-danger">@errorMessage</p>
+    @* pre-line: a .proto import's errors come one per line (file(line,column): message). *@
+    <p class="text-danger" style="white-space: pre-line">@errorMessage</p>
 }
 
 @if (specifications is null)
@@ -34,7 +73,7 @@
 }
 else if (specifications.Length == 0)
 {
-    <p><em>No specifications imported yet. Upload a .yaml/.yml OpenAPI file to get started.</em></p>
+    <p><em>No specifications imported yet. Upload an OpenAPI or AsyncAPI .yaml/.yml file, or gRPC .proto files, to get started.</em></p>
 }
 else
 {
@@ -83,7 +122,14 @@ else
         }
         else
         {
-            <HighlightedYaml Content="@_viewingRawContent" />
+            @if (_viewingKind == SpecificationKind.Proto)
+            {
+                <pre class="mb-0"><code>@_viewingRawContent</code></pre>
+            }
+            else
+            {
+                <HighlightedYaml Content="@_viewingRawContent" />
+            }
         }
     </div>
 </aside>
@@ -91,6 +137,10 @@ else
 @code {
     // Reject anything obviously not a spec file before it hits the wire.
     private const long MaxFileSizeBytes = 1024 * 1024; // 1 MB
+
+    // The server's limits for a .proto upload (ProtoUpload): 500 files, 10 MB in all.
+    private const int MaxProtoFiles = 500;
+    private const long MaxProtoUploadBytes = 10 * 1024 * 1024;
 
     // Cheap "does this even look like the right kind of file" pre-check — not real validation
     // (that stays server-side in OpenApiSpecificationParser/AsyncApiSpecificationParser, the only
@@ -107,9 +157,13 @@ else
     private bool isUploading;
     private string? errorMessage;
     private SpecificationKind _selectedKind = SpecificationKind.OpenApi;
+    private ImportProtoResult? _protoResult;
+
+    private bool IsProto => _selectedKind == SpecificationKind.Proto;
 
     private bool _isViewPanelOpen;
     private string? _viewingTitle;
+    private SpecificationKind _viewingKind;
     private string? _viewingRawContent;
 
     protected override async Task OnInitializedAsync()
@@ -125,6 +179,13 @@ else
     private async Task OnFileSelectedAsync(InputFileChangeEventArgs e)
     {
         errorMessage = null;
+        _protoResult = null;
+        if (IsProto)
+        {
+            await ImportProtoAsync(e);
+            return;
+        }
+
         isUploading = true;
 
         try
@@ -159,10 +220,62 @@ else
         }
     }
 
+    /// <summary>Sends every selected .proto file (or the one .zip) in one request — parsing and validation stay on the server.</summary>
+    private async Task ImportProtoAsync(InputFileChangeEventArgs e)
+    {
+        if (e.FileCount > MaxProtoFiles)
+        {
+            errorMessage = $"Select at most {MaxProtoFiles} files.";
+            return;
+        }
+
+        var selected = e.GetMultipleFiles(MaxProtoFiles);
+        if (selected.Sum(file => file.Size) > MaxProtoUploadBytes)
+        {
+            errorMessage = $"The selected files are larger than {MaxProtoUploadBytes / (1024 * 1024)} MB in all.";
+            return;
+        }
+
+        isUploading = true;
+        var streams = new List<(string FileName, Stream Content)>();
+        try
+        {
+            foreach (var file in selected)
+            {
+                // Buffered: the browser's file streams can't be read once the next one is opened.
+                var buffer = new MemoryStream();
+                await using (var stream = file.OpenReadStream(MaxProtoUploadBytes))
+                {
+                    await stream.CopyToAsync(buffer);
+                }
+
+                buffer.Position = 0;
+                streams.Add((file.Name, buffer));
+            }
+
+            _protoResult = await SpecificationApi.ImportProtoAsync(streams);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to import the .proto files: {ex.Message}";
+        }
+        finally
+        {
+            foreach (var (_, content) in streams)
+            {
+                await content.DisposeAsync();
+            }
+
+            isUploading = false;
+        }
+    }
+
     /// <summary>Opens the raw-content panel immediately (showing "Loading...") and fills it in once GetByIdAsync returns — SpecificationSummary (the list) deliberately doesn't carry RawContent, so this is its own round trip.</summary>
     private async Task ViewAsync(SpecificationSummary specification)
     {
         _viewingTitle = specification.Title;
+        _viewingKind = specification.Kind;
         _viewingRawContent = null;
         errorMessage = null;
         _isViewPanelOpen = true;

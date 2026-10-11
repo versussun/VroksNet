@@ -35,7 +35,8 @@ public sealed class GetSpecificationDetailsHandler(IApiSpecificationRepository r
                     OperationCompatibility.IsHttpOperation(endpoint.OperationKey),
                     OperationCompatibility.ShapeOf(endpoint.OperationKey),
                     TestScenarioListening.CanListen(endpoint.OperationKey),
-                    TestScenarioListening.DefaultKindFor(endpoint.OperationKey)))
+                    TestScenarioListening.DefaultKindFor(endpoint.OperationKey),
+                    endpoint.RpcKind))
                 .ToList(),
             specification.Protocols,
             ServiceTypeTraits.TypesFor(specification.Protocols));

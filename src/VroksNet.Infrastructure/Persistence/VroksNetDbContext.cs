@@ -53,11 +53,22 @@ public sealed class VroksNetDbContext(DbContextOptions<VroksNetDbContext> option
                         (left, right) => left == null ? right == null : right != null && left.SequenceEqual(right),
                         protocols => protocols.Aggregate(0, (hash, protocol) => HashCode.Combine(hash, protocol)),
                         protocols => protocols.ToList()));
+            // .proto only: the imported files' text by path — read and written whole, with its spec.
+            entity.Property(specification => specification.ProtoImports)
+                .HasConversion(
+                    imports => JsonSerializer.Serialize(imports, (JsonSerializerOptions?)null),
+                    json => JsonSerializer.Deserialize<Dictionary<string, string>>(json, (JsonSerializerOptions?)null) ?? new Dictionary<string, string>(),
+                    new ValueComparer<Dictionary<string, string>>(
+                        (left, right) => left == null ? right == null : right != null && left.Count == right.Count && !left.Except(right).Any(),
+                        // XOR, so the hash doesn't depend on enumeration order (see ResponseSchemasByStatus).
+                        imports => imports.Aggregate(0, (hash, pair) => hash ^ HashCode.Combine(pair.Key, pair.Value)),
+                        imports => new Dictionary<string, string>(imports)));
         });
 
         modelBuilder.Entity<MockEndpoint>(entity =>
         {
             entity.HasKey(endpoint => endpoint.Id);
+            entity.Property(endpoint => endpoint.RpcKind).HasConversion<string>();
             // Stored as one JSON object column — it's only ever read/written whole, together with
             // its endpoint, so a child table would add joins for nothing.
             entity.Property(endpoint => endpoint.ResponseSchemasByStatus)
