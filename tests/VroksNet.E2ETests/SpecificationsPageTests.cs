@@ -95,7 +95,11 @@ public sealed class SpecificationsPageTests(AppHostFixture fixture) : PageTestBa
         await Expect(endpointCard.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = "Publishers" })).ToHaveAttributeAsync("href", "publishers");
     }
 
-    /// <summary>gRPC (ADR 0004): several .proto files picked at once, imports resolved among them, the result listed, and each method's streaming kind shown.</summary>
+    /// <summary>
+    /// gRPC (ADR 0004): several .proto files picked at once, the result listed, and each method's
+    /// streaming kind shown. The browser sends bare file names, so money.proto has to serve
+    /// import "common/money.proto".
+    /// </summary>
     [Fact]
     public async Task UploadProtoFiles_ListsTheResult_AndTheMethodsWithTheirKind()
     {
@@ -112,7 +116,7 @@ public sealed class SpecificationsPageTests(AppHostFixture fixture) : PageTestBa
 
         var result = Page.GetByRole(AriaRole.Status, new PageGetByRoleOptions { Name = "Import result" });
         await Expect(result).ToContainTextAsync(title);
-        await Expect(result).ToContainTextAsync("Used as imports only: money.proto");
+        await Expect(result).ToContainTextAsync("Used as imports only: common/money.proto");
 
         var row = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = title });
         await Expect(row.Locator("td").Nth(1)).ToHaveTextAsync("Proto");
@@ -144,7 +148,7 @@ public sealed class SpecificationsPageTests(AppHostFixture fixture) : PageTestBa
     private static string BuildOrdersProto(string package) => $$"""
         syntax = "proto3";
         package {{package}};
-        import "money.proto";
+        import "common/money.proto";
         service Orders {
           rpc Get (GetRequest) returns (Order);
           rpc Watch (GetRequest) returns (stream Order);

@@ -43,7 +43,7 @@ The container speaks only HTTP. TLS is the job of a proxy or the orchestrator.
 |---|---|---|---|
 | `/app/data` | read-write, `VOLUME` | SQLite (`vroksnet.db`). Without a mounted volume, data lives until the container is recreated — which is what tests want | exists |
 | `/app/provisioning` | read-only | the provisioning root (`Provisioning:Path`). No directory — no provisioning | exists |
-| `/app/provisioning/specs/**` | read-only | specs: `*.yaml`, `*.yml`, `*.json`, nested directories allowed. The kind is detected by the root key (`openapi` / `swagger` / `asyncapi`), not by the file name. `*.proto` files (ADR 0004) are parsed together, an `import` naming a file by its path under `specs/`; each one that declares a service becomes a specification. A parse error is reported against its file, and then no `.proto` is imported | exists |
+| `/app/provisioning/specs/**` | read-only | specs: `*.yaml`, `*.yml`, `*.json`, nested directories allowed. The kind is detected by the root key (`openapi` / `swagger` / `asyncapi`), not by the file name. `*.proto` files (ADR 0004) are parsed together, an `import` naming a file by its path under `specs/` (or, failing that, the only file whose path fits it); each one that declares a service becomes a specification. A parse error is reported against its file, and then no `.proto` is imported | exists |
 | `/app/provisioning/vroksnet.yaml` | read-only | the manifest, optional. Schema: `docs/schemas/provisioning-manifest.v1.schema.json`; a copy ships in the image at `/app/provisioning-manifest.v1.schema.json` | exists |
 
 The package mounts the specs and the manifest **separately** (a bind mount of a file or a directory). So `specs/` and `vroksnet.yaml` must work independently of each other.

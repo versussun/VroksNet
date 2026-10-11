@@ -16,7 +16,7 @@ curl -k -X POST https://localhost:7352/api/specifications/asyncapi \
 
 # gRPC: the .proto files together, since one imports another by its path (or one .zip of grpc/)
 cd docs/samples/grpc && curl -k -X POST https://localhost:7352/api/specifications/proto \
-  -F "files=@greeter.proto" -F "files=@shop-orders.proto" -F "files=@common/money.proto;filename=common/money.proto"
+  -F "files=@greeter.proto" -F "files=@shop-orders.proto" -F "files=@common/money.proto"
 ```
 
 To start a container with some of them already imported and wired up, see

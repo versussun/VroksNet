@@ -151,8 +151,9 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
 - **Samples:** `docs/samples/greeter.proto` and `docs/samples/shop-orders.proto`. The second one uses imports, `Timestamp`, nested messages, enum, `oneof`, `map`, `repeated` and a server-streaming RPC.
 - **Done when:** both samples import through the UI (as several files and as a `.zip`) and provisioning and show their RPCs with generated examples; an upload with a missing import, and a broken `.proto`, fail with the file and line.
 
-- **Result:** `POST /api/specifications/proto` (multipart: `.proto` files, or one `.zip` — a single top folder is dropped so paths match imports; 500 files, 10 MB), `.proto` in provisioning and the export, the UI import with a result list and an RPC kind badge per method. Notes from the implementation:
+- **Result:** `POST /api/specifications/proto` (multipart: `.proto` files, or one `.zip`; 500 files, 10 MB of what's actually unpacked), `.proto` in provisioning and the export, the UI import with a result list and an RPC kind badge per method. Notes from the implementation:
   - Provisioning parses every `.proto` under `specs/` in one go; a parse error is reported against its file and then **no** `.proto` is imported, since the parser can't tell which specifications a broken import affects.
+  - A file whose path lost folders (a browser sends bare names) or gained one (a zipped directory) is moved to the path an import names, when it's the only file that fits; otherwise the import is reported missing.
   - The two files of one title can't collide: the same package with the same services is a duplicate-symbol error in protobuf itself.
   - protobuf-net is referenced with `PrivateAssets="compile"`: its alias doesn't flow to referencing projects, which would otherwise see two `Google.Protobuf.Reflection.FileDescriptorSet` types.
   - "+ Create test" is hidden on RPC methods until G5 brings the `Grpc` connection type.

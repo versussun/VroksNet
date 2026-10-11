@@ -41,8 +41,9 @@ public sealed class ProtoSpecificationsApiTests(AppHostFixture fixture)
         Assert.Contains("\"total\"", endpoints[0]!["exampleTemplate"]!.GetValue<string>());
     }
 
+    /// <summary>A zipped directory adds its own name to every path; the imports still find their files.</summary>
     [Fact]
-    public async Task ImportAZipOfAFolder_DropsTheFolder_SoImportsMatch()
+    public async Task ImportAZipOfAFolder_ResolvesImportsUnderIt()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var package = UniquePackage();
@@ -52,7 +53,32 @@ public sealed class ProtoSpecificationsApiTests(AppHostFixture fixture)
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var result = (await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken))!;
-        Assert.Equal("orders.proto", Assert.Single(result["specifications"]!.AsArray())!["path"]!.GetValue<string>());
+        Assert.Equal("protos/orders.proto", Assert.Single(result["specifications"]!.AsArray())!["path"]!.GetValue<string>());
+        Assert.Equal("common/money.proto", Assert.Single(result["importOnlyFiles"]!.AsArray())!.GetValue<string>());
+    }
+
+    /// <summary>protoc's convention: package folders that the imports name too — kept as they are.</summary>
+    [Fact]
+    public async Task ImportAZipOfPackageFolders_KeepsThem()
+    {
+        var package = UniquePackage();
+        var zip = Zip(
+            ("acme/orders.proto", Orders(package).Replace("\"common/money.proto\"", "\"acme/common/money.proto\"")),
+            ("acme/common/money.proto", Money(package)));
+
+        using var response = await PostAsync("acme.zip", zip);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ImportAZipHoldingAFileTwice_Is400()
+    {
+        var package = UniquePackage();
+
+        using var response = await PostAsync("twice.zip", Zip(("a/b.proto", Money(package)), ("a\\b.proto", Money(package))));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

@@ -28,9 +28,10 @@
 @if (IsProto)
 {
     <p id="spec-upload-help" class="form-text">
-        Select the file with the services together with the files it imports — or one .zip of the folder. Imports are resolved by their path
-        among the uploaded files; the well-known types (<code>google/protobuf/*.proto</code>) come with VroksNet. Each file that declares
-        a service becomes a specification.
+        Select the file with the services together with the files it imports — or one .zip of the folder. Each import is matched to the
+        uploaded file at its path, or else to the only file whose name fits (so <code>money.proto</code> serves
+        <code>import "common/money.proto"</code>); the well-known types (<code>google/protobuf/*.proto</code>) come with VroksNet.
+        Each file that declares a service becomes a specification.
     </p>
 }
 

@@ -1,5 +1,6 @@
 extern alias protobufnet;
 
+using System.Text.RegularExpressions;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using VroksNet.Application.Abstractions;
@@ -16,7 +17,9 @@ namespace VroksNet.Infrastructure.Specifications.Proto;
 /// into Google.Protobuf's runtime descriptors for everything after import.
 /// <list type="bullet">
 /// <item>Imports resolve among the given files, in memory; the well-known types
-/// (<c>google/protobuf/*.proto</c>) come with the library.</item>
+/// (<c>google/protobuf/*.proto</c>) come with the library. A file whose path lost or gained folders
+/// on the way — a browser uploads bare file names, a zipped folder adds its own name — is moved to
+/// the path an import names, when it's the only file that fits (<see cref="AlignWithImports"/>).</item>
 /// <item>Every given file that declares a service becomes a specification, with its own descriptor
 /// set (the file and its imports, each after the files it imports).</item>
 /// <item>Proto2 groups and extensions, and editions, are refused: proto3 JSON has no form for them.</item>
@@ -24,11 +27,13 @@ namespace VroksNet.Infrastructure.Specifications.Proto;
 /// a .proto file has none of its own.</item>
 /// </list>
 /// </summary>
-public sealed class ProtoSpecificationParser : IProtoSpecificationParser
+public sealed partial class ProtoSpecificationParser : IProtoSpecificationParser
 {
+    private const string WellKnownTypesFolder = "google/protobuf/";
+
     public ParsedProtoUpload Parse(IReadOnlyDictionary<string, string> files)
     {
-        var sources = files.ToDictionary(file => NormalizePath(file.Key), file => file.Value, StringComparer.Ordinal);
+        var sources = AlignWithImports(files.ToDictionary(file => NormalizePath(file.Key), file => file.Value, StringComparer.Ordinal));
         if (sources.Count == 0)
         {
             throw Failure(null, "No .proto files were given.");
@@ -85,7 +90,16 @@ public sealed class ProtoSpecificationParser : IProtoSpecificationParser
         var ordered = DependenciesFirst(path, descriptors);
         var set = new FileDescriptorSet();
         set.File.AddRange(ordered);
-        var runtime = FileDescriptor.BuildFromByteStrings(ordered.Select(file => file.ToByteString())).Last();
+        FileDescriptor runtime;
+        try
+        {
+            runtime = FileDescriptor.BuildFromByteStrings(ordered.Select(file => file.ToByteString())).Last();
+        }
+        catch (DescriptorValidationException ex)
+        {
+            // Google.Protobuf checks some things protobuf-net doesn't; its message names the symbol.
+            throw Failure(path, ex.Message);
+        }
 
         var operations = runtime.Services
             .SelectMany(service => service.Methods)
@@ -121,6 +135,44 @@ public sealed class ProtoSpecificationParser : IProtoSpecificationParser
             set.ToByteArray(),
             operations);
     }
+
+    /// <summary>
+    /// Moves a file to the path an import names when it isn't there but exactly one file fits it:
+    /// <c>money.proto</c> for <c>import "common/money.proto"</c> (folders lost: a browser sends bare
+    /// file names), or <c>protos/common/money.proto</c> for it (folders gained: a zipped directory). A
+    /// file that an import already names exactly stays; a file two imports would claim, or an import
+    /// two files would fit, is left for the parser to report as missing.
+    /// </summary>
+    private static Dictionary<string, string> AlignWithImports(Dictionary<string, string> sources)
+    {
+        var imports = sources.Values
+            .SelectMany(text => ImportPattern().Matches(text).Select(match => NormalizePath(match.Groups[1].Value)))
+            .ToHashSet(StringComparer.Ordinal);
+        var claims = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var import in imports.Where(import => !sources.ContainsKey(import) && !import.StartsWith(WellKnownTypesFolder, StringComparison.Ordinal)))
+        {
+            var candidates = sources.Keys
+                .Where(path => !imports.Contains(path) && (path.EndsWith("/" + import, StringComparison.Ordinal) || import.EndsWith("/" + path, StringComparison.Ordinal)))
+                .ToList();
+            if (candidates is [var only])
+            {
+                (claims.TryGetValue(only, out var wanted) ? wanted : claims[only] = new HashSet<string>(StringComparer.Ordinal)).Add(import);
+            }
+        }
+
+        var aligned = new Dictionary<string, string>(sources, StringComparer.Ordinal);
+        foreach (var (path, wanted) in claims.Where(claim => claim.Value.Count == 1))
+        {
+            aligned.Remove(path);
+            aligned[wanted.Single()] = sources[path];
+        }
+
+        return aligned;
+    }
+
+    /// <summary>An <c>import "…";</c> statement (also <c>import public</c>/<c>import weak</c>), at the start of a line.</summary>
+    [GeneratedRegex("""^\s*import\s+(?:public\s+|weak\s+)?"([^"]+)"\s*;""", RegexOptions.Multiline)]
+    private static partial Regex ImportPattern();
 
     /// <summary>The file and everything it imports, each after the files it imports — the order <see cref="FileDescriptor.BuildFromByteStrings"/> needs.</summary>
     private static List<FileDescriptorProto> DependenciesFirst(string path, Dictionary<string, FileDescriptorProto> descriptors)

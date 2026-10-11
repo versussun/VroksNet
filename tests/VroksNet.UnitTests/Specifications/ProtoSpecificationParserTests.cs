@@ -128,6 +128,57 @@ public sealed class ProtoSpecificationParserTests
         Assert.Equal("RPC /Ping/Check", Assert.Single(spec.Operations).OperationKey);
     }
 
+    /// <summary>A browser uploads bare file names: money.proto still serves import "common/money.proto".</summary>
+    [Fact]
+    public void Parse_FilesThatLostTheirFolders_AreMovedToThePathTheirImportNames()
+    {
+        var flat = Samples().ToDictionary(file => file.Key.Split('/')[^1], file => file.Value);
+
+        var upload = _parser.Parse(flat);
+
+        Assert.Equal(["common/money.proto"], upload.ImportOnlyFiles);
+        Assert.Equal(["common/money.proto"], upload.Specifications.Single(spec => spec.Path == "shop-orders.proto").Imports.Keys);
+    }
+
+    /// <summary>A zipped directory adds its own name: protos/common/money.proto serves import "common/money.proto".</summary>
+    [Fact]
+    public void Parse_FilesUnderAnExtraFolder_AreMovedToThePathTheirImportNames()
+    {
+        var nested = Samples().ToDictionary(file => "protos/" + file.Key, file => file.Value);
+
+        var upload = _parser.Parse(nested);
+
+        Assert.Equal(["common/money.proto"], upload.ImportOnlyFiles);
+        Assert.Contains(upload.Specifications, spec => spec.Path == "protos/shop-orders.proto");
+    }
+
+    /// <summary>protoc's convention: files in package folders, imported with the folder — nothing to move.</summary>
+    [Fact]
+    public void Parse_AFolderThatImportsNameToo_IsKept()
+    {
+        var upload = _parser.Parse(new Dictionary<string, string>
+        {
+            ["acme/orders.proto"] = """syntax = "proto3"; package acme; import "acme/common.proto"; service Orders { rpc Get (Id) returns (Id); }""",
+            ["acme/common.proto"] = """syntax = "proto3"; package acme; message Id { string value = 1; }"""
+        });
+
+        Assert.Equal(["acme/common.proto"], upload.ImportOnlyFiles);
+        Assert.Equal("acme/orders.proto", Assert.Single(upload.Specifications).Path);
+    }
+
+    [Fact]
+    public void Parse_AnImportTwoFilesCouldServe_IsReportedMissing()
+    {
+        var error = Assert.Throws<SpecificationParseException>(() => _parser.Parse(new Dictionary<string, string>
+        {
+            ["orders.proto"] = """syntax = "proto3"; import "common/money.proto"; service Orders { rpc Get (Money) returns (Money); }""",
+            ["a/money.proto"] = """syntax = "proto3"; message Money { int64 units = 1; }""",
+            ["b/money.proto"] = """syntax = "proto3"; message Money { int64 units = 1; }"""
+        }));
+
+        Assert.Contains(error.Errors, item => item.File == "orders.proto" && item.Message.Contains("common/money.proto"));
+    }
+
     [Fact]
     public void Parse_AMissingImport_FailsWithItsFileAndLine()
     {
