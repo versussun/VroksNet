@@ -1,0 +1,112 @@
+// The transcoder's oracle (ADR 0004): Grpc.Tools generates C# for this file, and ProtobufTranscoder
+// must produce the same bytes and JSON as the generated messages for every case in
+// ProtobufTranscoderTests. The service is only there so ProtoSpecificationParser accepts the file.
+syntax = "proto3";
+
+package transcoding.v1;
+
+option csharp_namespace = "VroksNet.UnitTests.Protobuf.Generated";
+
+import "google/protobuf/any.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+import "legacy.proto";
+
+service Fixture {
+  rpc Echo (Scalars) returns (Scalars);
+}
+
+enum Color {
+  COLOR_UNSPECIFIED = 0;
+  RED = 1;
+  GREEN = 2;
+  NEGATIVE = -1;
+}
+
+message Scalars {
+  double double_value = 1;
+  float float_value = 2;
+  int32 int32_value = 3;
+  int64 int64_value = 4;
+  uint32 uint32_value = 5;
+  uint64 uint64_value = 6;
+  sint32 sint32_value = 7;
+  sint64 sint64_value = 8;
+  fixed32 fixed32_value = 9;
+  fixed64 fixed64_value = 10;
+  sfixed32 sfixed32_value = 11;
+  sfixed64 sfixed64_value = 12;
+  bool bool_value = 13;
+  string string_value = 14;
+  bytes bytes_value = 15;
+  Color color = 16;
+}
+
+message Repeated {
+  repeated int32 packed_ints = 1;
+  repeated int32 unpacked_ints = 2 [packed = false];
+  repeated double doubles = 3;
+  repeated sint64 sint64s = 4;
+  repeated fixed32 fixed32s = 5;
+  repeated bool bools = 6;
+  repeated Color colors = 7;
+  repeated string strings = 8;
+  repeated bytes bytes_list = 9;
+  repeated Scalars messages = 10;
+}
+
+message Maps {
+  map<string, string> string_to_string = 1;
+  map<int32, Scalars> int_to_message = 2;
+  map<bool, int64> bool_to_int64 = 3;
+  map<uint64, Color> uint64_to_color = 4;
+  map<sint32, bytes> sint32_to_bytes = 5;
+}
+
+message Presence {
+  optional int32 optional_int = 1;
+  optional string optional_string = 2;
+  oneof choice {
+    string choice_string = 3;
+    int64 choice_int64 = 4;
+    Scalars choice_message = 5;
+    Color choice_color = 6;
+  }
+  Scalars message = 7;
+  string renamed = 8 [json_name = "customName"];
+}
+
+message Tree {
+  string name = 1;
+  repeated Tree children = 2;
+}
+
+message WellKnown {
+  google.protobuf.Timestamp timestamp = 1;
+  google.protobuf.Duration duration = 2;
+  google.protobuf.Int32Value int32_wrapper = 3;
+  google.protobuf.Int64Value int64_wrapper = 4;
+  google.protobuf.UInt64Value uint64_wrapper = 5;
+  google.protobuf.DoubleValue double_wrapper = 6;
+  google.protobuf.FloatValue float_wrapper = 7;
+  google.protobuf.BoolValue bool_wrapper = 8;
+  google.protobuf.StringValue string_wrapper = 9;
+  google.protobuf.BytesValue bytes_wrapper = 10;
+  google.protobuf.UInt32Value uint32_wrapper = 11;
+  google.protobuf.Struct struct = 12;
+  google.protobuf.Value value = 13;
+  google.protobuf.ListValue list = 14;
+  google.protobuf.FieldMask field_mask = 15;
+  google.protobuf.Empty empty = 16;
+  google.protobuf.Any any = 17;
+  repeated google.protobuf.Timestamp timestamps = 18;
+  map<string, google.protobuf.Value> values = 19;
+}
+
+message UsesLegacy {
+  legacy.v1.Legacy legacy = 1;
+}

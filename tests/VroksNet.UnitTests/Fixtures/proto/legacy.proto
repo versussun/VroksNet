@@ -1,0 +1,19 @@
+// Proto2 for the transcoder's oracle: explicit presence on every field, required fields, packed only when asked.
+syntax = "proto2";
+
+package legacy.v1;
+
+option csharp_namespace = "VroksNet.UnitTests.Protobuf.Generated.Legacy";
+
+message Legacy {
+  required string id = 1;
+  optional int32 count = 2 [default = 7];
+  repeated int32 unpacked = 3;
+  repeated int32 packed = 4 [packed = true];
+  optional Kind kind = 5;
+
+  enum Kind {
+    KIND_A = 1;
+    KIND_B = 2;
+  }
+}
