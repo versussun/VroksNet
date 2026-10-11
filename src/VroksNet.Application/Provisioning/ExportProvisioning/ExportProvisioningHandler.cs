@@ -32,7 +32,7 @@ public sealed partial class ExportProvisioningHandler(
         var connectionsById = allConnections.ToDictionary(connection => connection.Id);
 
         var exportedConnections = ExportConnections(allConnections, request.InlineConnectionValues);
-        var exportedSpecs = ExportSpecifications(specs);
+        var exportedSpecs = ExportSpecifications(specs, notes);
         var settings = specs.Select(spec => SettingsOf(spec, notes)).OfType<ManifestSpecification>().ToList();
 
         // A reference that no longer resolves would fail the import, so the object is left out.
@@ -123,16 +123,46 @@ public sealed partial class ExportProvisioningHandler(
         }).ToList();
     }
 
-    /// <summary><c>specs/&lt;title as a file name&gt;.yaml</c> (or <c>.json</c> for a JSON document), made unique.</summary>
-    private static List<ExportedSpecification> ExportSpecifications(IReadOnlyList<ApiSpecification> all)
+    /// <summary>
+    /// <c>specs/&lt;title as a file name&gt;.yaml</c> (or <c>.json</c> for a JSON document), made unique.
+    /// A .proto specification is exported as its own files at their own paths — its file and the ones
+    /// it imports — since imports resolve by path; a file shared by several specifications is written once.
+    /// </summary>
+    private static List<ExportedSpecification> ExportSpecifications(IReadOnlyList<ApiSpecification> all, List<string> notes)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        return all.Select(spec =>
+        var exported = new List<ExportedSpecification>();
+        var protoFiles = new Dictionary<string, (string Content, string Title)>(StringComparer.Ordinal);
+        foreach (var spec in all)
         {
+            if (spec.Kind == SpecificationKind.Proto)
+            {
+                IEnumerable<KeyValuePair<string, string>> files = [new(spec.ProtoPath ?? $"{spec.Id}.proto", spec.RawContent), .. spec.ProtoImports.OrderBy(file => file.Key, StringComparer.Ordinal)];
+                foreach (var (path, content) in files)
+                {
+                    if (protoFiles.TryGetValue(path, out var first))
+                    {
+                        if (first.Content != content)
+                        {
+                            notes.Add($"\"{path}\" differs between \"{first.Title}\" and \"{spec.Title}\"; only the version from \"{first.Title}\" is exported.");
+                        }
+
+                        continue;
+                    }
+
+                    protoFiles[path] = (content, spec.Title);
+                    exported.Add(new ExportedSpecification(path, content));
+                }
+
+                continue;
+            }
+
             var stem = UnsafeFileCharacters().Replace(spec.Title.ToLowerInvariant(), "-").Trim('-');
             var extension = spec.RawContent.TrimStart().StartsWith('{') ? ".json" : ".yaml";
-            return new ExportedSpecification(Unique(stem.Length == 0 ? "specification" : stem, names) + extension, spec.RawContent);
-        }).ToList();
+            exported.Add(new ExportedSpecification(Unique(stem.Length == 0 ? "specification" : stem, names) + extension, spec.RawContent));
+        }
+
+        return exported;
     }
 
     /// <summary>The spec's settings, or null when they're the defaults (every operation enabled, provider mode off).</summary>

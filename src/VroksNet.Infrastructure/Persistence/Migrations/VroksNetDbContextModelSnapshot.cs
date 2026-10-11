@@ -29,6 +29,16 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
                     b.Property<int>("Kind")
                         .HasColumnType("INTEGER");
 
+                    b.Property<byte[]>("ProtoDescriptorSet")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("ProtoImports")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProtoPath")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Protocols")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -182,6 +192,9 @@ namespace VroksNet.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("ResponseSchemasByStatus")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RpcKind")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("ServeAtRealPath")

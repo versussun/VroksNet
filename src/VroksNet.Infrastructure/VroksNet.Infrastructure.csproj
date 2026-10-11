@@ -26,6 +26,7 @@
     <PackageReference Include="AWSSDK.SQS" />
     <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="Cronos" />
+    <PackageReference Include="Google.Protobuf" />
     <PackageReference Include="JsonPath.Net" />
     <PackageReference Include="JsonSchema.Net" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
@@ -36,6 +37,13 @@
     <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Microsoft.OpenApi.YamlReader" />
     <PackageReference Include="NATS.Client.Core" />
+    <!-- .proto parsing (ADR 0004). Aliased: protobuf-net.Reflection declares its own
+         Google.Protobuf.Reflection types, which clash with Google.Protobuf's; only
+         ProtoSpecificationParser sees them, through "extern alias protobufnet". The alias doesn't
+         flow to projects referencing this one, so they don't compile against these packages at all
+         (PrivateAssets="compile"); they still get the assemblies at run time. -->
+    <PackageReference Include="protobuf-net" Aliases="protobufnet" PrivateAssets="compile" />
+    <PackageReference Include="protobuf-net.Reflection" Aliases="protobufnet" PrivateAssets="compile" />
     <PackageReference Include="RabbitMQ.Client" />
     <PackageReference Include="SharpYaml" />
   </ItemGroup>

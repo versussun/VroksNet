@@ -89,7 +89,8 @@ To start an instance already configured — specs imported, connections, Publish
 
 ```
 provisioning/
-  specs/          OpenAPI / Swagger / AsyncAPI files, any depth; the kind comes from the document itself
+  specs/          OpenAPI / Swagger / AsyncAPI files, any depth; the kind comes from the document itself.
+                  .proto files too, with imports by path under specs/ (one broken .proto stops them all)
   vroksnet.yaml   optional: connections, spec settings, Publishers, test scenarios
 ```
 

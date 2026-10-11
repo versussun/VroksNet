@@ -1,0 +1,16 @@
+// The smallest gRPC sample: one unary method.
+syntax = "proto3";
+
+package demo.greeter.v1;
+
+service Greeter {
+  rpc SayHello (HelloRequest) returns (HelloReply);
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string message = 1;
+}

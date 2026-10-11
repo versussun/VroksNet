@@ -9,6 +9,7 @@ using VroksNet.Application.Publishers.SetPublisherEnabled;
 using VroksNet.Application.Publishers.UpdatePublisher;
 using VroksNet.Application.Specifications.ImportAsyncApiSpec;
 using VroksNet.Application.Specifications.ImportOpenApiSpec;
+using VroksNet.Application.Specifications.ImportProtoSpecs;
 using VroksNet.Application.TestScenarios.CreateTestScenario;
 using VroksNet.Application.TestScenarios.UpdateTestScenario;
 using VroksNet.Application.TestSuites.CreateTestSuite;
@@ -55,7 +56,7 @@ public sealed class ApplyProvisioningHandler(
         state.Set(ProvisioningReport.NotStarted with { Source = input.Source });
         var run = new Run(input.Errors, timeProvider.GetUtcNow());
 
-        foreach (var file in input.Specifications)
+        foreach (var file in input.Specifications.Where(file => file.Kind != SpecificationKind.Proto))
         {
             await run.TryAsync(file.RelativePath, async () =>
             {
@@ -66,6 +67,8 @@ public sealed class ApplyProvisioningHandler(
                 run.Specifications++;
             });
         }
+
+        await ApplyProtoFilesAsync(input.Specifications.Where(file => file.Kind == SpecificationKind.Proto).ToList(), run, cancellationToken);
 
         foreach (var connection in input.Manifest.Connections)
         {
@@ -101,6 +104,53 @@ public sealed class ApplyProvisioningHandler(
         state.Set(report);
         return report;
     }
+
+    /// <summary>
+    /// The .proto files are imported together, since one imports another by its path under
+    /// <c>specs/</c> (ADR 0004). A parse error is reported against its own file, and then none of
+    /// them is imported: the parser can't tell which specifications a broken import would affect.
+    /// </summary>
+    private async Task ApplyProtoFilesAsync(IReadOnlyList<ProvisioningSpecFile> protoFiles, Run run, CancellationToken cancellationToken)
+    {
+        if (protoFiles.Count == 0)
+        {
+            return;
+        }
+
+        var files = protoFiles.ToDictionary(file => PathUnderSpecs(file.RelativePath), file => file.Content, StringComparer.Ordinal);
+        ImportProtoResult result;
+        try
+        {
+            result = await mediator.Send(new ImportProtoSpecs(files), cancellationToken);
+        }
+        catch (SpecificationParseException ex)
+        {
+            foreach (var error in ex.Errors)
+            {
+                var location = error.Line is { } line ? $"line {line}{(error.Column is { } column ? $", column {column}" : string.Empty)}: " : string.Empty;
+                run.Errors.Add(new ProvisioningError(error.File is null ? SpecsFolder.TrimEnd('/') : SpecsFolder + error.File, location + error.Message));
+            }
+
+            return;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            run.Errors.Add(new ProvisioningError($"{SpecsFolder}*.proto", ex.Message));
+            return;
+        }
+
+        foreach (var specification in result.Specifications)
+        {
+            await marker.MarkAsync(ProvisionedObject.Specification, specification.Id, run.At, cancellationToken);
+            run.Specifications++;
+        }
+    }
+
+    private const string SpecsFolder = "specs/";
+
+    /// <summary>"specs/common/money.proto" → "common/money.proto": the path a .proto import names it by.</summary>
+    private static string PathUnderSpecs(string relativePath)
+        => relativePath.StartsWith(SpecsFolder, StringComparison.Ordinal) ? relativePath[SpecsFolder.Length..] : relativePath;
 
     private async Task ApplyConnectionAsync(ManifestConnection connection, Run run, CancellationToken cancellationToken)
     {

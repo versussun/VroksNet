@@ -33,6 +33,7 @@ public interface ISpecificationParser
 /// is none, the lowest declared 2xx. Null when neither applies (the mock then answers 200), and for AsyncAPI.
 /// </param>
 /// <param name="ExampleIsGenerated">The spec had no example: <see cref="ExampleJson"/> was built from the operation's schema.</param>
+/// <param name="RpcKind">gRPC only (<see cref="IProtoSpecificationParser"/>): whether the method streams. Null for OpenAPI and AsyncAPI.</param>
 public sealed record ParsedOperation(
     string OperationKey,
     string? ExampleJson,
@@ -40,7 +41,8 @@ public sealed record ParsedOperation(
     string? ResponseSchemaJson = null,
     IReadOnlyDictionary<string, string?>? ResponseSchemasByStatus = null,
     int? ExampleStatusCode = null,
-    bool ExampleIsGenerated = false);
+    bool ExampleIsGenerated = false,
+    Domain.MockEndpoints.RpcKind? RpcKind = null);
 
 /// <summary>
 /// Title (the version-matching key) plus its flat list of operations. <see cref="Protocols"/> is

@@ -1,8 +1,8 @@
 namespace VroksNet.Domain.ApiSpecifications;
 
 /// <summary>
-/// A loaded OpenAPI or AsyncAPI specification. <see cref="Title"/> (the spec's own
-/// <c>info.title</c>) is the identity used when a re-uploaded spec should replace this one,
+/// A loaded OpenAPI, AsyncAPI or .proto specification. <see cref="Title"/> (the spec's own
+/// <c>info.title</c>, or for .proto the <see cref="ProtoTitle"/>) is the identity used when a re-uploaded spec should replace this one,
 /// rather than the file name — see docs/project-brief.md section 2 "Specification
 /// versioning".
 /// </summary>
@@ -14,7 +14,7 @@ public sealed class ApiSpecification
 
     public SpecificationKind Kind { get; set; }
 
-    /// <summary>The original uploaded YAML, kept verbatim for re-parsing/debugging.</summary>
+    /// <summary>The original uploaded YAML, kept verbatim for re-parsing/debugging; for .proto, the text of the file that declares the services (<see cref="ProtoPath"/>).</summary>
     public string RawContent { get; set; } = string.Empty;
 
     public DateTimeOffset CreatedAt { get; set; }
@@ -35,6 +35,29 @@ public sealed class ApiSpecification
     /// without servers, and for one imported before this was recorded until it's imported again.
     /// </summary>
     public List<string> Protocols { get; set; } = [];
+
+    /// <summary>
+    /// .proto only (ADR 0004): the path of the file that declares the services, as it was imported
+    /// (relative to the provisioning <c>specs</c> folder, or within an upload) — its imports resolve
+    /// against that same root. Null for OpenAPI and AsyncAPI.
+    /// </summary>
+    public string? ProtoPath { get; set; }
+
+    /// <summary>
+    /// .proto only: the text of every file <see cref="ProtoPath"/> imports, directly or not, keyed by
+    /// path — except the well-known types (<c>google/protobuf/*.proto</c>), which come with VroksNet.
+    /// With <see cref="RawContent"/> it's everything needed to parse the spec again or export it.
+    /// Empty for OpenAPI and AsyncAPI.
+    /// </summary>
+    public Dictionary<string, string> ProtoImports { get; set; } = [];
+
+    /// <summary>
+    /// .proto only: the parsed spec as a serialized <c>google.protobuf.FileDescriptorSet</c> — its
+    /// file and everything it imports, the well-known types included, each file after its imports —
+    /// so messages can be read and written without parsing the .proto text again. Null for OpenAPI
+    /// and AsyncAPI.
+    /// </summary>
+    public byte[]? ProtoDescriptorSet { get; set; }
 
     public ICollection<MockEndpoints.MockEndpoint> Endpoints { get; set; } = new List<MockEndpoints.MockEndpoint>();
 
@@ -66,6 +89,24 @@ public sealed class ApiSpecification
         if (!string.Equals(RawContent, imported.RawContent, StringComparison.Ordinal))
         {
             RawContent = imported.RawContent;
+            anyChange = true;
+        }
+
+        if (!string.Equals(ProtoPath, imported.ProtoPath, StringComparison.Ordinal))
+        {
+            ProtoPath = imported.ProtoPath;
+            anyChange = true;
+        }
+
+        if (ProtoImports.Count != imported.ProtoImports.Count || ProtoImports.Except(imported.ProtoImports).Any())
+        {
+            ProtoImports = new Dictionary<string, string>(imported.ProtoImports);
+            anyChange = true;
+        }
+
+        if (!(ProtoDescriptorSet ?? []).AsSpan().SequenceEqual(imported.ProtoDescriptorSet ?? []) || (ProtoDescriptorSet is null) != (imported.ProtoDescriptorSet is null))
+        {
+            ProtoDescriptorSet = imported.ProtoDescriptorSet;
             anyChange = true;
         }
 

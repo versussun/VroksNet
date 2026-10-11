@@ -13,6 +13,10 @@ curl -k -X POST https://localhost:7352/api/specifications/openapi \
 curl -k -X POST https://localhost:7352/api/specifications/asyncapi \
   -H "Content-Type: text/plain" -H "X-File-Name: shop-events-kafka-asyncapi.yaml" \
   --data-binary @docs/samples/shop-events-kafka-asyncapi.yaml
+
+# gRPC: the .proto files together, since one imports another by its path (or one .zip of grpc/)
+cd docs/samples/grpc && curl -k -X POST https://localhost:7352/api/specifications/proto \
+  -F "files=@greeter.proto" -F "files=@shop-orders.proto" -F "files=@common/money.proto;filename=common/money.proto"
 ```
 
 To start a container with some of them already imported and wired up, see
@@ -37,6 +41,8 @@ operation's example passes its own schema. If you edit a sample, run the unit te
 | [warehouse-servicebus-asyncapi.yaml](warehouse-servicebus-asyncapi.yaml) | AsyncAPI 3.0 | Azure Service Bus: a queue (Send only) and a topic listened on through the emulator's `vroksnet` subscription. |
 | [order-events-aws-asyncapi.yaml](order-events-aws-asyncapi.yaml) | AsyncAPI 3.0 | AWS: an SQS queue (Send only) and an SNS topic listened on through a temporary queue or the `vroksnet-order-placed` queue. |
 | [notifications-rabbitmq-asyncapi.yaml](notifications-rabbitmq-asyncapi.yaml) | AsyncAPI 3.0 | RabbitMQ: a topic exchange, routing keys, AMQP bindings, a `notify.{channel}.delivered` listen pattern. |
+| [grpc/greeter.proto](grpc/greeter.proto) | .proto (proto3) | The minimum gRPC service: one unary method. Title `demo.greeter.v1 (Greeter)`. |
+| [grpc/shop-orders.proto](grpc/shop-orders.proto) | .proto (proto3) | Two services (title `shop.orders.v1 (Orders, Payments)`), importing [grpc/common/money.proto](grpc/common/money.proto) and the well-known types: nested messages, an enum, `repeated`, `map`, `oneof`, proto3 `optional`, 64-bit integers and a server-streaming method. `money.proto` declares no service, so it's only an import. Keep the folder together: imports name files by their path under `grpc/`. |
 
 ## Trying them out
 

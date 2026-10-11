@@ -1,0 +1,11 @@
+// Imported by shop-orders.proto: declares no service, so it's only an import.
+syntax = "proto3";
+
+package shop.common.v1;
+
+// An amount of money, as in google.type.Money.
+message Money {
+  string currency_code = 1;
+  int64 units = 2;
+  int32 nanos = 3;
+}
