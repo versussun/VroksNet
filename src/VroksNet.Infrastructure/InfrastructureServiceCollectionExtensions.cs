@@ -20,6 +20,7 @@ using VroksNet.Infrastructure.Publishing;
 using VroksNet.Infrastructure.Scheduling;
 using VroksNet.Infrastructure.SchemaValidation;
 using VroksNet.Infrastructure.Specifications;
+using VroksNet.Infrastructure.Protobuf;
 using VroksNet.Infrastructure.Specifications.Proto;
 using VroksNet.Infrastructure.Templating;
 
@@ -116,6 +117,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ISpecificationParser, OpenApiSpecificationParser>();
         services.AddScoped<IAsyncApiSpecificationParser, AsyncApiSpecificationParser>();
         services.AddSingleton<IProtoSpecificationParser, ProtoSpecificationParser>();
+        services.AddSingleton<IProtobufTranscoder, ProtobufTranscoder>();
         // Stateless apart from the clock it reads for {{now}}.
         services.AddSingleton<IResponseTemplateEngine>(new ResponseTemplateEngine(TimeProvider.System));
         // Stateless — no scoped dependencies of its own, so Singleton avoids reallocating it per request.
