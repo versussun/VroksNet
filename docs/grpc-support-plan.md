@@ -1,6 +1,6 @@
 # Plan: gRPC support
 
-**Status:** accepted — decisions in ADR 0004 (`docs/adr/0004-grpc-support.md`). **Progress:** G0–G3 done; G4–G8 not started.
+**Status:** accepted — decisions in ADR 0004 (`docs/adr/0004-grpc-support.md`). **Progress:** G0–G4 done; G5–G8 not started.
 **Why:** services talk to each other over gRPC as well as REST and brokers. VroksNet should mock a gRPC service from its `.proto` file and check a real one against it, the way it already does for OpenAPI.
 
 ## What "gRPC support" means here
@@ -168,7 +168,7 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
   - Like the generated code, a map entry leaves out a key or scalar value at its default; a message value is always written.
   - Stricter than a generated parser where a contract test needs it: a known field with the wrong wire type and a non-UTF-8 string are errors; unknown fields are warnings.
 
-### G4. The gRPC mock, unary (L) — after G2 and G3
+### G4. The gRPC mock, unary (L) — after G2 and G3 — ✅ done
 
 - **Serving:**
   - the gRPC port with framing, compression, deadlines and trailers (decision 6);
@@ -185,6 +185,12 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
   - an integration test calls the mock with a client generated in the test project and gets the example;
   - a malformed request is answered and recorded as a violation;
   - the contract check passes.
+- **Result:** `GrpcPortSetup` (ApiService, wire protocol only) → `InvokeRpcMock` (Application) → `IProtobufTranscoder`. Notes from the implementation:
+  - Kestrel takes h2c only on an HTTP/2-only endpoint, which UseUrls can't declare, and an explicit binding replaces UseUrls — so `ListenSetup` now binds every address explicitly (`ListenAddresses.Merge`, which replaced `ProviderListenAddresses`).
+  - Aspire's proxy forwards TCP, so h2c works through the AppHost's pinned `grpc` endpoint (verified by the integration tests).
+  - The call history's `StatusCode` holds the gRPC status for `InboundGrpcCall`; the UI shows its name.
+  - An import that brings a method another specification serves brings it in turned off, with a note (at most one enabled operation per method).
+  - grpcurl needs `-proto` until server reflection (G6).
 
 ### G5. Send through a `Grpc` connection (M) — after G3; uses G4 as its test target
 

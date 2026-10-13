@@ -57,7 +57,9 @@ public sealed class ImportProtoSpecsHandlerTests
         var imported = Assert.Single(result.Specifications);
         Assert.Equal("demo.v1 (Admin, Greeter)", imported.Title);
         Assert.False(imported.Replaced);
-        Assert.Equal("\"demo.v1 (Greeter)\" comes from the same package but has other services, so it was kept as a separate specification.", imported.Note);
+        Assert.Contains("\"demo.v1 (Greeter)\" comes from the same package but has other services, so it was kept as a separate specification.", imported.Note);
+        // The old specification still serves Greeter/Hi, so the new one's copy comes in turned off (ADR 0004).
+        Assert.Contains("/demo.v1.Greeter/Hi is already served by \"demo.v1 (Greeter)\", so it was imported turned off.", imported.Note);
         Assert.Equal(2, (await _repository.ListAsync(TestContext.Current.CancellationToken)).Count);
     }
 

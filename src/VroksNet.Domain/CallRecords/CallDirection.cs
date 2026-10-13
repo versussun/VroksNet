@@ -12,5 +12,8 @@ public enum CallDirection
     OutboundHttpRequest,
 
     /// <summary>A message received from a broker by a listening <see cref="TestScenarios.TestScenario"/> (<see cref="TestScenarios.TestScenarioKind.Listen"/>).</summary>
-    InboundBrokerMessage
+    InboundBrokerMessage,
+
+    /// <summary>An inbound gRPC call handled by the gRPC mock (ADR 0004); <see cref="CallRecord.StatusCode"/> holds the gRPC status code.</summary>
+    InboundGrpcCall
 }

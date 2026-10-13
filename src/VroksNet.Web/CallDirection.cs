@@ -5,5 +5,6 @@ public enum CallDirection
     InboundHttpRequest,
     OutboundBrokerPublish,
     OutboundHttpRequest,
-    InboundBrokerMessage
+    InboundBrokerMessage,
+    InboundGrpcCall
 }

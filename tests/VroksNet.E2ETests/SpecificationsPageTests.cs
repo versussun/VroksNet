@@ -127,6 +127,12 @@ public sealed class SpecificationsPageTests(AppHostFixture fixture) : PageTestBa
         await Expect(watch).ToContainTextAsync("Server streaming");
         await Expect(watch.Locator("pre code")).ToContainTextAsync("\"total\"");
         await Expect(watch.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "+ Create test" })).Not.ToBeVisibleAsync();
+        await Expect(watch).ToContainTextAsync("Streaming methods aren't mocked yet");
+
+        // A unary method is served on the gRPC port (plan step G4): its card says how to call it, and it can be turned off.
+        var get = Page.GetByRole(AriaRole.Region, new PageGetByRoleOptions { Name = $"RPC /{package}.Orders/Get" });
+        await Expect(get).ToContainTextAsync($"grpcurl -plaintext -proto <the .proto file> -d '{{}}' localhost:7354 {package}.Orders/Get");
+        await Expect(get.GetByRole(AriaRole.Switch, new LocatorGetByRoleOptions { Name = "Mock enabled" })).ToBeCheckedAsync();
     }
 
     [Fact]

@@ -70,7 +70,8 @@ if (builder.Environment.IsDevelopment())
 builder.AddRabbitMQClient("rabbitmq", settings => settings.DisableHealthChecks = true);
 builder.AddNatsClient("nats", settings => settings.DisableHealthChecks = true);
 
-var providerPort = builder.ListenOnProviderPort();
+// The provider and gRPC mock ports, next to the API's own addresses (see ListenSetup).
+var (providerPort, grpcPort) = builder.ListenOnMockPorts();
 
 var app = builder.Build();
 
@@ -79,7 +80,12 @@ await app.Services.InitializeDatabaseAsync();
 // Configure the HTTP request pipeline.
 app.UseExceptionHandler();
 
-// Must come before anything else serves a request: on the provider port, every path is the mock's.
+// Must come before anything else serves a request: on these ports, every path is a mock's.
+if (grpcPort is { } grpc)
+{
+    app.MapGrpcPort(grpc);
+}
+
 if (providerPort is { } port)
 {
     app.MapProviderPort(port);

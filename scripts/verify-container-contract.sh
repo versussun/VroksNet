@@ -35,6 +35,7 @@ CURRENT=""
 
 cleanup() {
   docker ps -aq --filter "name=^$RUN_ID" | xargs -r docker rm -f >/dev/null 2>&1 || true
+  docker network rm "$RUN_ID-net" >/dev/null 2>&1 || true
   docker volume rm -f "$VOLUME" >/dev/null 2>&1 || true
   rm -rf "$BROKEN_DIR" "$EXPORT_DIR"
 }
@@ -96,7 +97,7 @@ expect_eq "label io.vroksnet.contract.version" "$(inspect '{{index .Config.Label
 [[ -n "$(inspect '{{index .Config.Labels "org.opencontainers.image.source"}}')" ]] || fail "label org.opencontainers.image.source is empty"
 expect_eq "user" "$(inspect '{{.Config.User}}')" "1654"
 expect_eq "entry point" "$(inspect '{{json .Config.Entrypoint}}')" '["/usr/bin/tini","--","dotnet","VroksNet.ApiService.dll"]'
-expect_eq "exposed ports" "$(inspect '{{range $p, $_ := .Config.ExposedPorts}}{{$p}} {{end}}')" "7353/tcp 8080/tcp "
+expect_eq "exposed ports" "$(inspect '{{range $p, $_ := .Config.ExposedPorts}}{{$p}} {{end}}')" "7353/tcp 7354/tcp 8080/tcp "
 expect_eq "volumes" "$(inspect '{{range $v, $_ := .Config.Volumes}}{{$v}} {{end}}')" "/app/data "
 docker run --rm --entrypoint cat "$IMAGE" /app/provisioning-manifest.v1.schema.json \
   | cmp -s - "$ROOT/docs/schemas/provisioning-manifest.v1.schema.json" \
@@ -127,6 +128,26 @@ for _ in $(seq 1 "$STARTUP_TIMEOUT"); do
 done
 expect_eq "startup suite \"smoke\"" "$SUITE_STATUS" Passed
 pass "runOnStartup suite ran and passed"
+
+# --- §3: the gRPC mock answers on 7354 over h2c, from .proto specs provisioned as a folder (ADR 0004) ---
+# grpcurl runs in a container of its own, on a network shared with the image, so nothing is installed here.
+docker network create "$RUN_ID-net" >/dev/null
+PROVISIONED="$CURRENT"
+start grpc --network "$RUN_ID-net" --network-alias vroksnet -v "$ROOT/docs/samples/grpc:/app/provisioning/specs:ro"
+wait_healthy
+GRPCURL=(docker run --rm --network "$RUN_ID-net" -v "$ROOT/docs/samples/grpc:/protos:ro" fullstorydev/grpcurl:v1.9.3 -plaintext -import-path /protos -proto greeter.proto)
+GRPC_REPLY="$("${GRPCURL[@]}" -d '{"name":"contract"}' vroksnet:7354 demo.greeter.v1.Greeter/SayHello 2>&1)" || fail "the gRPC mock didn't answer SayHello: $GRPC_REPLY"
+expect_eq "SayHello's message" "$(jq -r .message <<<"$GRPC_REPLY")" "string"
+# grpcurl checks a method against its .proto first, so the unknown one comes from a file of its own.
+GHOST_DIR="$(mktemp -d)"
+printf 'syntax = "proto3";\npackage ghost.v1;\nimport "google/protobuf/empty.proto";\nservice Ghost { rpc Nope (google.protobuf.Empty) returns (google.protobuf.Empty); }\n' >"$GHOST_DIR/ghost.proto"
+chmod -R a+rX "$GHOST_DIR"
+GRPC_ERROR="$(docker run --rm --network "$RUN_ID-net" -v "$GHOST_DIR:/protos:ro" fullstorydev/grpcurl:v1.9.3 -plaintext -import-path /protos -proto ghost.proto -d '{}' vroksnet:7354 ghost.v1.Ghost/Nope 2>&1 || true)"
+rm -rf "$GHOST_DIR"
+grep -q "Code: Unimplemented" <<<"$GRPC_ERROR" || fail "an unknown method should be UNIMPLEMENTED, got: $GRPC_ERROR"
+pass "gRPC mock on 7354 (h2c): SayHello answers from the provisioned .proto, an unknown method is UNIMPLEMENTED"
+docker rm -f "$CURRENT" >/dev/null
+CURRENT="$PROVISIONED"
 
 # --- §6: the export is a provisioning directory, with no connection values in it ---
 EXPORT_ZIP="$EXPORT_DIR/export.zip"

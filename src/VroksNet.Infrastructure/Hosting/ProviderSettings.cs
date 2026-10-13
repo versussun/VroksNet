@@ -13,6 +13,10 @@ public sealed class ProviderSettings(IConfiguration configuration) : IProviderSe
 
     public IReadOnlyList<string> CorsOrigins { get; } = CorsOriginsFrom(configuration);
 
+    public int? GrpcPort { get; } = configuration.GetValue<int?>("Grpc:Port");
+
+    public string? GrpcPublicUrl { get; } = configuration["Grpc:PublicUrl"] is { Length: > 0 } url ? url.TrimEnd('/') : null;
+
     /// <summary>
     /// <c>Provider:CorsOrigins</c> as a list — comma-separated origins, or <c>*</c> for any (which
     /// then stands alone). Empty when it isn't set: CORS stays off on the provider port. Trailing

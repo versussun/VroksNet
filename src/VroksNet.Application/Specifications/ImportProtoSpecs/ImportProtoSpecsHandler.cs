@@ -1,6 +1,7 @@
 using Mediator;
 using Microsoft.Extensions.Logging;
 using VroksNet.Application.Abstractions;
+using VroksNet.Application.Mocking;
 using VroksNet.Domain.ApiSpecifications;
 using VroksNet.Domain.MockEndpoints;
 
@@ -28,9 +29,27 @@ public sealed class ImportProtoSpecsHandler(
         var results = new List<ImportedProtoSpecification>();
         foreach (var spec in parsed.Specifications)
         {
-            var replaced = stored.Any(existing => existing.Title == spec.Title);
-            var id = await repository.UpsertAsync(ToSpecification(spec), cancellationToken);
-            results.Add(new ImportedProtoSpecification(id, spec.Title, spec.Path, spec.Operations.Count, replaced, replaced ? null : NoteFor(spec.Title, stored, importedTitles)));
+            var existing = stored.FirstOrDefault(candidate => candidate.Title == spec.Title);
+            var specification = ToSpecification(spec);
+            var notes = new List<string>();
+            if (existing is null && NoteFor(spec.Title, stored, importedTitles) is { } packageNote)
+            {
+                notes.Add(packageNote);
+            }
+
+            // A method another specification already serves comes in turned off: only one may answer it.
+            // (Operations the spec already had keep their own switch through the re-import.)
+            foreach (var endpoint in specification.Endpoints)
+            {
+                if (RpcServingRules.ServedElsewhere(endpoint.OperationKey, existing?.Id, stored) is { } served)
+                {
+                    endpoint.IsEnabled = false;
+                    notes.Add($"{endpoint.OperationKey[Domain.TestScenarios.OperationCompatibility.RpcPrefix.Length..]} is already served by \"{served.SpecificationTitle}\", so it was imported turned off.");
+                }
+            }
+
+            var id = await repository.UpsertAsync(specification, cancellationToken);
+            results.Add(new ImportedProtoSpecification(id, spec.Title, spec.Path, spec.Operations.Count, existing is not null, notes.Count > 0 ? string.Join(" ", notes) : null));
         }
 
         logger.LogInformation(

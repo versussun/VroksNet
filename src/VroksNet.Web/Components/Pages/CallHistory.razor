@@ -99,7 +99,7 @@ else
                             }
                         </td>
                         <td>
-                            @if (record.Direction == CallDirection.InboundHttpRequest)
+                            @if (record.Direction is CallDirection.InboundHttpRequest or CallDirection.InboundGrpcCall)
                             {
                                 <small class="text-muted">Mock</small>
                             }
@@ -113,7 +113,11 @@ else
                             }
                         </td>
                         <td>
-                            @if (record.StatusCode is { } status)
+                            @if (record.StatusCode is { } grpcStatus && record.Direction == CallDirection.InboundGrpcCall)
+                            {
+                                <span class="badge @(grpcStatus == 0 ? "bg-success" : "bg-danger")">@GrpcStatusName(grpcStatus)</span>
+                            }
+                            else if (record.StatusCode is { } status)
                             {
                                 <span class="badge @StatusBadgeClass(status)">@status</span>
                             }
@@ -255,7 +259,21 @@ else
         CallDirection.OutboundHttpRequest => "HTTP request (out)",
         CallDirection.OutboundBrokerPublish => "Broker publish (out)",
         CallDirection.InboundBrokerMessage => "Broker message (in)",
+        CallDirection.InboundGrpcCall => "gRPC mock call (in)",
         _ => direction.ToString()
+    };
+
+    /// <summary>A gRPC call's StatusCode is its gRPC status (ADR 0004): shown by name, OK in green.</summary>
+    private static string GrpcStatusName(int status) => status switch
+    {
+        0 => "OK",
+        1 => "CANCELLED",
+        3 => "INVALID_ARGUMENT",
+        4 => "DEADLINE_EXCEEDED",
+        8 => "RESOURCE_EXHAUSTED",
+        12 => "UNIMPLEMENTED",
+        13 => "INTERNAL",
+        _ => $"gRPC {status}"
     };
 
     private static string StatusBadgeClass(int status) => status switch

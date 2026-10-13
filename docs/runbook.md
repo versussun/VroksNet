@@ -7,7 +7,7 @@ How to deploy, configure, back up, upgrade and troubleshoot a VroksNet instance.
 | | |
 |---|---|
 | What runs | One container, one process: `VroksNet.ApiService` serves the REST API, the Admin UI (static Blazor WebAssembly files) and the mocks |
-| Ports | `8080`: API, Admin UI and `/mock/…`. `7353`: provider port (mocks at their real paths). Both plain HTTP |
+| Ports | `8080`: API, Admin UI and `/mock/…`. `7353`: provider port (mocks at their real paths). Both plain HTTP. `7354`: the gRPC mock, HTTP/2 without TLS (h2c) — a proxy in front of it must pass HTTP/2 through, not downgrade it |
 | State | One SQLite file, `/app/data/vroksnet.db`, on the `/app/data` volume |
 | Background work | Publisher worker (publishes due async mocks once a second) and the single database writer |
 | External dependencies | None to start. RabbitMQ, NATS, Kafka, MQTT, Redis, Azure Service Bus, AWS SQS/SNS and HTTP services are only reached through connections created on the **Settings** page |
@@ -18,7 +18,7 @@ How to deploy, configure, back up, upgrade and troubleshoot a VroksNet instance.
 
 ```bash
 docker run -d --name vroksnet --restart unless-stopped \
-  -p 8080:8080 -p 7353:7353 \
+  -p 8080:8080 -p 7353:7353 -p 7354:7354 \
   -v vroksnet-data:/app/data \
   -e Provider__PublicUrl=http://<host>:7353 \
   ghcr.io/versussun/vroksnet:latest
@@ -34,6 +34,7 @@ docker run -d --name vroksnet --restart unless-stopped \
 - `--restart unless-stopped`: the image runs under `tini`, so a crash exits the container (code `134` for an unhandled exception) instead of hanging, and the restart policy brings it back.
 - `-v vroksnet-data:/app/data`: without a volume the database lives in the container's writable layer and is lost when the container is recreated.
 - `Provider__PublicUrl`: the address the Admin UI tells users to point a service at. Without it the operation card shows `<provider host>:7353`.
+- `Grpc__PublicUrl`: the same for the gRPC mock (the operation card's grpcurl command). Without it the card shows `<host>:7354`.
 - Database migrations run automatically on startup. There is no separate migration step.
 
 Check it's up:
@@ -41,7 +42,7 @@ Check it's up:
 ```bash
 curl -s http://<host>:8080/health               # → Healthy
 curl -s http://<host>:8080/api/system/storage   # → {"isInMemory":false,"filePath":"/app/data/vroksnet.db"}
-curl -s http://<host>:8080/api/system/provider  # → {"enabled":true,"port":7353,"publicUrl":…,"corsOrigins":[]}
+curl -s http://<host>:8080/api/system/provider  # → {"enabled":true,"port":7353,"publicUrl":…,"corsOrigins":[],"grpcPort":7354,"grpcPublicUrl":…}
 curl -s http://<host>:8080/api/system/info      # → {"version":"0.2.0","contractVersion":1,"provisioning":{"status":"Applied",…}}
 ```
 
@@ -64,6 +65,7 @@ All settings are environment variables (or the matching keys in `appsettings.jso
 |---|---|---|
 | `ConnectionStrings__VroksNetDb` | `Data Source=/app/data/vroksnet.db` | SQLite connection string. **Unset or empty = in-memory database**, wiped on every restart (the Settings page then shows a warning). Missing parent directories are created |
 | `Provider__Port` | `7353` | Port for provider mode. Unset turns provider mode off. Must differ from the API's own port, or startup fails |
+| `Grpc__Port` | `7354` | Port for the gRPC mock (HTTP/2 only). Unset turns it off. Must differ from the other ports, or startup fails |
 | `Provider__PublicUrl` | not set | Provider address shown in the Admin UI and `GET /api/system/provider` |
 | `Provider__CorsOrigins` | not set (CORS off) | Comma-separated browser origins allowed to call the provider port, or `*`. No credentials are allowed |
 | `TestRuns__MaxConcurrency` | `4` | How many background test runs may execute at once. A run of the same scenario never overlaps another |
@@ -95,7 +97,7 @@ provisioning/
 ```
 
 ```bash
-docker run -d --name vroksnet -p 8080:8080 -p 7353:7353 \
+docker run -d --name vroksnet -p 8080:8080 -p 7353:7353 -p 7354:7354 \
   -v vroksnet-data:/app/data \
   -v "$PWD/provisioning":/app/provisioning:ro \
   -e ConnectionStrings__orders=amqp://user:pass@rabbit:5672 \
@@ -262,7 +264,7 @@ Needs Docker running (RabbitMQ, NATS, Kafka, Mosquitto for MQTT, Redis the Servi
 
 | Symptom | Cause |
 |---|---|
-| ApiService doesn't start, address in use | Ports `7352` (API) and `7353` (provider) are fixed, because the Admin UI dev server has no way to discover a random port. Free them |
+| ApiService doesn't start, address in use | Ports `7352` (API), `7353` (provider) and `7354` (gRPC) are fixed, because the Admin UI dev server has no way to discover a random port. Free them |
 | Data is gone after every run | No `ConnectionStrings__VroksNetDb` in development means an in-memory database. Set it (e.g. with `dotnet user-secrets` on `VroksNet.ApiService`) to keep data |
 | Admin UI can't reach the API (CORS) | In Development the API allows any `localhost` / `*.localhost` origin. For another hostname, add it to `Cors__AdditionalDevOrigins` |
 

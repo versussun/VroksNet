@@ -1,0 +1,25 @@
+// What GrpcMockApiTests imports through the API and calls through the gRPC mock: the test sends the
+// same file's text, and Grpc.Tools generates the client it calls with from it.
+syntax = "proto3";
+
+package itest.grpc.v1;
+
+option csharp_namespace = "VroksNet.IntegrationTests.Grpc.Generated";
+
+import "google/protobuf/timestamp.proto";
+
+service Orders {
+  rpc GetOrder (GetOrderRequest) returns (Order);
+  rpc WatchOrders (GetOrderRequest) returns (stream Order);
+}
+
+message GetOrderRequest {
+  string order_id = 1;
+}
+
+message Order {
+  string id = 1;
+  int64 total_cents = 2;
+  repeated string items = 3;
+  google.protobuf.Timestamp created_at = 4;
+}

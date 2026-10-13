@@ -15,4 +15,10 @@ public interface IProviderSettings
 
     /// <summary>The browser origins allowed to call the provider port (<c>["*"]</c> for any) — empty when CORS is off there.</summary>
     IReadOnlyList<string> CorsOrigins { get; }
+
+    /// <summary>The gRPC mock's port (<c>Grpc:Port</c>, ADR 0004); null when it's off.</summary>
+    int? GrpcPort { get; }
+
+    /// <summary>The gRPC mock's address as clients see it (<c>Grpc:PublicUrl</c>), when the deployment knows it.</summary>
+    string? GrpcPublicUrl { get; }
 }
