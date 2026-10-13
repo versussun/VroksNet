@@ -15,5 +15,8 @@ public enum CallDirection
     InboundBrokerMessage,
 
     /// <summary>An inbound gRPC call handled by the gRPC mock (ADR 0004); <see cref="CallRecord.StatusCode"/> holds the gRPC status code.</summary>
-    InboundGrpcCall
+    InboundGrpcCall,
+
+    /// <summary>An outbound gRPC call to a real service — a <see cref="TestScenarios.TestScenario"/> run against a <see cref="Connections.ConnectionServiceType.Grpc"/> connection; <see cref="CallRecord.StatusCode"/> holds the gRPC status code.</summary>
+    OutboundGrpcCall
 }

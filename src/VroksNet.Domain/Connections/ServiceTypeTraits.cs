@@ -51,6 +51,10 @@ public sealed record ServiceTypeTraits(
             ConnectionString, AwsValueHint, ["sqs"]),
         new(ConnectionServiceType.Sns, "AWS SNS", OperationShape.Message, CanListen: true, null,
             ConnectionString, AwsValueHint, ["sns"]),
+        new(ConnectionServiceType.Grpc, "gRPC", OperationShape.Rpc, CanListen: false,
+            "A gRPC connection has no channel to listen on — a call is answered directly, so use Send.",
+            // None: AsyncAPI has no gRPC binding.
+            "URL", "http://host:5001 (HTTP/2 without TLS) — or https://host:5001", []),
     ];
 
     /// <summary>Its operations are HTTP requests — kept for <c>isHttp</c> in contract v1's <c>GET /api/system/connection-types</c>.</summary>

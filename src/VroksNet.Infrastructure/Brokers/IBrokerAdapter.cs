@@ -24,6 +24,6 @@ public interface IBrokerAdapter
 
     Task<ConnectionTestResult> TestAsync(Connection connection, CancellationToken cancellationToken);
 
-    /// <summary>Succeeds only once the target has the message (see <see cref="IMessageSender"/>).</summary>
-    Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken);
+    /// <summary>Succeeds only once the target has the message (see <see cref="IMessageSender"/>). <paramref name="rpc"/> is for the gRPC adapter only; the others ignore it.</summary>
+    Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken, RpcSendContext? rpc = null);
 }

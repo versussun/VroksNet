@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using VroksNet.Application.Abstractions;
 using VroksNet.Infrastructure.Brokers;
 using VroksNet.Infrastructure.Brokers.Aws;
+using VroksNet.Infrastructure.Brokers.Grpc;
 using VroksNet.Infrastructure.Brokers.Http;
 using VroksNet.Infrastructure.Brokers.Kafka;
 using VroksNet.Infrastructure.Brokers.Mqtt;
@@ -156,6 +157,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IBrokerAdapter, ServiceBusBrokerAdapter>();
         services.AddSingleton<IBrokerAdapter, SqsBrokerAdapter>();
         services.AddSingleton<IBrokerAdapter, SnsBrokerAdapter>();
+        // The gRPC adapter writes the request message from the spec's descriptors.
+        services.TryAddSingleton<IProtobufTranscoder, ProtobufTranscoder>();
+        services.AddSingleton<IBrokerAdapter, GrpcBrokerAdapter>();
         services.AddSingleton<BrokerAdapterRegistry>();
         services.AddSingleton<IBrokerRules>(provider => provider.GetRequiredService<BrokerAdapterRegistry>());
         return services;

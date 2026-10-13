@@ -31,6 +31,9 @@ public sealed class AppHostFixture : IAsyncLifetime
     /// </summary>
     public Uri ApiServiceHttpAddress { get; private set; } = null!;
 
+    /// <summary>apiservice's gRPC mock port (h2c) — a Grpc connection's URL when ApiService has to call its own mock.</summary>
+    public Uri GrpcAddress { get; private set; } = null!;
+
     /// <summary>
     /// A connection the test graph declares through <c>Provisioning__Connections__0__*</c>
     /// (test graph only; AppHost provisions nothing), so the UI has a provisioned object to badge.
@@ -81,6 +84,7 @@ public sealed class AppHostFixture : IAsyncLifetime
         // only needs to happen once, here.
         var apiServiceEndpoint = App.GetEndpoint("apiservice", "https");
         ApiServiceHttpAddress = App.GetEndpoint("apiservice", "http");
+        GrpcAddress = App.GetEndpoint("apiservice", "grpc");
         _webDevAppSettingsPath = Path.Combine(appHost.AppHostDirectory, "..", "VroksNet.Web", "wwwroot", "appsettings.Development.json");
         _originalWebDevAppSettings = await File.ReadAllTextAsync(_webDevAppSettingsPath, cancellationToken);
         var patchedAppSettings = _originalWebDevAppSettings.Replace("https://localhost:7352", apiServiceEndpoint.ToString().TrimEnd('/'));

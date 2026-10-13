@@ -1,6 +1,6 @@
 # Plan: gRPC support
 
-**Status:** accepted — decisions in ADR 0004 (`docs/adr/0004-grpc-support.md`). **Progress:** G0–G4 done; G5–G8 not started.
+**Status:** accepted — decisions in ADR 0004 (`docs/adr/0004-grpc-support.md`). **Progress:** G0–G5 done; G6–G8 not started.
 **Why:** services talk to each other over gRPC as well as REST and brokers. VroksNet should mock a gRPC service from its `.proto` file and check a real one against it, the way it already does for OpenAPI.
 
 ## What "gRPC support" means here
@@ -192,7 +192,7 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
   - An import that brings a method another specification serves brings it in turned off, with a note (at most one enabled operation per method).
   - grpcurl needs `-proto` until server reflection (G6).
 
-### G5. Send through a `Grpc` connection (M) — after G3; uses G4 as its test target
+### G5. Send through a `Grpc` connection (M) — after G3; uses G4 as its test target — ✅ done
 
 - The `Grpc` connection type (moved here from G1): its `ServiceTypeTraits` entry with `OperationShape.Rpc`, `CanListen: false` and a note saying gRPC has no channel to listen on.
 - `GrpcBrokerAdapter` (decision 7).
@@ -202,6 +202,12 @@ Each step is one PR with its own tests (unit, integration, and E2E where the UI 
   - an integration test sends to VroksNet's own gRPC mock and passes;
   - a scenario whose mock answers with a mismatched message (a different spec imported under the same full method name) reports a violation;
   - E2E shows the result badge.
+- **Result:** `ConnectionServiceType.Grpc` (`OperationShape.Rpc`, Send only) → `GrpcBrokerAdapter` (`Infrastructure/Brokers/Grpc`); `IMessageSender.SendAsync` takes an optional `RpcSendContext` (descriptor set + message types), and `MessageSendResult` carries `GrpcStatus` and the raw `ResponseMessage`. Notes from the implementation:
+  - The adapter only writes the request and makes the call; `TestScenarioExecutor` decodes the response and validates it, next to the HTTP and Listen checks. A decode failure is a violation, unknown fields a warning (as in the mock).
+  - The request is the payload override, else `{}`: the stored example is the mock's answer (the response message), and every proto3 field is optional, so an empty message is always valid.
+  - A server that can't be reached fails the run with no status; any status a server answers with is recorded as `OutboundGrpcCall` with the gRPC status in `StatusCode`. The run's own `StatusCode` stays HTTP-only, and the message names the status (`NOT_FOUND: …`).
+  - The value is `http://host:port` (h2c) or `https://…`, with no path: gRPC calls `/package.Service/Method` at the server's root.
+  - Streaming methods are refused at create/update (and fail a run that meets one after a re-import) until G7; "+ Create test" shows on unary methods only.
 
 ### G6. Server reflection (S) — after G4
 

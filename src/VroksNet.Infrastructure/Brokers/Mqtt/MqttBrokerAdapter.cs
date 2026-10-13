@@ -74,7 +74,7 @@ public sealed class MqttBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken)
+    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken, RpcSendContext? rpc = null)
     {
         var topic = OperationCompatibility.ChannelAddressOf(operationKey);
         if (topic is null)

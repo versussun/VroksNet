@@ -44,7 +44,7 @@ public sealed class HttpBrokerAdapter(IHttpClientFactory httpClientFactory) : IB
         }
     }
 
-    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken)
+    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken, RpcSendContext? rpc = null)
     {
         if (!OperationCompatibility.IsHttpOperation(operationKey))
         {

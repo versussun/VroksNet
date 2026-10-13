@@ -13,8 +13,8 @@
             <span class="badge @(_isEnabled ? "bg-success" : "bg-secondary")">
                 @(_isEnabled ? "Enabled" : "Disabled")
             </span>
-            @* No connection type carries gRPC calls yet (plan step G5), so a test couldn't be saved. *@
-            @if (!IsRpcOperation)
+            @* Only unary gRPC methods can be sent until streaming comes (plan step G7). *@
+            @if (!IsRpcOperation || Endpoint.RpcKind is null or "Unary")
             {
                 <button type="button" class="btn btn-outline-primary btn-sm" @onclick="CreateTest">+ Create test</button>
             }

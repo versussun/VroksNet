@@ -41,6 +41,6 @@ public class BrokerAdapterRegistryTests
 
         public Task<Application.Abstractions.ConnectionTestResult> TestAsync(Connection connection, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<Application.Abstractions.MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Application.Abstractions.MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken, Application.Abstractions.RpcSendContext? rpc = null) => throw new NotSupportedException();
     }
 }

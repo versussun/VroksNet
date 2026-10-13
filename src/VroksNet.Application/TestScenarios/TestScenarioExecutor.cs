@@ -2,6 +2,7 @@ using System.Text.Json;
 using VroksNet.Application.Abstractions;
 using VroksNet.Application.CallRecords;
 using VroksNet.Application.TestScenarios.RunTestScenario;
+using VroksNet.Domain.ApiSpecifications;
 using VroksNet.Domain.CallRecords;
 using VroksNet.Domain.Connections;
 using VroksNet.Domain.MockEndpoints;
@@ -23,7 +24,8 @@ namespace VroksNet.Application.TestScenarios;
 /// result rather than thrown. An HTTP response is checked against the operation's declared
 /// responses (docs/contract-testing-plan.md, "Phase B"); a response that doesn't match fails the
 /// run even though the send itself went through. A Listen run validates the received message
-/// ("Phase C").
+/// ("Phase C"). A gRPC call (ADR 0004) fails on any status but <c>OK</c>; on <c>OK</c> its response
+/// must decode as the method's response message and match that message's schema.
 /// </para>
 /// </summary>
 public sealed class TestScenarioExecutor(
@@ -32,6 +34,7 @@ public sealed class TestScenarioExecutor(
     IConnectionRepository connections,
     IMessageSender sender,
     IMessageListener listener,
+    IProtobufTranscoder transcoder,
     ISchemaValidator schemaValidator,
     IResponseTemplateEngine templateEngine,
     ICallRecordRepository callRecords)
@@ -56,7 +59,9 @@ public sealed class TestScenarioExecutor(
 
         var outcome = scenario.Kind == TestScenarioKind.Listen
             ? await ListenAsync(scenario, endpoint, connection, onListening, cancellationToken)
-            : await SendAsync(scenario, endpoint, connection, cancellationToken);
+            : connection.ServiceType == ConnectionServiceType.Grpc
+                ? await CallAsync(scenario, specification!, endpoint, connection, cancellationToken)
+                : await SendAsync(scenario, endpoint, connection, cancellationToken);
         var ranAt = DateTimeOffset.UtcNow;
 
         var validation = outcome.Validation;
@@ -85,7 +90,9 @@ public sealed class TestScenarioExecutor(
 
         await scenarios.RecordRunAsync(scenario.Id, ranAt, success, message, cancellationToken);
 
-        return new RunTestScenarioResult(success, message, outcome.ResponseBody, outcome.StatusCode, validation);
+        // The run's StatusCode is HTTP's; a gRPC status is only in the call record, and by name in the message.
+        var httpStatus = outcome.Direction == CallDirection.OutboundGrpcCall ? null : outcome.StatusCode;
+        return new RunTestScenarioResult(success, message, outcome.ResponseBody, httpStatus, validation);
     }
 
     /// <summary>The <see cref="TestRunOutcome"/> to record for a run that produced <paramref name="result"/>.</summary>
@@ -126,6 +133,66 @@ public sealed class TestScenarioExecutor(
             ResponseSnapshot: result.Success ? result.ResponseBody ?? result.Message : result.Message,
             ViolationSubject: "response",
             Warnings: rendered?.Warnings);
+    }
+
+    /// <summary>
+    /// A unary gRPC call (ADR 0004, decision 7). The request is the payload override, else an
+    /// empty message: the example is the mock's answer, the response message's shape, and every
+    /// proto3 field is optional, so <c>{}</c> is always a valid request. A status other than
+    /// <c>OK</c> fails the run but isn't a violation — a .proto declares no error shapes. On
+    /// <c>OK</c>, bytes that aren't the response message are a violation, then the decoded JSON is
+    /// checked against the response message's schema.
+    /// </summary>
+    private async Task<RunOutcome> CallAsync(TestScenario scenario, ApiSpecification specification, MockEndpoint endpoint, Connection connection, CancellationToken cancellationToken)
+    {
+        var methodPath = endpoint.OperationKey[OperationCompatibility.RpcPrefix.Length..];
+        if (endpoint.RpcKind is not RpcKind.Unary)
+        {
+            return RpcFailure($"{methodPath} is a streaming method — only unary calls can be sent for now.");
+        }
+
+        if (specification.ProtoDescriptorSet is not { } descriptorSet || transcoder.FindMethod(descriptorSet, methodPath) is not { } types)
+        {
+            return RpcFailure($"{methodPath}'s descriptors are missing — import its .proto file again.");
+        }
+
+        var rendered = scenario.PayloadOverride is { } template ? templateEngine.Render(template, NoRequest) : null;
+        var payload = rendered?.Text ?? "{}";
+        var result = await sender.SendAsync(connection, endpoint.OperationKey, payload, scenario.BrokerOptions, cancellationToken, new RpcSendContext(descriptorSet, types));
+
+        SchemaValidationResult? validation = null;
+        string? response = null;
+        var warnings = rendered?.Warnings.ToList() ?? [];
+        if (result is { Success: true, ResponseMessage: { } message })
+        {
+            var decoded = transcoder.ToJson(descriptorSet, types.ResponseType, message);
+            warnings.AddRange(decoded.Warnings);
+            if (decoded.Json is null)
+            {
+                validation = new SchemaValidationResult(false, [$"The response isn't a valid {types.ResponseType}: {decoded.Error}"]);
+                response = $"({message.Length} bytes that aren't a valid {types.ResponseType})";
+            }
+            else
+            {
+                response = decoded.Json;
+                validation = endpoint.ResponseSchema is { } schema ? schemaValidator.Validate(schema, decoded.Json) : SchemaValidationResult.Valid;
+            }
+        }
+
+        return new RunOutcome(
+            result.Success,
+            result.Message,
+            ResponseBody: response,
+            StatusCode: result.GrpcStatus,
+            validation,
+            CallDirection.OutboundGrpcCall,
+            RequestSnapshot: payload,
+            ResponseSnapshot: response ?? result.Message,
+            ViolationSubject: "response",
+            Warnings: warnings);
+
+        RunOutcome RpcFailure(string reason) => new(
+            false, reason, null, null, null, CallDirection.OutboundGrpcCall, null, reason, "response");
     }
 
     /// <summary>
