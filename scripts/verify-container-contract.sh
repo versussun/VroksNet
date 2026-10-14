@@ -110,6 +110,12 @@ wait_healthy
 URL="$(base_url)"
 # The Admin UI is the SPA fallback, so nothing else may claim "/".
 expect_eq "GET / (Admin UI)" "$(curl -s -o /dev/null -w '%{http_code} %{content_type}' "$URL/")" "200 text/html"
+# Blazor can't start if any file it fetches is missing, e.g. a type static files don't know (.dat).
+FRAMEWORK_FILES="$(docker exec "$CURRENT" ls /app/wwwroot/_framework)"
+while read -r FILE; do
+  [[ "$FILE" == *.br || "$FILE" == *.gz ]] && continue
+  expect_eq "GET /_framework/$FILE" "$(curl -s -o /dev/null -w '%{http_code}' "$URL/_framework/$FILE")" 200
+done <<<"$FRAMEWORK_FILES"
 expect_eq "/alive" "$(curl -s -o /dev/null -w '%{http_code}' "$URL/alive")" 200
 INFO="$(curl -sf "$URL/api/system/info")" || fail "GET /api/system/info failed"
 expect_eq "contractVersion" "$(jq -r .contractVersion <<<"$INFO")" "$CONTRACT_VERSION"

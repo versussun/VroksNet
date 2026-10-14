@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.StaticFiles;
 using VroksNet.ApiService.Endpoints;
 using VroksNet.Application;
 using VroksNet.Infrastructure;
@@ -114,7 +115,11 @@ app.MapProvisioningEndpoints();
 // wwwroot is empty (Web runs as its own dev-server process instead) so these are effectively
 // dormant; the multi-stage Dockerfile populates wwwroot from VroksNet.Web's publish output for
 // Production, where this becomes the only process serving both the API and the Admin UI.
-app.UseStaticFiles();
+// Static files serve only known content types, and .dat (Blazor's ICU data, which it can't
+// start without) isn't one; the 404 can't fall back either, since the path has an extension.
+var staticContentTypes = new FileExtensionContentTypeProvider();
+staticContentTypes.Mappings[".dat"] = "application/octet-stream";
+app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = staticContentTypes });
 app.MapFallbackToFile("index.html");
 
 app.Run();
