@@ -12,6 +12,7 @@ The only server process and the **only composition root**, in both dev and prod.
 
 - **Keep it the single composition root.** No other project wires DI for the app.
 - **Serve Web's WASM output with `UseStaticFiles` + `MapFallbackToFile("index.html")` in Production.** Do **not** use `MapStaticAssets()`/`UseBlazorFrameworkFiles()`. See the root `Dockerfile`.
+  - Keep the `.dat` content-type mapping on `UseStaticFiles`. Blazor's ICU data (`_framework/icudt_*.dat`) is a type static files don't know, so without it they 404 (no SPA fallback for a path with an extension) and the Admin UI never starts. The contract check fetches every `_framework` file.
 - **One process, one Docker image.** The root `Dockerfile` is multi-stage: it publishes `VroksNet.Web` first, then copies its `wwwroot` into the final image next to ApiService's own publish output. Keep it that way.
 - **Keep `tini` as the container's PID 1** (`ENTRYPOINT ["/usr/bin/tini", "--", "dotnet", …]` in the `Dockerfile`).
   - Without it, `dotnet` is PID 1, and the kernel drops the SIGABRT its own `abort()` raises on an unhandled exception.
