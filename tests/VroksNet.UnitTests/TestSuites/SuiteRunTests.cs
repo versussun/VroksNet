@@ -224,7 +224,7 @@ public sealed class SuiteRunTests
     {
         private readonly TaskCompletionSource<string> _published = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken)
+        public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken, RpcSendContext? rpc = null)
         {
             events.Enqueue("send");
             if (blockSends)

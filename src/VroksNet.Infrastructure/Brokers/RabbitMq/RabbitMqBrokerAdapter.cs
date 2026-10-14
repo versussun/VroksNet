@@ -71,7 +71,7 @@ public sealed class RabbitMqBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken)
+    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken, RpcSendContext? rpc = null)
     {
         var exchange = options?[ExchangeOption] ?? string.Empty;
         var channelAddress = OperationCompatibility.ChannelAddressOf(operationKey);

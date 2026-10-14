@@ -30,6 +30,11 @@ var apiService = builder.AddProject<Projects.VroksNet_ApiService>("apiservice")
     // CORS on the provider port is off by default; to let a browser front end call the mock, list
     // its origins (or "*"):
     // .WithEnvironment("Provider__CorsOrigins", "http://localhost:5173")
+    // The gRPC mock (ADR 0004, GrpcPortSetup in ApiService): HTTP/2 without TLS, pinned like the
+    // provider port so a gRPC client can be pointed at a stable http://localhost:7354. Aspire's
+    // proxy forwards TCP, so h2c passes through it.
+    .WithHttpEndpoint(port: 7354, name: "grpc", env: "Grpc__Port")
+    .WithEnvironment("Grpc__PublicUrl", "http://localhost:7354")
     .WithHttpHealthCheck("/health");
 
 if (brokers.Contains("rabbitmq"))

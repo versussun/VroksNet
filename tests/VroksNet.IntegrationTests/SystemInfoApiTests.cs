@@ -34,17 +34,18 @@ public sealed class SystemInfoApiTests(AppHostFixture fixture)
         var types = await fixture.ApiServiceClient.GetFromJsonAsync<JsonArray>("/api/system/connection-types", TestContext.Current.CancellationToken);
 
         Assert.NotNull(types);
-        Assert.Equal(["Http", "RabbitMq", "Nats", "Kafka", "Mqtt", "Redis", "ServiceBus", "Sqs", "Sns"], types.Select(type => type!["type"]!.GetValue<string>()));
+        Assert.Equal(["Http", "RabbitMq", "Nats", "Kafka", "Mqtt", "Redis", "ServiceBus", "Sqs", "Sns", "Grpc"], types.Select(type => type!["type"]!.GetValue<string>()));
         var http = types[0]!;
         Assert.Equal("HTTP", http["displayName"]!.GetValue<string>());
         Assert.True(http["isHttp"]!.GetValue<bool>());
         Assert.Equal("Http", http["operationShape"]!.GetValue<string>());
-        // Every broker carries AsyncAPI messages.
-        Assert.All(types.Skip(1), type => Assert.Equal("Message", type!["operationShape"]!.GetValue<string>()));
+        // Every broker carries AsyncAPI messages; Grpc carries gRPC calls (ADR 0004).
+        Assert.All(types.Skip(1).SkipLast(1), type => Assert.Equal("Message", type!["operationShape"]!.GetValue<string>()));
+        Assert.Equal("Rpc", types[^1]!["operationShape"]!.GetValue<string>());
         Assert.False(http["canListen"]!.GetValue<bool>());
         Assert.False(string.IsNullOrWhiteSpace(http["listenNote"]!.GetValue<string>()));
         // Every broker can be listened on except SQS, whose queues are Send only — and it says why.
-        Assert.Equal(["Http", "Sqs"], types.Where(type => !type!["canListen"]!.GetValue<bool>()).Select(type => type!["type"]!.GetValue<string>()));
+        Assert.Equal(["Http", "Sqs", "Grpc"], types.Where(type => !type!["canListen"]!.GetValue<bool>()).Select(type => type!["type"]!.GetValue<string>()));
         Assert.Contains("compete for its messages", types.Single(type => type!["type"]!.GetValue<string>() == "Sqs")!["listenNote"]!.GetValue<string>());
     }
 }

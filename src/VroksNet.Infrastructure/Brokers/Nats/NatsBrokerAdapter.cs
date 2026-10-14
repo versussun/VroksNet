@@ -39,7 +39,7 @@ public sealed class NatsBrokerAdapter : IListeningBrokerAdapter
         }
     }
 
-    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken)
+    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken, RpcSendContext? rpc = null)
     {
         var subject = OperationCompatibility.ChannelAddressOf(operationKey);
         if (subject is null)

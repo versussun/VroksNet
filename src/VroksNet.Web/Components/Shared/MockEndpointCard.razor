@@ -13,8 +13,8 @@
             <span class="badge @(_isEnabled ? "bg-success" : "bg-secondary")">
                 @(_isEnabled ? "Enabled" : "Disabled")
             </span>
-            @* No connection type carries gRPC calls yet (plan step G5), so a test couldn't be saved. *@
-            @if (!IsRpcOperation)
+            @* Only unary gRPC methods can be sent until streaming comes (plan step G7). *@
+            @if (!IsRpcOperation || Endpoint.RpcKind is null or "Unary")
             {
                 <button type="button" class="btn btn-outline-primary btn-sm" @onclick="CreateTest">+ Create test</button>
             }
@@ -55,7 +55,38 @@
 
         @if (IsRpcOperation)
         {
-            <p class="text-muted fst-italic mb-0">gRPC methods are listed with an example of their response message, built from the .proto file. The gRPC mock port that answers them isn't available yet.</p>
+            @if (Endpoint.RpcKind is not (null or "Unary"))
+            {
+                <p class="text-muted fst-italic">Streaming methods aren't mocked yet: a call gets UNIMPLEMENTED.</p>
+            }
+
+            <div class="form-check form-switch mb-2">
+                <input @key="_enabledSwitchVersion" class="form-check-input" type="checkbox" role="switch" id="@($"enabled-{Endpoint.Id}")"
+                       checked="@_isEnabled" disabled="@_isTogglingEnabled" @onchange="ToggleEnabledAsync"
+                       aria-describedby="@($"enabled-help-{Endpoint.Id}")" />
+                <label class="form-check-label" for="@($"enabled-{Endpoint.Id}")">Mock enabled</label>
+                <div id="@($"enabled-help-{Endpoint.Id}")" class="form-text">
+                    When off, a call gets UNIMPLEMENTED. Only one specification can serve a method at a time.
+                </div>
+                @if (_enabledError is not null)
+                {
+                    <div class="text-danger small" role="alert">@_enabledError</div>
+                }
+            </div>
+
+            <p class="form-text mb-0">
+                @if (Provider?.GrpcPort is null)
+                {
+                    <text>The gRPC mock port isn't configured on this server (set <code>Grpc__Port</code>).</text>
+                }
+                else
+                {
+                    <text>Answered on the gRPC port (HTTP/2 without TLS), at its real path. The response is the example, with
+                    <code>{{request.body.&lt;jsonpath&gt;}}</code> and <code>{{request.header.&lt;name&gt;}}</code> filled in from the call;
+                    the request is checked against the .proto (see Call History). For example, with grpcurl:</text>
+                    <code class="d-block mt-1">grpcurl -plaintext -proto &lt;the .proto file&gt; -d '{}' @GrpcAddress @RpcMethod</code>
+                }
+            </p>
         }
         else if (!IsHttpOperation)
         {
@@ -186,6 +217,14 @@
 
     /// <summary>A gRPC method (ADR 0004) — also decided by the server (MockEndpointDetail.OperationShape).</summary>
     private bool IsRpcOperation => Endpoint.OperationShape == "Rpc";
+
+    /// <summary>host:port as grpcurl takes it — the configured public URL without its scheme, or just the port.</summary>
+    private string GrpcAddress => Provider?.GrpcPublicUrl is { } url && Uri.TryCreate(url, UriKind.Absolute, out var uri)
+        ? uri.Authority
+        : $"<host>:{Provider?.GrpcPort}";
+
+    /// <summary>"package.Service/Method", as grpcurl names a method.</summary>
+    private string RpcMethod => Endpoint.OperationKey.Split(' ', 2)[^1].TrimStart('/');
 
     private string RpcKindLabel => Endpoint.RpcKind switch
     {

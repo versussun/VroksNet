@@ -9,7 +9,7 @@ namespace VroksNet.ApiService.Endpoints;
 /// real service only needs its host:port pointed here. Being a separate port is what keeps a spec's
 /// paths from ever colliding with ApiService's own routes (/api, /health, the Admin UI and its SPA
 /// fallback): nothing but the mock is reachable on it. Off unless <c>Provider:Port</c> is set
-/// (env <c>Provider__Port</c>); AppHost and the Dockerfile both set it. CORS on it is off unless
+/// (env <c>Provider__Port</c>); AppHost and the Dockerfile both set it. <see cref="ListenSetup"/> binds it. CORS on it is off unless
 /// <c>Provider:CorsOrigins</c> lists the browser origins allowed (see <see cref="ProviderSettings.CorsOriginsFrom"/>).
 /// </summary>
 public static class ProviderPortSetup
@@ -19,36 +19,10 @@ public static class ProviderPortSetup
     private const string CorsPolicy = "Provider";
 
     /// <summary>
-    /// Adds the provider port to the addresses the server already listens on (see
-    /// <see cref="ProviderListenAddresses.Merge"/>, which also refuses a port that would collide
-    /// with them). Kestrel ignores UseUrls when <c>Kestrel:Endpoints</c> is configured, which would
-    /// leave provider mode silently dead — so that combination fails at startup instead.
-    /// </summary>
-    public static int? ListenOnProviderPort(this WebApplicationBuilder builder)
-    {
-        if (builder.Configuration.GetValue<int?>(PortConfigKey) is not { } port)
-        {
-            return null;
-        }
-
-        if (builder.Configuration.GetSection("Kestrel:Endpoints").GetChildren().Any())
-        {
-            throw new InvalidOperationException(
-                "Provider:Port can't be combined with Kestrel:Endpoints configuration (Kestrel would ignore the added address). Configure the provider port as one of the Kestrel endpoints' ports instead, or drop Kestrel:Endpoints.");
-        }
-
-        var addresses = ProviderListenAddresses.Merge(
-            builder.Configuration["urls"], builder.Configuration["http_ports"], builder.Configuration["https_ports"], port);
-        builder.WebHost.UseUrls([.. addresses]);
-        AddProviderCors(builder);
-        return port;
-    }
-
-    /// <summary>
     /// Its own policy, separate from the Admin UI's dev one: any method and header, no credentials
     /// (the mock isn't about auth). Registered only when origins are configured.
     /// </summary>
-    private static void AddProviderCors(WebApplicationBuilder builder)
+    internal static void AddProviderCors(WebApplicationBuilder builder)
     {
         var origins = ProviderSettings.CorsOriginsFrom(builder.Configuration);
         if (origins.Count == 0)

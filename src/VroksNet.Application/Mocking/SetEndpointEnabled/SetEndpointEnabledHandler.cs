@@ -1,13 +1,15 @@
 using Mediator;
 using VroksNet.Application.Abstractions;
+using VroksNet.Domain.Connections;
 using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Application.Mocking.SetEndpointEnabled;
 
 /// <summary>
-/// Refused for a non-HTTP operation: AsyncAPI operations aren't served by the mock, so the switch
-/// would mean nothing. Turning an operation off doesn't touch its provider-mode switch — it just
-/// stops answering until it's turned back on.
+/// Refused for an AsyncAPI operation: those aren't served by the mock, so the switch would mean
+/// nothing. HTTP and gRPC operations can be switched; turning on a gRPC method another
+/// specification already serves is refused (<see cref="RpcServingRules"/>). Turning an operation off
+/// doesn't touch its provider-mode switch — it just stops answering until it's turned back on.
 /// </summary>
 public sealed class SetEndpointEnabledHandler(IApiSpecificationRepository specifications)
     : IRequestHandler<SetEndpointEnabled, SetEndpointEnabledResult>
@@ -21,9 +23,15 @@ public sealed class SetEndpointEnabledHandler(IApiSpecificationRepository specif
             return new SetEndpointEnabledResult(Found: false);
         }
 
-        if (!OperationCompatibility.IsHttpOperation(endpoint.OperationKey))
+        if (OperationCompatibility.ShapeOf(endpoint.OperationKey) == OperationShape.Message)
         {
-            return new SetEndpointEnabledResult(Found: true, "Only HTTP operations are served by the mock, so only they can be turned on or off.");
+            return new SetEndpointEnabledResult(Found: true, "AsyncAPI operations aren't served by the mock, so they can't be turned on or off.");
+        }
+
+        if (request.Enabled && RpcServingRules.IsRpc(endpoint)
+            && RpcServingRules.ServedElsewhere(endpoint.OperationKey, endpoint.SpecificationId, all) is { } served)
+        {
+            return new SetEndpointEnabledResult(Found: true, RpcServingRules.AlreadyServed(endpoint.OperationKey, served.SpecificationTitle));
         }
 
         var updated = await specifications.SetEnabledAsync([endpoint.Id], request.Enabled, cancellationToken);

@@ -60,8 +60,25 @@ public sealed class SetEndpointEnabledHandlerTests
         var result = await Handler.Handle(new SetEndpointEnabled(endpoint.Id, false), TestContext.Current.CancellationToken);
 
         Assert.True(result.Found);
-        Assert.Contains("Only HTTP operations", result.Refusal);
+        Assert.Contains("AsyncAPI operations aren't served", result.Refusal);
         Assert.True(endpoint.IsEnabled);
+    }
+
+    /// <summary>ADR 0004: a gRPC method answers at its real path, so only one specification may serve it.</summary>
+    [Fact]
+    public async Task GrpcMethod_CanBeSwitched_ButNotOnWhileAnotherSpecServesIt()
+    {
+        var (_, first) = await AddSpecAsync("orders.v1 (Orders)", "RPC /orders.v1.Orders/Get");
+        var (_, second) = await AddSpecAsync("orders.v1 (Admin, Orders)", "RPC /orders.v1.Orders/Get");
+        second.IsEnabled = false;
+
+        var refused = await Handler.Handle(new SetEndpointEnabled(second.Id, true), TestContext.Current.CancellationToken);
+        Assert.Equal("/orders.v1.Orders/Get is already served by \"orders.v1 (Orders)\" — turn that one off first.", refused.Refusal);
+        Assert.False(second.IsEnabled);
+
+        Assert.True((await Handler.Handle(new SetEndpointEnabled(first.Id, false), TestContext.Current.CancellationToken)).Succeeded);
+        Assert.True((await Handler.Handle(new SetEndpointEnabled(second.Id, true), TestContext.Current.CancellationToken)).Succeeded);
+        Assert.True(second.IsEnabled);
     }
 
     [Fact]

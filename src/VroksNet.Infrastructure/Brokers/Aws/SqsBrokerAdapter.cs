@@ -22,7 +22,7 @@ public sealed class SqsBrokerAdapter : IBrokerAdapter
     public Task<ConnectionTestResult> TestAsync(Connection connection, CancellationToken cancellationToken)
         => AwsClients.TestAsync(connection.Value, cancellationToken);
 
-    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken)
+    public async Task<MessageSendResult> SendAsync(Connection connection, string operationKey, string? payload, BrokerOptions? options, CancellationToken cancellationToken, RpcSendContext? rpc = null)
     {
         var address = OperationCompatibility.ChannelAddressOf(operationKey);
         if (address is null)

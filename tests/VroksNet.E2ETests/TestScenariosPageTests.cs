@@ -138,6 +138,60 @@ public sealed class TestScenariosPageTests(AppHostFixture fixture) : PageTestBas
         await Expect(contract.Locator("li")).Not.ToHaveCountAsync(0);
     }
 
+    /// <summary>
+    /// gRPC Send (ADR 0004, plan step G5): a .proto imported in the UI, a gRPC connection pointed at
+    /// VroksNet's own gRPC mock, and a run that comes back OK and matching the response message.
+    /// </summary>
+    [Fact]
+    public async Task GrpcScenario_CallsTheGrpcMock_AndShowsTheResult()
+    {
+        var package = $"e2e.send{Guid.NewGuid():N}";
+        var specTitle = $"{package} (Echo)";
+        var connectionName = $"E2E gRPC Connection {package}";
+        var scenarioName = $"E2E gRPC Scenario {package}";
+
+        await Page.GotoAsync("/specifications");
+        await Page.Locator("#spec-kind-select").SelectOptionAsync("Proto");
+        await Page.Locator("input[type=file]").SetInputFilesAsync(new FilePayload
+        {
+            Name = "echo.proto",
+            MimeType = "text/plain",
+            Buffer = Encoding.UTF8.GetBytes($$"""
+                syntax = "proto3";
+                package {{package}};
+                service Echo { rpc Say (SayRequest) returns (SayReply); }
+                message SayRequest { string text = 1; }
+                message SayReply { string text = 1; int32 count = 2; }
+                """),
+        });
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = specTitle })).ToBeVisibleAsync();
+
+        await Page.GotoAsync("/settings");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add connection" }).ClickAsync();
+        await Page.GetByLabel("Name").FillAsync(connectionName);
+        await Page.GetByLabel("Service type").SelectOptionAsync("Grpc");
+        await Page.GetByLabel("URL").FillAsync(Fixture.GrpcAddress.GetLeftPart(UriPartial.Authority));
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
+        await Expect(Page.Locator("table tbody tr", new PageLocatorOptions { HasText = connectionName })).ToBeVisibleAsync();
+
+        await Page.GotoAsync("/test-scenarios");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Add test scenario" }).ClickAsync();
+        await Page.GetByLabel("Name").FillAsync(scenarioName);
+        await Page.GetByLabel("Specification").SelectOptionAsync(new SelectOptionValue { Label = $"{specTitle} (Proto)" });
+        await Expect(Page.Locator("#scenario-operation-select option")).ToHaveCountAsync(2);
+        await Page.GetByLabel("Operation").SelectOptionAsync(new SelectOptionValue { Label = $"RPC /{package}.Echo/Say" });
+        await Page.GetByLabel("Connection").SelectOptionAsync(new SelectOptionValue { Label = $"{connectionName} (Grpc)" });
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add", Exact = true }).ClickAsync();
+
+        var row = Page.Locator("table tbody tr", new PageLocatorOptions { HasText = scenarioName });
+        await row.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Run", Exact = true }).ClickAsync();
+
+        await Expect(row.Locator("span.badge", new LocatorLocatorOptions { HasText = "OK" }).Last).ToBeVisibleAsync();
+        var contract = row.GetByRole(AriaRole.Status, new LocatorGetByRoleOptions { Name = "Contract check" });
+        await Expect(contract).ToContainTextAsync("Matches spec");
+        await Expect(row.Locator("pre code")).ToContainTextAsync("\"text\": \"string\"");
+    }
+
     [Fact]
     public async Task ListenScenario_ForASendOperation_DefaultsToListen_AndReportsATimeout()
     {

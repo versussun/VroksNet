@@ -11,7 +11,7 @@
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
         <h1>Test Scenarios</h1>
-        <p class="text-muted mb-0">Pick a message from an imported specification and send it to a connection — an HTTP service, or a RabbitMQ/NATS/Kafka broker.</p>
+        <p class="text-muted mb-0">Pick a message from an imported specification and send it to a connection — an HTTP or gRPC service, or a broker.</p>
     </div>
     <button type="button" class="btn btn-primary text-nowrap ms-3" @onclick="OpenAddPanel">+ Add test scenario</button>
 </div>
@@ -292,7 +292,7 @@ else
             <div class="mb-3">
                 <label class="form-label" for="scenario-payload-textarea">Payload (optional override)</label>
                 <textarea id="scenario-payload-textarea" class="form-control" rows="4" @bind="_formPayloadOverride" @bind:event="oninput"
-                          placeholder="Leave blank to send the operation's own example from the spec"></textarea>
+                          placeholder="@(SelectedEndpoint?.OperationShape == "Rpc" ? "Leave blank to send an empty request message ({}) — the request message as proto3 JSON" : "Leave blank to send the operation's own example from the spec")"></textarea>
             </div>
         }
 

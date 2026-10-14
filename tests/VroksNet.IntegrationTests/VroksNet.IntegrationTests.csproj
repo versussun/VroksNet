@@ -20,6 +20,10 @@
     <PackageReference Include="Aspire.Hosting.Testing" />
     <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="coverlet.collector" />
+    <!-- The gRPC mock's client (ADR 0004): generated from Protos/, the same file the test imports. -->
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <!-- Same two direct references as VroksNet.Infrastructure (MessageSender) — used here to
          consume straight off the real broker containers AppHost boots, proving a run actually
@@ -33,6 +37,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\VroksNet.AppHost\VroksNet.AppHost.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="Protos\*.proto" GrpcServices="Client" />
+    <Content Include="Protos\*.proto" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

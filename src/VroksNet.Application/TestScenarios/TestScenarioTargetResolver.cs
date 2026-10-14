@@ -1,6 +1,7 @@
 using VroksNet.Application.Abstractions;
 using VroksNet.Application.Connections;
 using VroksNet.Domain.Connections;
+using VroksNet.Domain.MockEndpoints;
 using VroksNet.Domain.TestScenarios;
 
 namespace VroksNet.Application.TestScenarios;
@@ -8,7 +9,7 @@ namespace VroksNet.Application.TestScenarios;
 /// <summary>Shared by <c>CreateTestScenarioHandler</c>/<c>UpdateTestScenarioHandler</c> so both validate the same way.</summary>
 public static class TestScenarioTargetResolver
 {
-    /// <summary>Throws <see cref="ArgumentException"/> if the specification/operation/connection don't exist, or the operation can't be sent through that connection's service type — see <see cref="OperationCompatibility"/>.</summary>
+    /// <summary>Throws <see cref="ArgumentException"/> if the specification/operation/connection don't exist, or the operation can't be sent through that connection's service type — see <see cref="OperationCompatibility"/> — or is a streaming gRPC method (not sent until plan step G7).</summary>
     public static async Task<ResolvedTestScenarioTarget> ResolveAsync(
         IApiSpecificationRepository specifications,
         IConnectionRepository connections,
@@ -29,6 +30,12 @@ public static class TestScenarioTargetResolver
         if (!OperationCompatibility.IsCompatible(endpoint.OperationKey, connection.ServiceType))
         {
             throw new ArgumentException($"Operation \"{endpoint.OperationKey}\" can't be sent through a {connection.ServiceType} connection.");
+        }
+
+        // Streaming Send comes with plan step G7 (ADR 0004).
+        if (endpoint.RpcKind is { } rpcKind && rpcKind != RpcKind.Unary)
+        {
+            throw new ArgumentException($"Operation \"{endpoint.OperationKey}\" is a streaming method — only unary gRPC methods can be sent for now.");
         }
 
         return new ResolvedTestScenarioTarget(specification, endpoint, connection);

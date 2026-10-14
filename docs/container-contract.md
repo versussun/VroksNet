@@ -34,8 +34,9 @@ Not covered here: the Admin UI's REST API (`docs/guides/contract-testing/api-ref
 |---|---|---|---|---|
 | `8080` | HTTP | REST API, Admin UI, `/health`, `/alive`, mocks under `/mock/…` | `http` | exists |
 | `7353` | HTTP | provider mode: mocks at the spec's real paths | `provider` | exists |
+| `7354` | HTTP/2 without TLS (h2c) | the gRPC mock (ADR 0004): every method of the imported `.proto` files at its real path | `grpc` | exists |
 
-The container speaks only HTTP. TLS is the job of a proxy or the orchestrator.
+The container speaks only HTTP. TLS is the job of a proxy or the orchestrator. A proxy in front of `7354` must forward HTTP/2 as is: one that downgrades to HTTP/1.1 breaks gRPC.
 
 ## 4. File system
 
@@ -61,11 +62,13 @@ Names are given in .NET environment-variable form (`:` → `__`).
 | `Provider__Port` | `7353` | the provider mode port |
 | `Provider__PublicUrl` | — | the provider port's address **as the user sees it** (the Admin UI shows it in hints). The package passes the external URL of the `provider` endpoint here |
 | `Provider__CorsOrigins` | — (CORS off) | comma-separated origins, or `*`, for browser frontends calling the mock |
+| `Grpc__Port` | `7354` | the gRPC mock port (HTTP/2 only). Unset: no gRPC mock |
+| `Grpc__PublicUrl` | — | the gRPC port's address as clients see it (the Admin UI shows it in its grpcurl hint). The package passes the external URL of the `grpc` endpoint here |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` and other `OTEL_*` | — | exporting logs, traces and metrics (ServiceDefaults). The package calls `WithOtlpExporter()`, and the telemetry shows up in the Aspire dashboard |
 | `Provisioning__Path` | `/app/provisioning` | the provisioning root |
 | `Provisioning__FailOnError` | `true` | a provisioning error stops the process (§7). `false` — log it, report `Failed` (and `/health` `Degraded`, still 200), keep running with what applied |
 | `Provisioning__Connections__<i>__Name` | — | a connection declared **without a manifest**, where `<i>` = 0, 1, …. This is how the package passes `WithConnection(...)` without generating files. Indexes rather than names in the key: a connection name may contain `-`, which isn't valid in an environment variable name for POSIX shells |
-| `Provisioning__Connections__<i>__Type` | — | `Http` / `RabbitMq` / `Nats` / `Kafka` / `Mqtt` / `Redis` / `ServiceBus` / `Sqs` / `Sns` (the last five added in v1 — additive) |
+| `Provisioning__Connections__<i>__Type` | — | `Http` / `RabbitMq` / `Nats` / `Kafka` / `Mqtt` / `Redis` / `ServiceBus` / `Sqs` / `Sns` / `Grpc` (the last six added in v1 — additive) |
 | `Provisioning__Connections__<i>__Value` | — | the connection value as-is |
 | `Provisioning__Connections__<i>__ValueFrom` | — | a configuration key to take the value from, e.g. `ConnectionStrings:kafka` (set by Aspire's `WithReference(kafka)`). Exactly one of `Value` and `ValueFrom` |
 | `ConnectionStrings__<name>` | — | connection strings to brokers and services that `valueFrom` refers to. VroksNet itself doesn't read them |
@@ -81,7 +84,7 @@ Names are given in .NET environment-variable form (`:` → `__`).
 | `GET /alive` | `200` / `503` | liveness: the process is alive | exists |
 | `GET /health` | `200 Healthy` / `503 Unhealthy` | readiness: Unhealthy until provisioning has been applied (Healthy at once when there's no provisioning directory; `Degraded`, still 200, when it failed with `FailOnError=false`). This is what `WaitFor(mocks)` waits for | exists |
 | `GET /api/system/info` | see below | version, contract, provisioning state. The package shows it in the dashboard; consumers' tests wait on it | exists |
-| `GET /api/system/provider` | `{ enabled, port, publicUrl, corsOrigins }` | provider mode settings | exists |
+| `GET /api/system/provider` | `{ enabled, port, publicUrl, corsOrigins, grpcPort, grpcPublicUrl }` | provider mode settings, and the gRPC mock's port and address (`grpcPort` null when it's off; both added in contract 1) | exists |
 | `GET /api/system/connection-types` | `[{ type, displayName, valueLabel, valueHint, isHttp, operationShape, canListen, listenNote, options: [{ name, label, sendDescription, sendPlaceholder, listenDescription, listenPlaceholder, suggestedValue, allowedValues }] }]` | the connection types this image supports, what each can do, and the `brokerOptions` each accepts (ADR 0003). `operationShape` — `Http`, `Message` or `Rpc` (ADR 0004) — is which operations the type carries; `isHttp` stays for v1 and equals `operationShape == "Http"`. `sendDescription`/`sendPlaceholder` are null for an option that only applies to Listen (ServiceBus `subscription`, Sns `queue`), `listenDescription`/`listenPlaceholder` for one that only applies to Send. New types are added to the list, never removed within a contract version | exists |
 | `GET /api/provisioning/export` | `200`, `application/zip` (`vroksnet-provisioning.zip`) | the current configuration as a provisioning directory: `specs/<file>` per spec (a .proto specification as its own file and the files it imports, at their paths) and `vroksnet.yaml` (manifest v1), so mounting it at `/app/provisioning` provisions an empty instance with the same objects. Each connection's value becomes `valueFrom: ConnectionStrings:<name>`, the name reduced to `[A-Za-z0-9_-]`, and the manifest's header lists those variables; `?inlineValues=true` writes the values instead. The package's export command writes it to the host | exists |
 
@@ -147,7 +150,8 @@ The package lives in its own repository. The table shows which contract item eac
 ## 9. How the contract is verified in this repository
 
 `scripts/verify-container-contract.sh <image>` checks a built image. The *Publish image* workflow builds the amd64 image, runs the script, and pushes nothing unless it passes — on pull requests that touch the image, the samples or the schema, too. It checks:
-1. §2/§3: the `io.vroksnet.contract.version` label equals `ContainerContract.Version` in the code, the OCI labels are set, the user is `1654`, the entry point is `tini`, ports `8080`/`7353` are exposed, `/app/data` is a volume, and the shipped schema matches `docs/schemas/`;
+1. §2/§3: the `io.vroksnet.contract.version` label equals `ContainerContract.Version` in the code, the OCI labels are set, the user is `1654`, the entry point is `tini`, ports `8080`/`7353`/`7354` are exposed, `/app/data` is a volume, and the shipped schema matches `docs/schemas/`;
+   - §3: with `docs/samples/grpc` mounted as `specs/`, `grpcurl` (in a container on the same network) calls `demo.greeter.v1.Greeter/SayHello` on `7354` and gets the example, and an unknown method is `UNIMPLEMENTED`;
 2. §4–§6: with every `docs/samples/*.yaml` mounted file by file into `/app/provisioning/specs`, `docs/samples/provisioning/vroksnet.yaml` as the manifest and `Provisioning__Connections__0__*`: `/health` reaches 200, `/alive` is 200, `GET /api/system/info` reports `contractVersion`, a version, `status = Applied`, `source`, the expected counts and no errors;
 3. §7: `docker stop` exits `0`; a second container on the same volume creates no duplicates;
    and the manifest's `runOnStartup` suite (`smoke`) runs after provisioning and passes;

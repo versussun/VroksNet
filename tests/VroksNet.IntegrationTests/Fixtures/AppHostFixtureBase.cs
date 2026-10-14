@@ -41,6 +41,9 @@ public abstract class AppHostFixtureBase(IReadOnlyList<string> brokers) : IAsync
     /// <summary>apiservice's provider-mode port (AppHost.cs "provider" endpoint): the mock at real spec paths, nothing else.</summary>
     public Uri ProviderAddress { get; private set; } = null!;
 
+    /// <summary>apiservice's gRPC mock port (AppHost.cs "grpc" endpoint, ADR 0004): h2c, every imported .proto method at its real path.</summary>
+    public Uri GrpcAddress { get; private set; } = null!;
+
     public async ValueTask InitializeAsync()
     {
         // No TestContext exists yet during fixture construction — CancellationToken.None is the
@@ -64,6 +67,7 @@ public abstract class AppHostFixtureBase(IReadOnlyList<string> brokers) : IAsync
         ApiServiceClient = App.CreateHttpClient("apiservice", "https");
         ApiServiceHttpAddress = App.GetEndpoint("apiservice", "http");
         ProviderAddress = App.GetEndpoint("apiservice", "provider");
+        GrpcAddress = App.GetEndpoint("apiservice", "grpc");
     }
 
     public async ValueTask DisposeAsync()

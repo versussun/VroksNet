@@ -96,9 +96,14 @@ ENV ConnectionStrings__VroksNetDb="Data Source=/app/data/vroksnet.db"
 # as AppHost's pinned provider endpoint, so it's 7353 everywhere. CORS on it stays off unless the
 # container is run with -e Provider__CorsOrigins=<origins, or *>.
 ENV Provider__Port=7353
-EXPOSE 8080 7353
 
-# Everything above runs as root (apt, chown); the app itself doesn't. Both ports are above 1024,
+# The gRPC mock (ADR 0004, see ApiService's GrpcPortSetup): HTTP/2 without TLS (h2c) on its own
+# port, every method of the imported .proto files at its real path. Same number as AppHost's
+# pinned grpc endpoint.
+ENV Grpc__Port=7354
+EXPOSE 8080 7353 7354
+
+# Everything above runs as root (apt, chown); the app itself doesn't. All ports are above 1024,
 # so binding them needs no privileges.
 USER $APP_UID
 
