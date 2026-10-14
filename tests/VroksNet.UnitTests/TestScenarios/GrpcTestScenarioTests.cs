@@ -173,6 +173,11 @@ public sealed class GrpcTestScenarioTests
     }
 
     private async Task<RunTestScenarioResult> RunAsync(Guid scenarioId, FakeMessageSender sender)
-        => await TestRunHandlers.Run(_scenarios, _specifications, _connections, sender, new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), _callRecords)
+    {
+        var result = await TestRunHandlers.Run(_scenarios, _specifications, _connections, sender, new FakeMessageListener(new MessageListenResult(false, "unused")), new SchemaValidator(), _callRecords)
             .Handle(new RunTestScenario(scenarioId), TestContext.Current.CancellationToken);
+        // Null only for a scenario that doesn't exist.
+        Assert.NotNull(result);
+        return result;
+    }
 }
