@@ -135,14 +135,20 @@ docker network create "$RUN_ID-net" >/dev/null
 PROVISIONED="$CURRENT"
 start grpc --network "$RUN_ID-net" --network-alias vroksnet -v "$ROOT/docs/samples/grpc:/app/provisioning/specs:ro"
 wait_healthy
-GRPCURL=(docker run --rm --network "$RUN_ID-net" -v "$ROOT/docs/samples/grpc:/protos:ro" fullstorydev/grpcurl:v1.9.3 -plaintext -import-path /protos -proto greeter.proto)
-GRPC_REPLY="$("${GRPCURL[@]}" -d '{"name":"contract"}' vroksnet:7354 demo.greeter.v1.Greeter/SayHello 2>&1)" || fail "the gRPC mock didn't answer SayHello: $GRPC_REPLY"
+GRPCURL_IMAGE=fullstorydev/grpcurl:v1.9.3
+# Pulled up front: docker run's "Unable to find image" goes to stderr and would land in the reply jq reads.
+docker pull -q "$GRPCURL_IMAGE" >/dev/null
+GRPCURL=(docker run --rm --network "$RUN_ID-net" -v "$ROOT/docs/samples/grpc:/protos:ro" "$GRPCURL_IMAGE" -plaintext -import-path /protos -proto greeter.proto)
+GRPC_STDERR="$(mktemp)"
+GRPC_REPLY="$("${GRPCURL[@]}" -d '{"name":"contract"}' vroksnet:7354 demo.greeter.v1.Greeter/SayHello 2>"$GRPC_STDERR")" \
+  || fail "the gRPC mock didn't answer SayHello: $GRPC_REPLY$(cat "$GRPC_STDERR")"
+rm -f "$GRPC_STDERR"
 expect_eq "SayHello's message" "$(jq -r .message <<<"$GRPC_REPLY")" "string"
 # grpcurl checks a method against its .proto first, so the unknown one comes from a file of its own.
 GHOST_DIR="$(mktemp -d)"
 printf 'syntax = "proto3";\npackage ghost.v1;\nimport "google/protobuf/empty.proto";\nservice Ghost { rpc Nope (google.protobuf.Empty) returns (google.protobuf.Empty); }\n' >"$GHOST_DIR/ghost.proto"
 chmod -R a+rX "$GHOST_DIR"
-GRPC_ERROR="$(docker run --rm --network "$RUN_ID-net" -v "$GHOST_DIR:/protos:ro" fullstorydev/grpcurl:v1.9.3 -plaintext -import-path /protos -proto ghost.proto -d '{}' vroksnet:7354 ghost.v1.Ghost/Nope 2>&1 || true)"
+GRPC_ERROR="$(docker run --rm --network "$RUN_ID-net" -v "$GHOST_DIR:/protos:ro" "$GRPCURL_IMAGE" -plaintext -import-path /protos -proto ghost.proto -d '{}' vroksnet:7354 ghost.v1.Ghost/Nope 2>&1 || true)"
 rm -rf "$GHOST_DIR"
 grep -q "Code: Unimplemented" <<<"$GRPC_ERROR" || fail "an unknown method should be UNIMPLEMENTED, got: $GRPC_ERROR"
 pass "gRPC mock on 7354 (h2c): SayHello answers from the provisioned .proto, an unknown method is UNIMPLEMENTED"
