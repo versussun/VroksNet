@@ -5,6 +5,7 @@ VroksNet checks that services keep to their OpenAPI and AsyncAPI contracts. You 
 ## Start here
 
 - [Getting started](getting-started.md): running VroksNet, the main concepts (specifications, connections, test scenarios, Call History) and the addresses you'll use.
+- [Connections](../connections.md): adding connections in the UI, through the API, in `vroksnet.yaml` or from environment variables.
 
 ## The four kinds of test
 

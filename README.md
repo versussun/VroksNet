@@ -93,6 +93,20 @@ The main settings, as environment variables. All of them are in the [runbook](do
 | `Provider__Port` | `7353` | the provider port (mocks at real paths) |
 | `Provider__PublicUrl` | — | the provider port's address as users see it, shown in the Admin UI |
 | `Provider__CorsOrigins` | — (CORS off) | origins a browser app may call the provider port from, comma-separated or `*` |
+| `Provisioning__Connections__<i>__Name` / `__Type` / `__Value` (or `__ValueFrom`) | — | a connection created at startup, `<i>` = 0, 1, … |
+
+Connections can be added in the Admin UI, or declared at startup with no files at all:
+
+```bash
+docker run -d --name vroksnet -p 8080:8080 -p 7353:7353 \
+  -v vroksnet-data:/app/data \
+  -e Provisioning__Connections__0__Name=kafka \
+  -e Provisioning__Connections__0__Type=Kafka \
+  -e Provisioning__Connections__0__Value=host.docker.internal:9092 \
+  ghcr.io/versussun/vroksnet:latest
+```
+
+Every way to add a connection (UI, API, `vroksnet.yaml`, variables, Compose), with examples: [Connections](docs/guides/connections.md).
 
 ## Project structure
 
@@ -124,6 +138,7 @@ CI runs all three suites on every pull request, and `master` only accepts pull r
 
 - **Using it**
   - [Contract testing guides](docs/guides/contract-testing/README.md) — getting started, a guide per test type, the API reference.
+  - [Connections](docs/guides/connections.md) — adding connections in the UI, through the API, in `vroksnet.yaml` or from environment variables.
   - [Sample specifications](docs/samples/README.md) — ready-to-import specs and the import rules they rely on.
 - **Running it**
   - [Runbook](docs/runbook.md) — deploying, configuring, backing up, upgrading and troubleshooting an instance.

@@ -53,7 +53,7 @@ API=http://localhost:8080          # Docker
 
 For each operation VroksNet keeps the example (used as the message to send or the mock's answer) and the JSON Schemas it validates against. An operation the spec gives no example gets one built from its schema: every declared property, values the schema itself gives (`example`, `default`, `enum`…) where it has them, `{{uuid}}`/`{{now}}` for `uuid`/`date-time` strings, and values within the declared bounds elsewhere — the operation card marks it "built from the schema". A `pattern` can't be followed, so such a string may not match; add an example to the spec for realistic values. Re-uploading a spec with the same `info.title` replaces the previous version.
 
-**Connection.** Where a service or broker lives, created on the **Settings** page:
+**Connection.** Where a service or broker lives, created on the **Settings** page. It can also be declared at startup, in a `vroksnet.yaml` or in environment variables: see [Connections](../connections.md) for every way, with examples.
 
 | Service type | Value | Example |
 |---|---|---|

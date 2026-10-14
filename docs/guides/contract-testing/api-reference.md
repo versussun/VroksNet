@@ -20,11 +20,14 @@ Names of connections, test scenarios and Publishers are unique within each kind,
 
 | Method & path | Body | Returns |
 |---|---|---|
-| `POST /api/connections` | `{ "name", "serviceType": "Http" \| "RabbitMq" \| "Nats" \| "Kafka", "value" }` | `{ "id" }` |
-| `GET /api/connections` | | list |
-| `PUT /api/connections/{id}` | same as create | `204` / `404` |
+| `POST /api/connections` | `{ "name", "serviceType", "value" }`; `serviceType` is `Http`, `RabbitMq`, `Nats`, `Kafka`, `Mqtt`, `Redis`, `ServiceBus`, `Sqs`, `Sns` or `Grpc` | `{ "id" }`; `400 { "detail" }` |
+| `GET /api/connections` | | `[{ "id", "name", "serviceType", "value", "createdAt", "updatedAt", "provisionedAt" }]` |
+| `PUT /api/connections/{id}` | same as create | `204` / `400` / `404` |
 | `DELETE /api/connections/{id}` | | `204` / `404` |
 | `POST /api/connections/{id}/test` | | `{ "success", "message" }` / `404` |
+| `POST /api/connections/test` | `{ "serviceType", "value" }` — a value not saved yet | `{ "success", "message" }` |
+
+Connections can also be declared at startup, in the manifest or in environment variables: see [Connections](../connections.md).
 
 ## Test scenarios (Types 1, 2, 4)
 
