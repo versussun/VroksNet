@@ -108,6 +108,8 @@ pass "image: labels, user, entry point, ports, volume, schema"
 start provisioned -v "$VOLUME:/app/data" "${SPEC_MOUNTS[@]}" "${MANIFEST_MOUNT[@]}" "${KAFKA_ENV[@]}"
 wait_healthy
 URL="$(base_url)"
+# The Admin UI is the SPA fallback, so nothing else may claim "/".
+expect_eq "GET / (Admin UI)" "$(curl -s -o /dev/null -w '%{http_code} %{content_type}' "$URL/")" "200 text/html"
 expect_eq "/alive" "$(curl -s -o /dev/null -w '%{http_code}' "$URL/alive")" 200
 INFO="$(curl -sf "$URL/api/system/info")" || fail "GET /api/system/info failed"
 expect_eq "contractVersion" "$(jq -r .contractVersion <<<"$INFO")" "$CONTRACT_VERSION"

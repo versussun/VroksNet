@@ -96,8 +96,6 @@ if (app.Environment.IsDevelopment())
     app.UseCors(WebDevCorsPolicy);
 }
 
-app.MapGet("/", () => "API service is running.");
-
 app.MapDefaultEndpoints();
 app.MapSpecificationEndpoints();
 app.MapMockInvocationEndpoints();
