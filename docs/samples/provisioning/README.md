@@ -27,7 +27,8 @@ docker run --rm -p 8080:8080 \
 ```
 
 The specs and the manifest are mounted file by file, as the Aspire package does; mounting a
-whole directory at `/app/provisioning/specs` works as well.
+whole directory at `/app/provisioning/specs` works as well, and so does mounting several, each into
+its own subfolder: [Specification folders](../../guides/specifications.md).
 
 ## Check it
 

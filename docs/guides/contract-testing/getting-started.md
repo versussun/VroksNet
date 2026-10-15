@@ -104,6 +104,8 @@ curl -s -X POST "$API/api/specifications/asyncapi" \
 
 A file that doesn't parse returns `400` with the parser's message.
 
+**At startup:** mount a folder of specs (or several) and they're imported every time the container starts — see [Specification folders](../specifications.md).
+
 ## Create a connection
 
 **UI:** **Settings** → **+ Add connection** → Name, Service type, URL / Connection string → **Add**.

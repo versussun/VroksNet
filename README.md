@@ -139,6 +139,7 @@ CI runs all three suites on every pull request, and `master` only accepts pull r
 - **Using it**
   - [Contract testing guides](docs/guides/contract-testing/README.md) — getting started, a guide per test type, the API reference.
   - [Connections](docs/guides/connections.md) — adding connections in the UI, through the API, in `vroksnet.yaml` or from environment variables.
+  - [Specification folders](docs/guides/specifications.md) — loading specs at startup from one or several mounted folders, with Docker, Compose or Aspire.
   - [Sample specifications](docs/samples/README.md) — ready-to-import specs and the import rules they rely on.
 - **Running it**
   - [Runbook](docs/runbook.md) — deploying, configuring, backing up, upgrading and troubleshooting an instance.
